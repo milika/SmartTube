@@ -1,5 +1,6 @@
 #if canImport(SwiftUI)
 import SwiftUI
+import SmartTubeIOSCore
 
 // MARK: - BrowseView
 //
@@ -7,7 +8,10 @@ import SwiftUI
 
 public struct BrowseView: View {
     @EnvironmentObject private var vm: BrowseViewModel
+    @EnvironmentObject private var auth: AuthService
     @State private var selectedVideo: Video?
+    @State private var showSignIn = false
+    @State private var showError = false
 
     public init() {}
 
@@ -27,12 +31,16 @@ public struct BrowseView: View {
         .navigationDestination(item: $selectedVideo) { video in
             PlayerView(video: video)
         }
-        .alert("Error", isPresented: .constant(vm.error != nil), presenting: vm.error) { _ in
+        .alert("Error", isPresented: $showError, presenting: vm.error) { _ in
             Button("Retry") { vm.loadContent(refresh: true) }
-            Button("Dismiss", role: .cancel) {}
+            Button("Dismiss", role: .cancel) { vm.error = nil }
         } message: { err in
             Text(err.localizedDescription)
         }
+        .onChange(of: vm.error == nil ? 0 : 1) { _, hasError in
+            if hasError == 1 { showError = true }
+        }
+        .sheet(isPresented: $showSignIn) { SignInView() }
         .onAppear {
             if vm.videoGroups.isEmpty { vm.loadContent() }
         }
@@ -44,6 +52,9 @@ public struct BrowseView: View {
     private var content: some View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 0) {
+                if vm.isAuthRequired && !auth.isSignedIn {
+                    guestBanner
+                }
                 ForEach(vm.videoGroups) { group in
                     if let title = group.title, !title.isEmpty {
                         Text(title)
@@ -63,16 +74,49 @@ public struct BrowseView: View {
         }
     }
 
+    private var guestBanner: some View {
+        HStack(spacing: 12) {
+            Image(systemName: "person.crop.circle")
+                .font(.title2)
+                .foregroundStyle(.secondary)
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Sign in for your personal feed")
+                    .font(.subheadline.weight(.semibold))
+                Text("Showing popular videos")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            Spacer()
+            Button("Sign In") { showSignIn = true }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.small)
+        }
+        .padding(.horizontal)
+        .padding(.vertical, 10)
+        .background(.bar)
+    }
+
     private var emptyState: some View {
         VStack(spacing: 16) {
-            Image(systemName: "play.tv")
+            Image(systemName: vm.isAuthRequired ? "person.crop.circle.badge.exclamationmark" : "play.tv")
                 .font(.system(size: 60))
                 .foregroundStyle(.secondary)
-            Text("Nothing here yet")
-                .font(.title3)
-                .foregroundStyle(.secondary)
-            Button("Refresh") { vm.loadContent(refresh: true) }
-                .buttonStyle(.borderedProminent)
+            if vm.isAuthRequired && !auth.isSignedIn {
+                Text("Sign in to see your feed")
+                    .font(.title3)
+                Text("Your home feed, subscriptions and history\nrequire a Google account.")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+                Button("Sign In") { showSignIn = true }
+                    .buttonStyle(.borderedProminent)
+            } else {
+                Text("Nothing here yet")
+                    .font(.title3)
+                    .foregroundStyle(.secondary)
+                Button("Refresh") { vm.loadContent(refresh: true) }
+                    .buttonStyle(.borderedProminent)
+            }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }

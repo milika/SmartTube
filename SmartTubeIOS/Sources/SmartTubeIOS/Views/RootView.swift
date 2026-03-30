@@ -61,7 +61,6 @@ struct MainTabView: View {
         }
         .environmentObject(searchVM)
         .environmentObject(settingsStore)
-        .onAppear { browseVM.loadContent() }
     }
 }
 
@@ -73,7 +72,7 @@ struct MainSidebarView: View {
     @StateObject private var searchVM      = SearchViewModel()
     @StateObject private var settingsStore = SettingsStore()
 
-    @State private var selectedSection: AppSection = .home
+    @State private var selectedSection: AppSection? = .home
 
     enum AppSection: String, CaseIterable, Identifiable {
         case home      = "Home"
@@ -113,7 +112,7 @@ struct MainSidebarView: View {
                 .padding(.bottom, 8)
             }
         } detail: {
-            switch selectedSection {
+            switch selectedSection ?? .home {
             case .home:     NavigationStack { BrowseView() }
             case .search:   NavigationStack { SearchView() }
             case .library:  NavigationStack { LibraryView() }
@@ -122,7 +121,6 @@ struct MainSidebarView: View {
         }
         .environmentObject(searchVM)
         .environmentObject(settingsStore)
-        .onAppear { browseVM.loadContent() }
     }
 }
 #endif

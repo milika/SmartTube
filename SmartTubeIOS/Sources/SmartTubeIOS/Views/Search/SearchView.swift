@@ -1,5 +1,6 @@
 #if canImport(SwiftUI)
 import SwiftUI
+import SmartTubeIOSCore
 
 // MARK: - SearchView
 //
@@ -24,11 +25,7 @@ public struct SearchView: View {
             }
         }
         .navigationTitle("Search")
-        .searchable(
-            text: $vm.query,
-            placement: .navigationBarDrawer(displayMode: .always),
-            prompt: "Search YouTube"
-        )
+        .searchable(text: $vm.query, prompt: "Search YouTube")
         .onSubmit(of: .search) { vm.search() }
         .navigationDestination(item: $selectedVideo) { video in
             PlayerView(video: video)

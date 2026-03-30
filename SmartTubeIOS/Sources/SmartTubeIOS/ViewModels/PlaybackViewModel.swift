@@ -2,6 +2,10 @@
 import Foundation
 import AVFoundation
 import Combine
+import os
+import SmartTubeIOSCore
+
+private let playerLog = Logger(subsystem: "com.smarttube.app", category: "Player")
 
 // MARK: - PlaybackViewModel
 //
@@ -64,9 +68,18 @@ public final class PlaybackViewModel: ObservableObject {
     private func loadAsync(video: Video) async {
         isLoading = true
         defer { isLoading = false }
+        playerLog.notice("load video id=\(video.id, privacy: .public) title=\(video.title, privacy: .public)")
         do {
             let info = try await api.fetchPlayerInfo(videoId: video.id)
             playerInfo = info
+
+            playerLog.notice("playerInfo: formats=\(info.formats.count, privacy: .public) hlsURL=\(info.hlsURL?.absoluteString ?? "nil", privacy: .public) dashURL=\(info.dashURL?.absoluteString ?? "nil", privacy: .public)")
+            for (i, fmt) in info.formats.enumerated() {
+                playerLog.notice("  format[\(i, privacy: .public)] mimeType=\(fmt.mimeType, privacy: .public) quality=\(fmt.label, privacy: .public) url=\(fmt.url?.absoluteString.prefix(80) ?? "nil", privacy: .public)")
+            }
+
+            let prefURL = info.preferredStreamURL
+            playerLog.notice("preferredStreamURL=\(prefURL?.absoluteString.prefix(120) ?? "nil", privacy: .public)")
 
             // SponsorBlock
             if settings.sponsorBlockEnabled {
@@ -81,14 +94,36 @@ public final class PlaybackViewModel: ObservableObject {
             relatedVideos = related?.videos.filter { $0.id != video.id }.prefix(20).map { $0 } ?? []
 
             // Build player item
-            guard let url = info.preferredStreamURL else { throw APIError.decodingError("No stream URL") }
+            guard let url = info.preferredStreamURL else {
+                playerLog.error("❌ No stream URL available — formats=\(info.formats.count, privacy: .public) hls=\(info.hlsURL != nil, privacy: .public) dash=\(info.dashURL != nil, privacy: .public)")
+                throw APIError.decodingError("No stream URL")
+            }
+            playerLog.notice("Starting AVPlayer with: \(url.absoluteString.prefix(120), privacy: .public)")
             let item = AVPlayerItem(url: url)
+            // Observe the item status to catch AVPlayer decoding/network errors
+            statusObserver = item.publisher(for: \.status)
+                .receive(on: RunLoop.main)
+                .sink { [weak self] status in
+                    switch status {
+                    case .readyToPlay:
+                        playerLog.notice("✅ AVPlayerItem readyToPlay")
+                    case .failed:
+                        let err = item.error.map { "\($0)" } ?? "nil"
+                        playerLog.error("❌ AVPlayerItem failed: \(err, privacy: .public)")
+                        self?.error = item.error
+                    case .unknown:
+                        playerLog.notice("AVPlayerItem status: unknown (loading)")
+                    @unknown default:
+                        break
+                    }
+                }
             player.replaceCurrentItem(with: item)
             duration = info.video.duration ?? 0
             player.play()
             isPlaying = true
             scheduleControlsHide()
         } catch {
+            playerLog.error("❌ loadAsync error: \(String(describing: error), privacy: .public)")
             self.error = error
         }
     }

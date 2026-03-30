@@ -1,8 +1,7 @@
 #if canImport(SwiftUI)
 import SwiftUI
 
-/// App entry point – supports iOS 16+, iPadOS 16+, macOS 13+.
-@main
+/// App entry point – supports iOS 17+, iPadOS 17+, macOS 14+.
 struct SmartTubeApp: App {
     @StateObject private var authService = AuthService()
     @StateObject private var browseViewModel = BrowseViewModel()

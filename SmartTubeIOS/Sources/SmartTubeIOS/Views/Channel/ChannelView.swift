@@ -1,5 +1,6 @@
 #if canImport(SwiftUI)
 import SwiftUI
+import SmartTubeIOSCore
 
 // MARK: - ChannelView
 //
@@ -71,7 +72,7 @@ public struct ChannelView: View {
             AsyncImage(url: channel.thumbnailURL) { img in
                 img.resizable().scaledToFill()
             } placeholder: {
-                Circle().fill(Color(.systemGray4))
+                Circle().fill(Color.secondary.opacity(0.3))
             }
             .frame(width: 72, height: 72)
             .clipShape(Circle())
@@ -95,7 +96,7 @@ public struct ChannelView: View {
             Spacer()
         }
         .padding()
-        .background(Color(.systemBackground))
+        .background(.background)
     }
 }
 #endif

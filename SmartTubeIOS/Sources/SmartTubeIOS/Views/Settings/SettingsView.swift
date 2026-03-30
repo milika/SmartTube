@@ -1,6 +1,7 @@
 #if canImport(SwiftUI)
 import SwiftUI
 import AuthenticationServices
+import SmartTubeIOSCore
 
 // MARK: - SettingsView
 //
@@ -10,6 +11,7 @@ import AuthenticationServices
 public struct SettingsView: View {
     @EnvironmentObject private var auth: AuthService
     @EnvironmentObject private var store: SettingsStore
+    @State private var showSignIn = false
 
     public init() {}
 
@@ -32,14 +34,15 @@ public struct SettingsView: View {
             if auth.isSignedIn {
                 HStack {
                     AsyncImage(url: auth.accountAvatarURL) { img in img.resizable().scaledToFill() }
-                        placeholder: { Circle().fill(Color(.systemGray4)) }
+                        placeholder: { Circle().fill(Color.secondary.opacity(0.3)) }
                         .frame(width: 40, height: 40)
                         .clipShape(Circle())
                     Text(auth.accountName ?? "Unknown")
                 }
                 Button("Sign Out", role: .destructive) { auth.signOut() }
             } else {
-                Button("Sign in with Google") { signIn() }
+                Button("Sign in with Google") { showSignIn = true }
+                    .sheet(isPresented: $showSignIn) { SignInView() }
             }
         }
     }
@@ -139,18 +142,6 @@ public struct SettingsView: View {
         let v = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "1.0"
         let b = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "1"
         return "\(v) (\(b))"
-    }
-
-    private func signIn() {
-        #if os(iOS)
-        guard let scene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
-              let window = scene.windows.first
-        else { return }
-        Task { await auth.signIn(presentationAnchor: window) }
-        #elseif os(macOS)
-        guard let window = NSApp.windows.first else { return }
-        Task { await auth.signIn(presentationAnchor: window) }
-        #endif
     }
 }
 

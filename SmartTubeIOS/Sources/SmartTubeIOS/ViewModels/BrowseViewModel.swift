@@ -1,6 +1,10 @@
 #if canImport(SwiftUI)
 import Foundation
 import Combine
+import os
+import SmartTubeIOSCore
+
+private let browseLog = Logger(subsystem: "com.smarttube.app", category: "Browse")
 
 // MARK: - BrowseViewModel
 //
@@ -16,6 +20,8 @@ public final class BrowseViewModel: ObservableObject {
     @Published public private(set) var videoGroups: [VideoGroup] = []
     @Published public private(set) var isLoading: Bool = false
     @Published public var error: Error?
+    /// True when the current section requires authentication and the user is not signed in.
+    @Published public private(set) var isAuthRequired: Bool = false
 
     // MARK: - Dependencies
 
@@ -58,21 +64,40 @@ public final class BrowseViewModel: ObservableObject {
     private func fetchSection(_ section: BrowseSection) async {
         isLoading = true
         defer { isLoading = false }
+        browseLog.notice("Fetching section: \(section.title, privacy: .public) (\(String(describing: section.type), privacy: .public))")
         do {
             let group: VideoGroup
             switch section.type {
-            case .home:          group = try await api.fetchHome()
-            case .trending:      group = try await api.fetchTrending()
+            case .home:
+                let homeGroup = try await api.fetchHome()
+                if homeGroup.videos.isEmpty {
+                    // YouTube gates FEwhat_to_watch behind login — show popular content for guests
+                    isAuthRequired = true
+                    group = try await api.search(query: "popular")
+                } else {
+                    isAuthRequired = false
+                    group = homeGroup
+                }
+            case .trending:      group = try await api.search(query: "trending")  // FEtrending is deprecated
             case .subscriptions: group = try await api.fetchSubscriptions()
             case .history:       group = try await api.fetchHistory()
             case .shorts:        group = try await api.fetchHome()   // filtered client-side
             default:             group = try await api.fetchHome()
             }
             if !Task.isCancelled {
+                if section.type != .home {   // home already sets isAuthRequired above
+                    let authSections: Set<BrowseSection.SectionType> = [.subscriptions, .history]
+                    isAuthRequired = group.videos.isEmpty && authSections.contains(section.type)
+                }
+                browseLog.notice("✅ \(section.title, privacy: .public): \(group.videos.count, privacy: .public) videos, authRequired=\(self.isAuthRequired, privacy: .public)")
                 videoGroups = [group]
             }
         } catch {
-            if !Task.isCancelled { self.error = error }
+            if !Task.isCancelled {
+                isAuthRequired = false
+                browseLog.error("❌ \(section.title, privacy: .public) error: \(String(describing: error), privacy: .public)")
+                self.error = error
+            }
         }
     }
 

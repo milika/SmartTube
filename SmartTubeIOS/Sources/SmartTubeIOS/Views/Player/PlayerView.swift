@@ -1,6 +1,7 @@
 #if canImport(SwiftUI)
 import SwiftUI
 import AVKit
+import SmartTubeIOSCore
 
 // MARK: - PlayerView
 //
@@ -25,6 +26,12 @@ public struct PlayerView: View {
                 // AVKit video player (handles Picture-in-Picture automatically)
                 VideoPlayer(player: vm.player)
                     .ignoresSafeArea()
+
+                // Transparent tap target on top of VideoPlayer.
+                // AVKit's VideoPlayer swallows gesture recognizers placed on it
+                // directly, so we layer a clear view above it to catch taps.
+                Color.clear
+                    .contentShape(Rectangle())
                     .onTapGesture { vm.showControls() }
 
                 // Custom overlay controls
@@ -43,8 +50,11 @@ public struct PlayerView: View {
                 sponsorSkipToast
             }
         }
+        #if os(iOS)
         .navigationBarHidden(true)
         .statusBarHidden(true)
+        .toolbar(.hidden, for: .tabBar)
+        #endif
         .onAppear  { vm.load(video: video) }
         .onDisappear { vm.stop() }
         #if os(iOS)

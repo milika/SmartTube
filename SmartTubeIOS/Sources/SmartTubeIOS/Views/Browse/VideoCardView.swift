@@ -1,5 +1,6 @@
 #if canImport(SwiftUI)
 import SwiftUI
+import SmartTubeIOSCore
 
 // MARK: - VideoCardView
 //
@@ -106,7 +107,7 @@ public struct VideoCardView: View {
     }
 
     private var placeholderThumbnail: some View {
-        Rectangle().fill(Color(.systemGray5))
+        Rectangle().fill(Color.secondary.opacity(0.2))
     }
 
     private func durationBadge(_ text: String) -> some View {

@@ -1,7 +1,10 @@
 import Foundation
+import os
 #if canImport(FoundationNetworking)
 import FoundationNetworking
 #endif
+
+private let tubeLog = Logger(subsystem: "com.smarttube.app", category: "InnerTube")
 
 // MARK: - InnerTubeAPI
 //
@@ -27,21 +30,31 @@ public actor InnerTubeAPI {
             "hl": "en",
             "gl": "US",
             "clientName": "WEB",
-            "clientVersion": "2.20240101.00.00",
+            "clientVersion": "2.20260206.01.00",
         ]
     ]
 
-    /// The Android TV (TVHTML5) client context used for stream URL retrieval.
-    private let tvClientContext: [String: Any] = [
+    /// The iOS client context used for stream URL retrieval.
+    /// Returns c=iOS URLs and an HLS manifest, both playable natively by AVPlayer.
+    private let iosClientContext: [String: Any] = [
         "client": [
             "hl": "en",
             "gl": "US",
-            "clientName": "TVHTML5",
-            "clientVersion": "7.20240101.19.00",
+            "clientName": "iOS",
+            "clientVersion": "20.11.6",
+            "deviceMake": "Apple",
+            "deviceModel": "iPhone10,4",
+            "osName": "iOS",
+            "osVersion": "16.7.7.20H330",
+            "clientScreen": "WATCH",
         ]
     ]
+    private let iosUserAgent = "com.google.ios.youtube/20.11.6 (iPhone10,4; U; CPU iOS 16_7_7 like Mac OS X)"
 
     private let baseURL = URL(string: "https://www.youtube.com/youtubei/v1")!
+    private let playerBaseURL = URL(string: "https://youtubei.googleapis.com/youtubei/v1")!
+    // Public InnerTube API key used by YouTube web clients.
+    private let apiKey = "AIzaSyAO_FJ2SlqU8Q4STEHLGCilw_Y9_11qcW8"
 
     public init(authToken: String? = nil) {
         let config = URLSessionConfiguration.default
@@ -161,14 +174,11 @@ public actor InnerTubeAPI {
     // MARK: - Player (stream URLs)
 
     public func fetchPlayerInfo(videoId: String) async throws -> PlayerInfo {
-        var body = makeBody(client: tvClientContext)
+        var body = makeBody(client: iosClientContext)
         body["videoId"] = videoId
-        body["playbackContext"] = [
-            "contentPlaybackContext": [
-                "html5Preference": "HTML5_PREF_WANTS"
-            ]
-        ]
-        let data = try await post(endpoint: "player", body: body)
+        body["racyCheckOk"] = true
+        body["contentCheckOk"] = true
+        let data = try await postPlayer(body: body)
         return try parsePlayerInfo(from: data, videoId: videoId)
     }
 
@@ -192,20 +202,64 @@ public actor InnerTubeAPI {
 
     // MARK: - Networking
 
+    /// Player requests use the Android client UA, googleapis.com base, and no auth header.
+    private func postPlayer(body: [String: Any]) async throws -> [String: Any] {
+        var comps = URLComponents(url: playerBaseURL.appendingPathComponent("player"), resolvingAgainstBaseURL: false)!
+        comps.queryItems = [URLQueryItem(name: "key", value: apiKey)]
+        var request = URLRequest(url: comps.url!)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue(iosUserAgent, forHTTPHeaderField: "User-Agent")
+        request.setValue("5", forHTTPHeaderField: "X-YouTube-Client-Name")
+        request.setValue("20.11.6", forHTTPHeaderField: "X-YouTube-Client-Version")
+        request.httpBody = try JSONSerialization.data(withJSONObject: body)
+        let playerVideoId = body["videoId"] as? String ?? ""
+        tubeLog.notice("POST /player (ANDROID) videoId=\(playerVideoId, privacy: .public)")
+        let (data, response) = try await session.data(for: request)
+        let statusCode = (response as? HTTPURLResponse)?.statusCode ?? 0
+        guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
+            tubeLog.error("❌ HTTP \(statusCode, privacy: .public) for /player")
+            throw APIError.httpError(statusCode)
+        }
+        guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            tubeLog.error("❌ Non-dictionary JSON root for /player")
+            throw APIError.decodingError("Root JSON is not a dictionary")
+        }
+        if let error = json["error"] as? [String: Any] {
+            tubeLog.error("❌ API error in /player: \(String(describing: error["message"] ?? error), privacy: .public)")
+        } else {
+            let topKeys = Array(json.keys.prefix(6))
+            tubeLog.notice("✅ /player HTTP \(statusCode, privacy: .public) keys: \(topKeys, privacy: .public)")
+        }
+        return json
+    }
+
     private func post(endpoint: String, body: [String: Any]) async throws -> [String: Any] {
-        var request = URLRequest(url: baseURL.appendingPathComponent(endpoint))
+        var comps = URLComponents(url: baseURL.appendingPathComponent(endpoint), resolvingAgainstBaseURL: false)!
+        comps.queryItems = [URLQueryItem(name: "key", value: apiKey)]
+        var request = URLRequest(url: comps.url!)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         if let token = authToken {
             request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         }
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
+        tubeLog.notice("POST /\(endpoint, privacy: .public) auth=\(self.authToken != nil ? "yes" : "no", privacy: .public)")
         let (data, response) = try await session.data(for: request)
+        let statusCode = (response as? HTTPURLResponse)?.statusCode ?? 0
         guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
-            throw APIError.httpError((response as? HTTPURLResponse)?.statusCode ?? 0)
+            tubeLog.error("❌ HTTP \(statusCode, privacy: .public) for /\(endpoint, privacy: .public)")
+            throw APIError.httpError(statusCode)
         }
         guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            tubeLog.error("❌ Non-dictionary JSON root for /\(endpoint, privacy: .public)")
             throw APIError.decodingError("Root JSON is not a dictionary")
+        }
+        let topKeys = Array(json.keys.prefix(6))
+        if let error = json["error"] as? [String: Any] {
+            tubeLog.error("❌ API error in /\(endpoint, privacy: .public): \(String(describing: error["message"] ?? error), privacy: .public)")
+        } else {
+            tubeLog.notice("✅ /\(endpoint, privacy: .public) HTTP \(statusCode, privacy: .public) keys: \(topKeys, privacy: .public)")
         }
         return json
     }
@@ -249,6 +303,7 @@ public actor InnerTubeAPI {
         }
 
         walk(json)
+        tubeLog.notice("parseVideoGroup '\(title ?? "nil", privacy: .public)' → \(videos.count, privacy: .public) videos, nextPage=\(nextPageToken != nil ? "yes" : "no", privacy: .public)")
         return VideoGroup(title: title, videos: videos, nextPageToken: nextPageToken)
     }
 
@@ -341,12 +396,15 @@ public actor InnerTubeAPI {
 
         // Stream formats
         let streamingData = json["streamingData"] as? [String: Any]
+        let playabilityStatus = (json["playabilityStatus"] as? [String: Any])?["status"] as? String ?? "unknown"
+        tubeLog.notice("parsePlayerInfo id=\(videoId, privacy: .public) playability=\(playabilityStatus, privacy: .public) hasStreamingData=\(streamingData != nil, privacy: .public)")
         var formats: [VideoFormat] = []
 
         func parseFormats(_ raw: [[String: Any]]) -> [VideoFormat] {
             raw.compactMap { f -> VideoFormat? in
                 guard f["itag"] is Int else { return nil }
                 let urlStr = f["url"] as? String
+                let hasCipher = f["signatureCipher"] != nil || f["cipher"] != nil
                 let url = urlStr.flatMap { URL(string: $0) }
                 let quality = f["qualityLabel"] as? String ?? f["quality"] as? String ?? "unknown"
                 let mimeType = f["mimeType"] as? String ?? ""
@@ -354,6 +412,7 @@ public actor InnerTubeAPI {
                 let height = f["height"] as? Int ?? 0
                 let fps = f["fps"] as? Int ?? 30
                 let bitrate = f["bitrate"] as? Int
+                tubeLog.notice("  fmt itag=\(f["itag"] as? Int ?? 0, privacy: .public) quality=\(quality, privacy: .public) hasURL=\(url != nil, privacy: .public) hasCipher=\(hasCipher, privacy: .public) mime=\(mimeType.prefix(40), privacy: .public)")
                 return VideoFormat(label: quality, width: width, height: height, fps: fps, mimeType: mimeType, url: url, bitrate: bitrate)
             }
         }
@@ -440,12 +499,14 @@ public struct PlayerInfo {
     public let dashURL: URL?
 
     /// The best stream URL to hand to AVPlayer.
-    /// Prefers HLS for live streams; otherwise picks the highest-bitrate combined mp4 format.
+    /// Prefers HLS (works natively in AVPlayer on iOS, handles adaptive quality).
+    /// Falls back to combined muxed mp4 for non-HLS responses.
     public var preferredStreamURL: URL? {
-        if video.isLive, let hls = hlsURL { return hls }
-        // Prefer combined (muxed) video+audio MP4 streams
+        // HLS is the most reliable for AVPlayer — adaptive, no header restrictions
+        if let hls = hlsURL { return hls }
+        // Combined (muxed) video+audio MP4 as fallback
         let combined = formats.filter { $0.mimeType.contains("video/mp4") && $0.mimeType.contains("codecs=") }
-        return combined.sorted { ($0.bitrate ?? 0) > ($1.bitrate ?? 0) }.first?.url ?? hlsURL
+        return combined.sorted { ($0.bitrate ?? 0) > ($1.bitrate ?? 0) }.first?.url
     }
 }
 

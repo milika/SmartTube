@@ -1,6 +1,7 @@
 #if canImport(SwiftUI)
 import Foundation
 import Combine
+import SmartTubeIOSCore
 
 // MARK: - SearchViewModel
 //
