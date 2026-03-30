@@ -1,4 +1,3 @@
-#if canImport(SwiftUI)
 import SwiftUI
 import SmartTubeIOSCore
 
@@ -99,4 +98,3 @@ public struct ChannelView: View {
         .background(.background)
     }
 }
-#endif

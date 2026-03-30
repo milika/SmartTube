@@ -1,4 +1,3 @@
-#if canImport(SwiftUI)
 import SwiftUI
 
 /// App entry point – supports iOS 17+, iPadOS 17+, macOS 14+.
@@ -17,4 +16,3 @@ struct SmartTubeApp: App {
         #endif
     }
 }
-#endif

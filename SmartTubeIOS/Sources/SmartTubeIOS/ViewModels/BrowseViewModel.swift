@@ -1,4 +1,3 @@
-#if canImport(SwiftUI)
 import Foundation
 import Combine
 import os
@@ -121,4 +120,3 @@ public final class BrowseViewModel: ObservableObject {
         }
     }
 }
-#endif

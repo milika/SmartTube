@@ -1,4 +1,3 @@
-#if canImport(SwiftUI)
 import SwiftUI
 import SmartTubeIOSCore
 
@@ -84,4 +83,3 @@ public struct SearchView: View {
         .padding()
     }
 }
-#endif

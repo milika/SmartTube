@@ -1,4 +1,3 @@
-#if canImport(SwiftUI)
 import SwiftUI
 import SmartTubeIOSCore
 
@@ -133,4 +132,3 @@ public struct LibraryView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }
-#endif

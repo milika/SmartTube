@@ -1,4 +1,3 @@
-#if canImport(SwiftUI)
 import Foundation
 import AVFoundation
 import Combine
@@ -202,4 +201,3 @@ public final class PlaybackViewModel: ObservableObject {
         controlsTimer?.cancel()
     }
 }
-#endif

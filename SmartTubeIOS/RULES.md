@@ -23,7 +23,7 @@
 
 ## Project structure
 - `SmartTubeIOSCore` — Foundation-only, no SwiftUI/UIKit; builds on Linux for CI
-- `SmartTubeIOS` — SwiftUI UI layer; wrapped in `#if canImport(SwiftUI)` throughout
+- `SmartTubeIOS` — SwiftUI UI layer (Apple platforms only)
 - One XcodeGen target (`SmartTube`) with `supportedDestinations: [iOS, iPad, macOS]`; no separate macOS target
 - `project.yml` is the source of truth — always run `xcodegen generate` after editing it, never hand-edit `project.pbxproj`
 

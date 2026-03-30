@@ -1,4 +1,3 @@
-#if canImport(SwiftUI)
 import Foundation
 import SmartTubeIOSCore
 
@@ -35,4 +34,3 @@ public final class SettingsStore: ObservableObject {
         settings = AppSettings()
     }
 }
-#endif

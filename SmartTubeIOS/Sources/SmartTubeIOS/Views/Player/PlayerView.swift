@@ -1,4 +1,3 @@
-#if canImport(SwiftUI)
 import SwiftUI
 import AVKit
 import SmartTubeIOSCore
@@ -245,4 +244,3 @@ struct RelatedVideosView: View {
         }
     }
 }
-#endif

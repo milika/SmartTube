@@ -1,4 +1,3 @@
-#if canImport(SwiftUI)
 import SwiftUI
 
 // MARK: - RootView
@@ -123,4 +122,3 @@ struct MainSidebarView: View {
         .environmentObject(settingsStore)
     }
 }
-#endif

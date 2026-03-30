@@ -1,4 +1,3 @@
-#if canImport(SwiftUI)
 import SwiftUI
 import CoreImage
 import CoreImage.CIFilterBuiltins
@@ -287,4 +286,3 @@ private struct CountdownView: View {
         DispatchQueue.main.asyncAfter(deadline: .now() + 1) { tick() }
     }
 }
-#endif

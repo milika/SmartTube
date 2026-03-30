@@ -1,4 +1,3 @@
-#if canImport(SwiftUI)
 import SwiftUI
 import AuthenticationServices
 import SmartTubeIOSCore
@@ -161,4 +160,3 @@ private extension SponsorSegment.Category {
         }
     }
 }
-#endif

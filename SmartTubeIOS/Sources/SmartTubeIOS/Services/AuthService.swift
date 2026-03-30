@@ -1,4 +1,3 @@
-#if canImport(SwiftUI)
 import Foundation
 import os
 import SmartTubeIOSCore
@@ -375,4 +374,3 @@ public enum AuthError: LocalizedError {
         }
     }
 }
-#endif

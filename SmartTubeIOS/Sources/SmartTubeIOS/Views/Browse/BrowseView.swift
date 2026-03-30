@@ -1,4 +1,3 @@
-#if canImport(SwiftUI)
 import SwiftUI
 import SmartTubeIOSCore
 
@@ -157,4 +156,3 @@ struct VideoGridSection: View {
         .padding(.vertical, 8)
     }
 }
-#endif

@@ -1,4 +1,3 @@
-#if canImport(SwiftUI)
 import SwiftUI
 import SmartTubeIOSCore
 
@@ -149,5 +148,4 @@ public struct VideoCardView: View {
     .frame(width: 320)
     .padding()
 }
-#endif
 #endif

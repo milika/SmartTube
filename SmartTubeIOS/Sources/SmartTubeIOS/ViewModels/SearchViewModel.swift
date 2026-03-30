@@ -1,4 +1,3 @@
-#if canImport(SwiftUI)
 import Foundation
 import Combine
 import SmartTubeIOSCore
@@ -126,4 +125,3 @@ public final class ChannelViewModel: ObservableObject {
         }
     }
 }
-#endif
