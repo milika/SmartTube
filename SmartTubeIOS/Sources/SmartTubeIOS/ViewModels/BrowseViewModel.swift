@@ -58,6 +58,18 @@ public final class BrowseViewModel: ObservableObject {
         fetchTask = Task { await fetchNextPage(for: currentSection) }
     }
 
+    // MARK: - Auth
+
+    /// Forward the current access token to the API layer.
+    /// Called whenever the user signs in, signs out, or the token is refreshed.
+    public func updateAuthToken(_ token: String?) async {
+        browseLog.notice("updateAuthToken: \(token != nil ? "token set" : "cleared", privacy: .public)")
+        await api.setAuthToken(token)
+        if token != nil {
+            loadContent(refresh: true)
+        }
+    }
+
     // MARK: - Private fetching
 
     private func fetchSection(_ section: BrowseSection) async {

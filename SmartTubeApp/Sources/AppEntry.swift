@@ -13,6 +13,9 @@ struct AppEntry: App {
             RootView()
                 .environmentObject(authService)
                 .environmentObject(browseViewModel)
+                .onChange(of: authService.accessToken, initial: true) { _, newToken in
+                    Task { await browseViewModel.updateAuthToken(newToken) }
+                }
         }
         .defaultSize(width: 1280, height: 800)
 
@@ -28,6 +31,9 @@ struct AppEntry: App {
             RootView()
                 .environmentObject(authService)
                 .environmentObject(browseViewModel)
+                .onChange(of: authService.accessToken, initial: true) { _, newToken in
+                    Task { await browseViewModel.updateAuthToken(newToken) }
+                }
         }
         #endif
     }

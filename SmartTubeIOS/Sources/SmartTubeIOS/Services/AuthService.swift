@@ -46,7 +46,7 @@ public final class AuthService: ObservableObject {
 
     // MARK: - Private state
 
-    private var accessToken: String?
+    @Published public private(set) var accessToken: String?
     private var refreshToken: String?
     private var tokenExpiry: Date?
     private var pollTask: Task<Void, Never>?
@@ -65,7 +65,10 @@ public final class AuthService: ObservableObject {
         // If already signed in but no account info (e.g. stored before the
         // fetchUserInfo fix), refresh it silently in the background.
         if isSignedIn && accountName == nil {
-            Task { try? await fetchUserInfo() }
+            Task {
+                do { try await fetchUserInfo() }
+                catch { authLog.error("fetchUserInfo on init failed: \(String(describing: error), privacy: .public)") }
+            }
         }
     }
 
@@ -280,27 +283,37 @@ public final class AuthService: ObservableObject {
     // MARK: - User info
 
     private func fetchUserInfo() async throws {
+        authLog.notice("fetchUserInfo() — calling validAccessToken()")
         let token = try await validAccessToken()
-        // The sign-in scope doesn't include `profile`/`openid`, so the OAuth
-        // userinfo endpoint returns nothing.  Use the YouTube Data API v3
-        // channels endpoint instead — it works with the existing YouTube scopes
-        // and returns the channel title + thumbnail that SmartTube Android shows.
+        authLog.notice("fetchUserInfo() — token len=\(token.count, privacy: .public), calling channels API")
         var req = URLRequest(url: URL(string: "https://www.googleapis.com/youtube/v3/channels?part=snippet&mine=true")!)
         req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-        let (data, _) = try await URLSession.shared.data(for: req)
-        guard let json  = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let items = json["items"] as? [[String: Any]],
-              let first = items.first,
-              let snippet = first["snippet"] as? [String: Any]
-        else { return }
+        let (data, response) = try await URLSession.shared.data(for: req)
+        let statusCode = (response as? HTTPURLResponse)?.statusCode ?? 0
+        authLog.notice("fetchUserInfo() — HTTP \(statusCode, privacy: .public)")
+        if let bodyStr = String(data: data, encoding: .utf8) {
+            authLog.notice("fetchUserInfo() — response: \(String(bodyStr.prefix(600)), privacy: .public)")
+        }
+        guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            authLog.error("fetchUserInfo() — JSON parse failed")
+            return
+        }
+        guard let items = json["items"] as? [[String: Any]] else {
+            authLog.error("fetchUserInfo() — no 'items'; top-level keys=\(Array(json.keys), privacy: .public)")
+            return
+        }
+        guard let first = items.first, let snippet = first["snippet"] as? [String: Any] else {
+            authLog.error("fetchUserInfo() — items empty or missing snippet")
+            return
+        }
         accountName = snippet["title"] as? String
-        // Prefer the highest-resolution thumbnail available
+        authLog.notice("fetchUserInfo() — accountName=\(self.accountName ?? "nil", privacy: .public)")
         if let thumbs = snippet["thumbnails"] as? [String: Any] {
             let preferred = ["high", "medium", "default"]
             for key in preferred {
-                if let t = thumbs[key] as? [String: Any],
-                   let urlStr = t["url"] as? String {
+                if let t = thumbs[key] as? [String: Any], let urlStr = t["url"] as? String {
                     accountAvatarURL = URL(string: urlStr)
+                    authLog.notice("fetchUserInfo() — avatarURL(\(key, privacy: .public))=\(urlStr, privacy: .public)")
                     break
                 }
             }

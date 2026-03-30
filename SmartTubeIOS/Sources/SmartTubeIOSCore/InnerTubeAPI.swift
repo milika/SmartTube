@@ -53,8 +53,9 @@ public actor InnerTubeAPI {
 
     private let baseURL = URL(string: "https://www.youtube.com/youtubei/v1")!
     private let playerBaseURL = URL(string: "https://youtubei.googleapis.com/youtubei/v1")!
-    // Public InnerTube API key used by YouTube web clients.
-    private let apiKey = "AIzaSyAO_FJ2SlqU8Q4STEHLGCilw_Y9_11qcW8"
+    // Public InnerTube API key embedded in YouTube's own web client JS — not a developer secret.
+    // nosec: false positive — this key is published by Google in youtube.com/s/player JS.
+    private let apiKey = "AIzaSyAO_FJ2SlqU8Q4STEHLGCilw_Y9_11qcW8" // gitleaks:allow
 
     public init(authToken: String? = nil) {
         let config = URLSessionConfiguration.default
@@ -284,6 +285,8 @@ public actor InnerTubeAPI {
         func walk(_ obj: Any) {
             if let dict = obj as? [String: Any] {
                 if let renderer = dict["videoRenderer"] as? [String: Any] {
+                    if let v = parseVideoRenderer(renderer) { videos.append(v) }
+                } else if let renderer = dict["gridVideoRenderer"] as? [String: Any] {
                     if let v = parseVideoRenderer(renderer) { videos.append(v) }
                 } else if let renderer = dict["richItemRenderer"] as? [String: Any],
                           let content = renderer["content"] as? [String: Any],
