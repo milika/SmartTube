@@ -1,0 +1,40 @@
+{
+  "": {
+    "swift-dependencies": "/home/runner/work/SmartTube/SmartTube/SmartTubeIOS/.build/x86_64-unknown-linux-gnu/debug/SmartTubeIOSCore.build/master.swiftdeps"
+  },
+  "/home/runner/work/SmartTube/SmartTube/SmartTubeIOS/Sources/SmartTubeIOSCore/AppSettings.swift": {
+    "dependencies": "/home/runner/work/SmartTube/SmartTube/SmartTubeIOS/.build/x86_64-unknown-linux-gnu/debug/SmartTubeIOSCore.build/AppSettings.d",
+    "object": "/home/runner/work/SmartTube/SmartTube/SmartTubeIOS/.build/x86_64-unknown-linux-gnu/debug/SmartTubeIOSCore.build/AppSettings.swift.o",
+    "swiftmodule": "/home/runner/work/SmartTube/SmartTube/SmartTubeIOS/.build/x86_64-unknown-linux-gnu/debug/SmartTubeIOSCore.build/AppSettings~partial.swiftmodule",
+    "swift-dependencies": "/home/runner/work/SmartTube/SmartTube/SmartTubeIOS/.build/x86_64-unknown-linux-gnu/debug/SmartTubeIOSCore.build/AppSettings.swiftdeps",
+    "diagnostics": "/home/runner/work/SmartTube/SmartTube/SmartTubeIOS/.build/x86_64-unknown-linux-gnu/debug/SmartTubeIOSCore.build/AppSettings.dia"
+  },
+  "/home/runner/work/SmartTube/SmartTube/SmartTubeIOS/Sources/SmartTubeIOSCore/InnerTubeAPI.swift": {
+    "dependencies": "/home/runner/work/SmartTube/SmartTube/SmartTubeIOS/.build/x86_64-unknown-linux-gnu/debug/SmartTubeIOSCore.build/InnerTubeAPI.d",
+    "object": "/home/runner/work/SmartTube/SmartTube/SmartTubeIOS/.build/x86_64-unknown-linux-gnu/debug/SmartTubeIOSCore.build/InnerTubeAPI.swift.o",
+    "swiftmodule": "/home/runner/work/SmartTube/SmartTube/SmartTubeIOS/.build/x86_64-unknown-linux-gnu/debug/SmartTubeIOSCore.build/InnerTubeAPI~partial.swiftmodule",
+    "swift-dependencies": "/home/runner/work/SmartTube/SmartTube/SmartTubeIOS/.build/x86_64-unknown-linux-gnu/debug/SmartTubeIOSCore.build/InnerTubeAPI.swiftdeps",
+    "diagnostics": "/home/runner/work/SmartTube/SmartTube/SmartTubeIOS/.build/x86_64-unknown-linux-gnu/debug/SmartTubeIOSCore.build/InnerTubeAPI.dia"
+  },
+  "/home/runner/work/SmartTube/SmartTube/SmartTubeIOS/Sources/SmartTubeIOSCore/SponsorBlockService.swift": {
+    "dependencies": "/home/runner/work/SmartTube/SmartTube/SmartTubeIOS/.build/x86_64-unknown-linux-gnu/debug/SmartTubeIOSCore.build/SponsorBlockService.d",
+    "object": "/home/runner/work/SmartTube/SmartTube/SmartTubeIOS/.build/x86_64-unknown-linux-gnu/debug/SmartTubeIOSCore.build/SponsorBlockService.swift.o",
+    "swiftmodule": "/home/runner/work/SmartTube/SmartTube/SmartTubeIOS/.build/x86_64-unknown-linux-gnu/debug/SmartTubeIOSCore.build/SponsorBlockService~partial.swiftmodule",
+    "swift-dependencies": "/home/runner/work/SmartTube/SmartTube/SmartTubeIOS/.build/x86_64-unknown-linux-gnu/debug/SmartTubeIOSCore.build/SponsorBlockService.swiftdeps",
+    "diagnostics": "/home/runner/work/SmartTube/SmartTube/SmartTubeIOS/.build/x86_64-unknown-linux-gnu/debug/SmartTubeIOSCore.build/SponsorBlockService.dia"
+  },
+  "/home/runner/work/SmartTube/SmartTube/SmartTubeIOS/Sources/SmartTubeIOSCore/Video.swift": {
+    "dependencies": "/home/runner/work/SmartTube/SmartTube/SmartTubeIOS/.build/x86_64-unknown-linux-gnu/debug/SmartTubeIOSCore.build/Video.d",
+    "object": "/home/runner/work/SmartTube/SmartTube/SmartTubeIOS/.build/x86_64-unknown-linux-gnu/debug/SmartTubeIOSCore.build/Video.swift.o",
+    "swiftmodule": "/home/runner/work/SmartTube/SmartTube/SmartTubeIOS/.build/x86_64-unknown-linux-gnu/debug/SmartTubeIOSCore.build/Video~partial.swiftmodule",
+    "swift-dependencies": "/home/runner/work/SmartTube/SmartTube/SmartTubeIOS/.build/x86_64-unknown-linux-gnu/debug/SmartTubeIOSCore.build/Video.swiftdeps",
+    "diagnostics": "/home/runner/work/SmartTube/SmartTube/SmartTubeIOS/.build/x86_64-unknown-linux-gnu/debug/SmartTubeIOSCore.build/Video.dia"
+  },
+  "/home/runner/work/SmartTube/SmartTube/SmartTubeIOS/Sources/SmartTubeIOSCore/VideoGroup.swift": {
+    "dependencies": "/home/runner/work/SmartTube/SmartTube/SmartTubeIOS/.build/x86_64-unknown-linux-gnu/debug/SmartTubeIOSCore.build/VideoGroup.d",
+    "object": "/home/runner/work/SmartTube/SmartTube/SmartTubeIOS/.build/x86_64-unknown-linux-gnu/debug/SmartTubeIOSCore.build/VideoGroup.swift.o",
+    "swiftmodule": "/home/runner/work/SmartTube/SmartTube/SmartTubeIOS/.build/x86_64-unknown-linux-gnu/debug/SmartTubeIOSCore.build/VideoGroup~partial.swiftmodule",
+    "swift-dependencies": "/home/runner/work/SmartTube/SmartTube/SmartTubeIOS/.build/x86_64-unknown-linux-gnu/debug/SmartTubeIOSCore.build/VideoGroup.swiftdeps",
+    "diagnostics": "/home/runner/work/SmartTube/SmartTube/SmartTubeIOS/.build/x86_64-unknown-linux-gnu/debug/SmartTubeIOSCore.build/VideoGroup.dia"
+  }
+}

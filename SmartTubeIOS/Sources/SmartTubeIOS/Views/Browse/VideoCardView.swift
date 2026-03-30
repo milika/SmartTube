@@ -1,0 +1,152 @@
+#if canImport(SwiftUI)
+import SwiftUI
+
+// MARK: - VideoCardView
+//
+// A card showing a video thumbnail, title, channel and metadata.
+// Adapts its layout for list (compact) and grid (default) modes.
+
+public struct VideoCardView: View {
+    public let video: Video
+    public var compact: Bool = false
+
+    public init(video: Video, compact: Bool = false) {
+        self.video = video
+        self.compact = compact
+    }
+
+    public var body: some View {
+        if compact {
+            compactLayout
+        } else {
+            gridLayout
+        }
+    }
+
+    // MARK: Grid layout (default)
+
+    private var gridLayout: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            thumbnailView
+                .aspectRatio(16 / 9, contentMode: .fill)
+                .clipShape(RoundedRectangle(cornerRadius: 8))
+                .overlay(alignment: .bottomTrailing) {
+                    let dur = video.formattedDuration
+                    if !dur.isEmpty { durationBadge(dur) }
+                }
+                .overlay(alignment: .topLeading) {
+                    if video.isLive { liveBadge }
+                }
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(video.title)
+                    .font(.subheadline)
+                    .fontWeight(.medium)
+                    .lineLimit(2)
+                Text(video.channelTitle)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                HStack(spacing: 4) {
+                    let vc = video.formattedViewCount
+                    if !vc.isEmpty { Text(vc) }
+                    if let date = video.publishedAt {
+                        Text("· \(date, style: .relative) ago")
+                    }
+                }
+                .font(.caption2)
+                .foregroundStyle(.tertiary)
+            }
+            .padding(.horizontal, 2)
+        }
+    }
+
+    // MARK: Compact (list) layout
+
+    private var compactLayout: some View {
+        HStack(alignment: .top, spacing: 10) {
+            thumbnailView
+                .frame(width: 120, height: 68)
+                .clipShape(RoundedRectangle(cornerRadius: 6))
+                .overlay(alignment: .bottomTrailing) {
+                    let dur = video.formattedDuration
+                    if !dur.isEmpty { durationBadge(dur) }
+                }
+            VStack(alignment: .leading, spacing: 3) {
+                Text(video.title)
+                    .font(.subheadline)
+                    .lineLimit(2)
+                Text(video.channelTitle)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                let vc = video.formattedViewCount
+                if !vc.isEmpty {
+                    Text(vc)
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
+                }
+            }
+            Spacer(minLength: 0)
+        }
+    }
+
+    // MARK: Shared
+
+    private var thumbnailView: some View {
+        AsyncImage(url: video.highQualityThumbnailURL ?? video.thumbnailURL) { phase in
+            switch phase {
+            case .success(let img):
+                img.resizable().scaledToFill()
+            case .failure:
+                placeholderThumbnail
+            default:
+                placeholderThumbnail.overlay(ProgressView())
+            }
+        }
+    }
+
+    private var placeholderThumbnail: some View {
+        Rectangle().fill(Color(.systemGray5))
+    }
+
+    private func durationBadge(_ text: String) -> some View {
+        Text(text)
+            .font(.caption2)
+            .fontWeight(.semibold)
+            .padding(.horizontal, 4)
+            .padding(.vertical, 2)
+            .background(.black.opacity(0.75))
+            .foregroundStyle(.white)
+            .clipShape(RoundedRectangle(cornerRadius: 3))
+            .padding(4)
+    }
+
+    private var liveBadge: some View {
+        Text("LIVE")
+            .font(.caption2)
+            .fontWeight(.bold)
+            .padding(.horizontal, 5)
+            .padding(.vertical, 2)
+            .background(.red)
+            .foregroundStyle(.white)
+            .clipShape(RoundedRectangle(cornerRadius: 3))
+            .padding(4)
+    }
+}
+
+// MARK: - Preview
+
+#if DEBUG
+#Preview {
+    VideoCardView(video: Video(
+        id: "dQw4w9WgXcQ",
+        title: "Rick Astley – Never Gonna Give You Up",
+        channelTitle: "Rick Astley",
+        duration: 213,
+        viewCount: 1_400_000_000
+    ))
+    .frame(width: 320)
+    .padding()
+}
+#endif
+#endif
