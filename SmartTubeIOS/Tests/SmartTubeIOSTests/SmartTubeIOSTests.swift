@@ -128,3 +128,114 @@ final class VideoFormatTests: XCTestCase {
         XCTAssertEqual(f.qualityLabel, "1080p60")
     }
 }
+
+// MARK: - SubscriptionParsingTests
+// Validates that the InnerTubeAPI parser handles the gridVideoRenderer format used
+// in the YouTube FEsubscriptions response.
+
+final class SubscriptionParsingTests: XCTestCase {
+
+    /// Minimal mock of the `onResponseReceivedActions` structure returned
+    /// by a successfully authenticated `POST /browse?browseId=FEsubscriptions` call.
+    func testGridVideoRendererParsed() async throws {
+        let mockSubscriptionsResponse: [String: Any] = [
+            "responseContext": ["visitorData": "abc"],
+            "trackingParams": "xyz",
+            "onResponseReceivedActions": [
+                [
+                    "appendContinuationItemsAction": [
+                        "continuationItems": [
+                            [
+                                "gridVideoRenderer": [
+                                    "videoId": "dQw4w9WgXcQ",
+                                    "title": ["runs": [["text": "Rick Astley - Never Gonna Give You Up"]]],
+                                    "shortBylineText": [
+                                        "runs": [
+                                            [
+                                                "text": "Rick Astley",
+                                                "navigationEndpoint": [
+                                                    "browseEndpoint": [
+                                                        "browseId": "UCuAXFkgsw1L7xaCfnd5JJOw"
+                                                    ]
+                                                ]
+                                            ]
+                                        ]
+                                    ],
+                                    "thumbnail": [
+                                        "thumbnails": [
+                                            ["url": "https://i.ytimg.com/vi/dQw4w9WgXcQ/hqdefault.jpg", "width": 480, "height": 360]
+                                        ]
+                                    ],
+                                    "thumbnailOverlays": [
+                                        [
+                                            "thumbnailOverlayTimeStatusRenderer": [
+                                                "text": ["simpleText": "3:33"],
+                                                "style": "DEFAULT"
+                                            ]
+                                        ]
+                                    ],
+                                    "viewCountText": ["simpleText": "1,604,532,756 views"],
+                                    "navigationEndpoint": ["watchEndpoint": ["videoId": "dQw4w9WgXcQ"]]
+                                ]
+                            ]
+                        ]
+                    ]
+                ]
+            ]
+        ]
+
+        let api = InnerTubeAPI()
+        let group = try await api.parseVideoGroupForTesting(mockSubscriptionsResponse, title: "Subscriptions")
+
+        XCTAssertEqual(group.videos.count, 1, "Should parse one gridVideoRenderer item")
+        let video = try XCTUnwrap(group.videos.first)
+        XCTAssertEqual(video.id, "dQw4w9WgXcQ")
+        XCTAssertEqual(video.title, "Rick Astley - Never Gonna Give You Up")
+        XCTAssertEqual(video.channelTitle, "Rick Astley")
+        XCTAssertEqual(video.channelId, "UCuAXFkgsw1L7xaCfnd5JJOw")
+        XCTAssertEqual(video.duration, 213)   // 3m 33s
+    }
+
+    func testVideoRendererStillParsed() async throws {
+        let mockHomeResponse: [String: Any] = [
+            "contents": [
+                "twoColumnBrowseResultsRenderer": [
+                    "tabs": [
+                        [
+                            "tabRenderer": [
+                                "content": [
+                                    "richGridRenderer": [
+                                        "contents": [
+                                            [
+                                                "richItemRenderer": [
+                                                    "content": [
+                                                        "videoRenderer": [
+                                                            "videoId": "abc123",
+                                                            "title": ["runs": [["text": "Test Video"]]],
+                                                            "ownerText": ["runs": [["text": "Test Channel"]]],
+                                                            "thumbnail": ["thumbnails": [
+                                                                ["url": "https://i.ytimg.com/vi/abc123/hqdefault.jpg"]
+                                                            ]],
+                                                            "lengthText": ["simpleText": "10:00"]
+                                                        ]
+                                                    ]
+                                                ]
+                                            ]
+                                        ]
+                                    ]
+                                ]
+                            ]
+                        ]
+                    ]
+                ]
+            ]
+        ]
+
+        let api = InnerTubeAPI()
+        let group = try await api.parseVideoGroupForTesting(mockHomeResponse, title: "Home")
+        XCTAssertEqual(group.videos.count, 1, "richItemRenderer->videoRenderer should still parse")
+        let video = try XCTUnwrap(group.videos.first)
+        XCTAssertEqual(video.id, "abc123")
+        XCTAssertEqual(video.duration, 600)  // 10:00 = 600s
+    }
+}

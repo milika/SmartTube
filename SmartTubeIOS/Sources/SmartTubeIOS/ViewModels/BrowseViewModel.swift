@@ -63,7 +63,9 @@ public final class BrowseViewModel: ObservableObject {
     /// Forward the current access token to the API layer.
     /// Called whenever the user signs in, signs out, or the token is refreshed.
     public func updateAuthToken(_ token: String?) async {
-        browseLog.notice("updateAuthToken: \(token != nil ? "token set" : "cleared", privacy: .public)")
+        let msg = token != nil ? "token set (\(token!.prefix(8))…)" : "cleared"
+        browseLog.notice("updateAuthToken: \(msg, privacy: .public)")
+        print("[Browse] updateAuthToken: \(msg)")
         await api.setAuthToken(token)
         if token != nil {
             loadContent(refresh: true)

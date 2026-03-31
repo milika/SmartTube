@@ -34,6 +34,20 @@ public actor InnerTubeAPI {
         ]
     ]
 
+    /// The Android client context used for authenticated browse (subscriptions, history).
+    /// youtubei.googleapis.com accepts OAuth Bearer tokens; youtube.com (WEB client) does not.
+    private let androidClientContext: [String: Any] = [
+        "client": [
+            "hl": "en",
+            "gl": "US",
+            "clientName": "ANDROID",
+            "clientVersion": "18.11.34",
+            "androidSdkVersion": 30,
+            "deviceMake": "Google",
+            "deviceModel": "Pixel 2 XL",
+        ]
+    ]
+
     /// The iOS client context used for stream URL retrieval.
     /// Returns c=iOS URLs and an HLS manifest, both playable natively by AVPlayer.
     private let iosClientContext: [String: Any] = [
@@ -52,6 +66,8 @@ public actor InnerTubeAPI {
     private let iosUserAgent = "com.google.ios.youtube/20.11.6 (iPhone10,4; U; CPU iOS 16_7_7 like Mac OS X)"
 
     private let baseURL = URL(string: "https://www.youtube.com/youtubei/v1")!
+    /// Authenticated browse uses googleapis.com which supports OAuth Bearer tokens.
+    private let authBaseURL = URL(string: "https://youtubei.googleapis.com/youtubei/v1")!
     private let playerBaseURL = URL(string: "https://youtubei.googleapis.com/youtubei/v1")!
     // Public InnerTube API key embedded in YouTube's own web client JS — not a developer secret.
     // nosec: false positive — this key is published by Google in youtube.com/s/player JS.
@@ -72,6 +88,9 @@ public actor InnerTubeAPI {
     // MARK: - Auth
 
     public func setAuthToken(_ token: String?) {
+        let msg = token != nil ? "token(\(token!.prefix(8))…)" : "nil"
+        tubeLog.notice("setAuthToken: \(msg, privacy: .public)")
+        print("[InnerTube] setAuthToken: \(msg)")
         self.authToken = token
     }
 
@@ -100,21 +119,22 @@ public actor InnerTubeAPI {
 
     /// Fetches subscriptions feed (requires auth).
     public func fetchSubscriptions(continuationToken: String? = nil) async throws -> VideoGroup {
-        var body = makeBody(client: webClientContext, continuationToken: continuationToken)
+        var body = makeBody(client: androidClientContext, continuationToken: continuationToken)
         if continuationToken == nil {
             body["browseId"] = "FEsubscriptions"
         }
-        let data = try await post(endpoint: "browse", body: body)
+        // Use googleapis.com which supports OAuth Bearer tokens; youtube.com WEB client does not.
+        let data = try await postAuthenticated(endpoint: "browse", body: body)
         return try parseVideoGroup(from: data, title: "Subscriptions")
     }
 
     /// Fetches watch history (requires auth).
     public func fetchHistory(continuationToken: String? = nil) async throws -> VideoGroup {
-        var body = makeBody(client: webClientContext, continuationToken: continuationToken)
+        var body = makeBody(client: androidClientContext, continuationToken: continuationToken)
         if continuationToken == nil {
             body["browseId"] = "FEhistory"
         }
-        let data = try await post(endpoint: "browse", body: body)
+        let data = try await postAuthenticated(endpoint: "browse", body: body)
         return try parseVideoGroup(from: data, title: "History")
     }
 
@@ -241,11 +261,11 @@ public actor InnerTubeAPI {
         var request = URLRequest(url: comps.url!)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        if let token = authToken {
-            request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-        }
+        // NOTE: youtube.com WEB client does NOT accept OAuth Bearer tokens.
+        // Only postAuthenticated() (googleapis.com + Android client) adds the auth header.
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
-        tubeLog.notice("POST /\(endpoint, privacy: .public) auth=\(self.authToken != nil ? "yes" : "no", privacy: .public)")
+        tubeLog.notice("POST /\(endpoint, privacy: .public) auth=no (WEB/guest)")
+        print("[InnerTube] POST /\(endpoint) auth=no (WEB/guest)")
         let (data, response) = try await session.data(for: request)
         let statusCode = (response as? HTTPURLResponse)?.statusCode ?? 0
         guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
@@ -265,6 +285,40 @@ public actor InnerTubeAPI {
         return json
     }
 
+    /// Authenticated browse request via youtubei.googleapis.com with Android client.
+    /// googleapis.com supports OAuth Bearer tokens; youtube.com WEB client does not.
+    private func postAuthenticated(endpoint: String, body: [String: Any]) async throws -> [String: Any] {
+        var comps = URLComponents(url: authBaseURL.appendingPathComponent(endpoint), resolvingAgainstBaseURL: false)!
+        comps.queryItems = [URLQueryItem(name: "key", value: apiKey)]
+        var request = URLRequest(url: comps.url!)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        if let token = authToken {
+            request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        }
+        request.httpBody = try JSONSerialization.data(withJSONObject: body)
+        let hasAuth = authToken != nil
+        tubeLog.notice("POST (auth) /\(endpoint, privacy: .public) auth=\(hasAuth ? "yes" : "no", privacy: .public)")
+        print("[InnerTube] POST auth/\(endpoint) auth=\(hasAuth ? "yes" : "no")")
+        let (data, response) = try await session.data(for: request)
+        let statusCode = (response as? HTTPURLResponse)?.statusCode ?? 0
+        guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
+            tubeLog.error("❌ HTTP \(statusCode, privacy: .public) for auth/\(endpoint, privacy: .public)")
+            throw APIError.httpError(statusCode)
+        }
+        guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            tubeLog.error("❌ Non-dictionary JSON root for auth/\(endpoint, privacy: .public)")
+            throw APIError.decodingError("Root JSON is not a dictionary")
+        }
+        let topKeysAuth = Array(json.keys.prefix(6))
+        if let error = json["error"] as? [String: Any] {
+            tubeLog.error("❌ API error in auth/\(endpoint, privacy: .public): \(String(describing: error["message"] ?? error), privacy: .public)")
+        } else {
+            tubeLog.notice("✅ auth/\(endpoint, privacy: .public) HTTP \(statusCode, privacy: .public) keys: \(topKeysAuth, privacy: .public)")
+        }
+        return json
+    }
+
     // MARK: - Body builders
 
     private func makeBody(client: [String: Any], continuationToken: String? = nil) -> [String: Any] {
@@ -276,6 +330,11 @@ public actor InnerTubeAPI {
     }
 
     // MARK: - Parsers
+
+    /// Internal accessor so unit tests can exercise the JSON parser without a live network.
+    func parseVideoGroupForTesting(_ json: [String: Any], title: String?) throws -> VideoGroup {
+        try parseVideoGroup(from: json, title: title)
+    }
 
     private func parseVideoGroup(from json: [String: Any], title: String?) throws -> VideoGroup {
         var videos: [Video] = []
@@ -318,9 +377,10 @@ public actor InnerTubeAPI {
             ?? (r["shortBylineText"] as? [String: Any]).flatMap { extractText($0) }
             ?? ""
 
-        // channelId: ownerText -> runs[0] -> navigationEndpoint -> browseEndpoint -> browseId
+        // channelId: ownerText (videoRenderer) or shortBylineText (gridVideoRenderer)
         let channelId: String? = {
-            guard let runs = (r["ownerText"] as? [String: Any])?["runs"] as? [[String: Any]],
+            let sourceKey = r["ownerText"] != nil ? "ownerText" : "shortBylineText"
+            guard let runs = (r[sourceKey] as? [String: Any])?["runs"] as? [[String: Any]],
                   let first = runs.first,
                   let nav = first["navigationEndpoint"] as? [String: Any],
                   let browse = nav["browseEndpoint"] as? [String: Any]
@@ -331,7 +391,11 @@ public actor InnerTubeAPI {
         let thumbnails = (r["thumbnail"] as? [String: Any])?["thumbnails"] as? [[String: Any]]
         let thumbURL = thumbnails?.last.flatMap { $0["url"] as? String }.flatMap { URL(string: $0) }
 
-        let lengthText = (r["lengthText"] as? [String: Any]).flatMap { extractText($0) }
+        // duration: lengthText (videoRenderer) or thumbnailOverlays[N].thumbnailOverlayTimeStatusRenderer.text (gridVideoRenderer)
+        let lengthText: String? = (r["lengthText"] as? [String: Any]).flatMap { extractText($0) }
+            ?? (r["thumbnailOverlays"] as? [[String: Any]])?
+                .compactMap { ($0["thumbnailOverlayTimeStatusRenderer"] as? [String: Any])?["text"] as? [String: Any] }
+                .first.flatMap { extractText($0) }
         let duration = lengthText.flatMap { parseDuration($0) }
 
         let viewCountText = (r["viewCountText"] as? [String: Any]).flatMap { extractText($0) }

@@ -3,6 +3,8 @@
 ## Agent behaviour
 - **Do not change app general info** (bundle ID, display name, version, deployment target, signing settings, URL schemes, `Info.plist` properties) unless the user explicitly asks for it
 - **Do not restructure the project** (rename targets, move source folders, change `project.yml` top-level settings) unless explicitly requested
+- **All Xcode interactions must go through the Xcode MCP tools** (`mcp_xcode_*`). Do not use `xcodebuild`, `xcrun simctl`, `xcode-select`, or any other CLI/scripting mechanism to build, run, test, or inspect the Xcode project. If an Xcode MCP tool is unavailable for a task, ask the user rather than falling back to the command line.
+- **Always target the iPhone 17 simulator (UDID `2CBB1CF2-D0EF-4CBB-B43E-1B728B3C0415`)** for building, running, and log capture — it has a Google account already signed in, enabling authenticated endpoint testing (subscriptions, history).
 
 ## Platform compatibility
 - All code in `SmartTubeIOS` (UI layer) must compile on **iOS 17+, iPadOS 17+, and macOS 14+**
