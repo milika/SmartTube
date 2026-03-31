@@ -34,7 +34,7 @@ public struct HomeView: View {
                     PlayerView(video: video)
                 }
         }
-        .toolbarVisibility(.hidden, for: .navigationBar)
+        .toolbar(.hidden, for: .navigationBar)
         .sheet(isPresented: $showSignIn) { SignInView() }
         .task(id: auth.accessToken) {
             await homeVM.updateAuthToken(auth.accessToken)

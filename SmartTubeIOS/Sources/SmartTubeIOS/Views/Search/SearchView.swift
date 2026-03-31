@@ -27,7 +27,7 @@ public struct SearchView: View {
                 }
             }
         }
-        .toolbarVisibility(.hidden, for: .navigationBar)
+        .toolbar(.hidden, for: .navigationBar)
         .navigationDestination(item: $selectedVideo) { video in
             PlayerView(video: video)
         }

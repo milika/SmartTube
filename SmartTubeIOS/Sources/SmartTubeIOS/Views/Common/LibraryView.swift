@@ -38,7 +38,7 @@ public struct LibraryView: View {
                 signedOutPrompt
             }
         }
-        .toolbarVisibility(.hidden, for: .navigationBar)
+        .toolbar(.hidden, for: .navigationBar)
         .navigationDestination(item: $selectedVideo) { video in
             PlayerView(video: video)
         }
