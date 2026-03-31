@@ -14,12 +14,19 @@ public struct HomeView: View {
     @State private var homeVM    = HomeViewModel()
     @State private var sectionVM = BrowseViewModel()
     @Environment(AuthService.self) private var auth
+    @Environment(SettingsStore.self) private var store
     @Environment(\.colorScheme) private var colorScheme
 
     // "Home" is always first; its type is .home.
     @State private var selectedSection: BrowseSection = BrowseSection.allSections[0]
     @State private var selectedVideo: Video?
     @State private var showSignIn = false
+
+    private var visibleSections: [BrowseSection] {
+        let types = store.settings.enabledSections
+        guard !types.isEmpty else { return BrowseSection.defaultSections }
+        return types.compactMap { type in BrowseSection.allSections.first { $0.type == type } }
+    }
 
     public init() {}
 
@@ -36,6 +43,11 @@ public struct HomeView: View {
         }
         .toolbar(.hidden, for: .navigationBar)
         .sheet(isPresented: $showSignIn) { SignInView() }
+        .onChange(of: visibleSections) { _, newSections in
+            if !newSections.contains(selectedSection), let first = newSections.first {
+                selectedSection = first
+            }
+        }
         .task(id: auth.accessToken) {
             await homeVM.updateAuthToken(auth.accessToken)
             await sectionVM.updateAuthToken(auth.accessToken)
@@ -47,7 +59,7 @@ public struct HomeView: View {
     private var chipBar: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 8) {
-                ForEach(BrowseSection.allSections) { section in
+                ForEach(visibleSections) { section in
                     chipButton(section: section)
                 }
             }
@@ -117,12 +129,9 @@ public struct HomeView: View {
                 Text(state.section.title)
                     .font(.title3.bold())
                 Spacer()
-                if !state.videos.isEmpty {
+                if !state.videos.isEmpty && state.section.type != .home {
                     Button("See all") {
-                        // Recommended shelf (id "home") deep-links to the "Recommended" chip;
-                        // other shelves deep-link to their matching chip by id.
-                        let chipId = state.section.id == "home" ? "recommended" : state.section.id
-                        if let chip = BrowseSection.allSections.first(where: { $0.id == chipId }) {
+                        if let chip = visibleSections.first(where: { $0.id == state.section.id }) {
                             selectedSection = chip
                             sectionVM.select(section: chip)
                         }

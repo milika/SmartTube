@@ -74,7 +74,6 @@ public struct BrowseSection: Identifiable, Hashable, Sendable {
 
     public static let defaultSections: [BrowseSection] = [
         BrowseSection(id: "home",          title: "Home",          type: .home),
-        BrowseSection(id: "recommended",   title: "Recommended",   type: .home),
         BrowseSection(id: "subscriptions", title: "Subscriptions", type: .subscriptions),
         BrowseSection(id: "history",       title: "History",       type: .history),
         BrowseSection(id: "playlists",     title: "Playlists",     type: .playlists),

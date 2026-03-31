@@ -32,12 +32,14 @@ public struct PlayerView: View {
                 // AVKit's VideoPlayer swallows gesture recognizers placed on it
                 // directly, so we layer a clear view above it to catch taps.
                 Color.clear
+                    .ignoresSafeArea()
                     .contentShape(Rectangle())
                     .onTapGesture { vm.showControls() }
 
                 // Custom overlay controls
                 if vm.controlsVisible {
-                    controlsOverlay(size: geo.size)
+                    controlsOverlay(size: geo.size, safeAreaInsets: geo.safeAreaInsets)
+                        .ignoresSafeArea()
                         .transition(.opacity)
                         .animation(.easeInOut(duration: 0.25), value: vm.controlsVisible)
                 }
@@ -61,14 +63,11 @@ public struct PlayerView: View {
         .sheet(isPresented: $showSpeedPicker) {
             speedPickerSheet
         }
-        #if os(iOS)
-        .ignoresSafeArea(.all)
-        #endif
     }
 
     // MARK: - Controls overlay
 
-    private func controlsOverlay(size: CGSize) -> some View {
+    private func controlsOverlay(size: CGSize, safeAreaInsets: EdgeInsets) -> some View {
         VStack {
             // Top bar: back + title
             HStack {
@@ -106,7 +105,7 @@ public struct PlayerView: View {
                 }
             }
             .padding(.horizontal, 20)
-            .padding(.top, 20)
+            .padding(.top, max(safeAreaInsets.top, 20))
 
             Spacer()
 
