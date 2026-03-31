@@ -39,7 +39,7 @@ struct MainTabView: View {
     var body: some View {
         TabView {
             NavigationStack {
-                BrowseView()
+                HomeView()
             }
             .tabItem { Label("Home", systemImage: "house.fill") }
 
@@ -111,7 +111,7 @@ struct MainSidebarView: View {
             }
         } detail: {
             switch selectedSection ?? .home {
-            case .home:     NavigationStack { BrowseView() }
+            case .home:     NavigationStack { HomeView() }
             case .search:   NavigationStack { SearchView() }
             case .library:  NavigationStack { LibraryView() }
             case .settings: NavigationStack { SettingsView() }

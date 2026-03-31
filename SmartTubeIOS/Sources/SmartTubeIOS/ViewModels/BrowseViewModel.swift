@@ -27,8 +27,15 @@ public final class BrowseViewModel: ObservableObject {
     private let api: InnerTubeAPI
     private var fetchTask: Task<Void, Never>?
 
-    public init(api: InnerTubeAPI = InnerTubeAPI()) {
+    public init(api: InnerTubeAPI = InnerTubeAPI(), initialSection: BrowseSection? = nil) {
         self.api = api
+        if let initial = initialSection {
+            // Ensure the initial section appears in the picker list.
+            if !sections.contains(initial) {
+                sections = [initial] + sections
+            }
+            currentSection = initial
+        }
     }
 
     // MARK: - Section selection
@@ -84,6 +91,11 @@ public final class BrowseViewModel: ObservableObject {
         }
     }
 
+    /// Update the API auth token without triggering a content reload.
+    public func setAuthToken(_ token: String?) async {
+        await api.setAuthToken(token)
+    }
+
     // MARK: - Private fetching
 
     private func fetchSection(_ section: BrowseSection) async {
@@ -107,8 +119,8 @@ public final class BrowseViewModel: ObservableObject {
                 }
 
             case .trending:
-                let group = try await api.fetchTrending()
-                if !Task.isCancelled { videoGroups = [group] }
+                // YouTube deprecated FEtrending — show empty state instead of propagating error
+                videoGroups = []
 
             case .subscriptions:
                 let group = try await api.fetchSubscriptions()

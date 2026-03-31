@@ -54,7 +54,7 @@ public struct VideoCardView: View {
     private var gridLayout: some View {
         VStack(alignment: .leading, spacing: 6) {
             thumbnailView
-                .aspectRatio(16 / 9, contentMode: .fill)
+                .aspectRatio(16 / 9, contentMode: .fit)
                 .clipShape(RoundedRectangle(cornerRadius: 8))
                 .overlay(alignment: .bottomTrailing) {
                     let dur = video.formattedDuration

@@ -56,7 +56,7 @@ public struct PlayerView: View {
         .statusBarHidden(true)
         .toolbar(.hidden, for: .tabBar)
         #endif
-        .onAppear  { vm.load(video: video); vm.setPlaybackSpeed(store.settings.playbackSpeed) }
+        .onAppear  { vm.load(video: video); vm.setPlaybackSpeed(store.settings.playbackSpeed); vm.updateSettings(store.settings) }
         .onDisappear { vm.stop() }
         .sheet(isPresented: $showSpeedPicker) {
             speedPickerSheet
@@ -121,13 +121,37 @@ public struct PlayerView: View {
 
             Spacer()
 
-            // Bottom: progress bar
+            // Bottom: progress bar + prev/next
             VStack(spacing: 8) {
                 progressBar
                 HStack {
+                    // Previous video button
+                    Button {
+                        vm.playPrevious()
+                    } label: {
+                        Image(systemName: "backward.end.fill")
+                            .font(.system(size: 18))
+                            .foregroundStyle(vm.hasPrevious ? .white : .white.opacity(0.3))
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(!vm.hasPrevious)
+
                     Text(formatTime(vm.currentTime))
+                        .padding(.leading, 6)
                     Spacer()
                     Text(formatTime(vm.duration))
+                        .padding(.trailing, 6)
+
+                    // Next video button
+                    Button {
+                        vm.playNext()
+                    } label: {
+                        Image(systemName: "forward.end.fill")
+                            .font(.system(size: 18))
+                            .foregroundStyle(vm.hasNext ? .white : .white.opacity(0.3))
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(!vm.hasNext)
                 }
                 .font(.caption)
                 .foregroundStyle(.white.opacity(0.8))

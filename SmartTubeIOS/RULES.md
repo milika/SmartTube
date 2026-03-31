@@ -3,7 +3,7 @@
 ## Agent behaviour
 - **Do not change app general info** (bundle ID, display name, version, deployment target, signing settings, URL schemes, `Info.plist` properties) unless the user explicitly asks for it
 - **Do not restructure the project** (rename targets, move source folders, change `project.yml` top-level settings) unless explicitly requested
-- **All Xcode interactions must go through the Xcode MCP tools** (`mcp_xcode_*`). Do not use `xcodebuild`, `xcrun simctl`, `xcode-select`, or any other CLI/scripting mechanism to build, run, test, or inspect the Xcode project. If an Xcode MCP tool is unavailable for a task, ask the user rather than falling back to the command line.
+- **All Xcode interactions must go through the Xcode MCP tools** (`mcp_xcode_*`). Do not use `xcodebuild`, `xcrun simctl`, `xcode-select`, or any other CLI/scripting mechanism to build, run, test, or inspect the Xcode project. If an Xcode MCP tool is unavailable for a task (e.g. monitoring runtime logs), instruct the user to use Xcode directly (e.g. open the Debug Console pane in Xcode) rather than falling back to the command line. **Exception:** read-only log streaming (`xcrun simctl spawn booted log stream`) is permitted via the terminal.
 - **Always target the iPhone 17 simulator (UDID `2CBB1CF2-D0EF-4CBB-B43E-1B728B3C0415`)** for building, running, and log capture — it has a Google account already signed in, enabling authenticated endpoint testing (subscriptions, history).
 
 ## Platform compatibility
@@ -25,7 +25,7 @@
 - Tokens are stored in `UserDefaults` (keyed with `st_*` prefixes); migrate to Keychain before any public release
 
 ## Project structure
-- `SmartTubeIOSCore` — Foundation-only, no SwiftUI/UIKit; builds on Linux for CI
+- `SmartTubeIOSCore` — Foundation-only, no SwiftUI/UIKit
 - `SmartTubeIOS` — SwiftUI UI layer (Apple platforms only)
 - One XcodeGen target (`SmartTube`) with `supportedDestinations: [iOS, iPad, macOS]`; no separate macOS target
 - `project.yml` is the source of truth — always run `xcodegen generate` after editing it, never hand-edit `project.pbxproj`

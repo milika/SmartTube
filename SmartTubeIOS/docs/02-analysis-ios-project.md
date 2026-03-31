@@ -22,7 +22,7 @@
 ```
 
 **Targets:**
-- `SmartTubeIOSCore` — Foundation-only, no UI, builds on Linux
+- `SmartTubeIOSCore` — Foundation-only, no UI
 - `SmartTubeIOS` — SwiftUI, Apple platforms only (iOS 17+, macOS 14+)
 
 ---

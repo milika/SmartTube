@@ -24,14 +24,24 @@ public final class PlaybackViewModel: ObservableObject {
     @Published public private(set) var availableFormats: [VideoFormat] = []
     @Published public private(set) var sponsorSegments: [SponsorSegment] = []
     @Published public private(set) var relatedVideos: [Video] = []
+    @Published public private(set) var hasPrevious: Bool = false
+    @Published public private(set) var hasNext: Bool = false
     @Published public var error: Error?
     @Published public var controlsVisible: Bool = true
+
+    // MARK: - History
+
+    /// Videos played before the current one (oldest first).
+    private var history: [Video] = []
+    /// The video currently loaded (nil before first load).
+    private var currentVideo: Video? = nil
 
     // MARK: - AVPlayer
 
     public let player = AVPlayer()
     private var timeObserver: Any?
     private var statusObserver: AnyCancellable?
+    private var endObserver: AnyCancellable?
     private var controlsTimer: Task<Void, Never>?
     /// Position to seek to once the AVPlayerItem is ready.
     private var savedPositionToRestore: TimeInterval? = nil
@@ -63,6 +73,12 @@ public final class PlaybackViewModel: ObservableObject {
     // MARK: - Load video
 
     public func load(video: Video) {
+        // Push the currently playing video onto the history stack before switching
+        if let prev = currentVideo {
+            history.append(prev)
+        }
+        currentVideo = video
+        hasPrevious = !history.isEmpty
         Task { await loadAsync(video: video) }
     }
 
@@ -94,10 +110,12 @@ public final class PlaybackViewModel: ObservableObject {
             let related = try? await api.fetchNextInfo(videoId: video.id)
             if let related, !related.isEmpty {
                 relatedVideos = related.filter { $0.id != video.id }
+                hasNext = !relatedVideos.isEmpty
             } else {
                 // Fallback to search if /next returns nothing
                 let searched = try? await api.search(query: info.video.title)
                 relatedVideos = searched?.videos.filter { $0.id != video.id }.prefix(20).map { $0 } ?? []
+                hasNext = !relatedVideos.isEmpty
             }
 
             // Restore saved watch position (mirrors VideoStateController)
@@ -138,6 +156,16 @@ public final class PlaybackViewModel: ObservableObject {
                 }
             player.replaceCurrentItem(with: item)
             duration = info.video.duration ?? 0
+
+            // Autoplay: observe end-of-item and load the next related video
+            endObserver?.cancel()
+            endObserver = NotificationCenter.default
+                .publisher(for: AVPlayerItem.didPlayToEndTimeNotification, object: item)
+                .receive(on: RunLoop.main)
+                .sink { [weak self] _ in
+                    Task { @MainActor [weak self] in self?.handlePlaybackEnd() }
+                }
+
             player.play()
             isPlaying = true
             scheduleControlsHide()
@@ -145,6 +173,36 @@ public final class PlaybackViewModel: ObservableObject {
             playerLog.error("❌ loadAsync error: \(String(describing: error), privacy: .public)")
             self.error = error
         }
+    }
+
+    // MARK: - Autoplay
+
+    public func updateSettings(_ newSettings: AppSettings) {
+        settings = newSettings
+    }
+
+    /// Play the next related video (first in the suggestions list).
+    public func playNext() {
+        guard let next = relatedVideos.first else { return }
+        playerLog.notice("playNext: id=\(next.id, privacy: .public)")
+        load(video: next)
+    }
+
+    /// Play the most recently played video from the history stack.
+    /// Pops the last entry from history; load() will push the current video back so
+    /// the user can navigate forward again with playNext() or via suggestions.
+    public func playPrevious() {
+        guard !history.isEmpty else { return }
+        let prev = history.removeLast()
+        hasPrevious = !history.isEmpty
+        playerLog.notice("playPrevious: id=\(prev.id, privacy: .public)")
+        load(video: prev)
+    }
+
+    private func handlePlaybackEnd() {
+        guard settings.autoplayEnabled, let next = relatedVideos.first else { return }
+        playerLog.notice("Autoplay: loading next video id=\(next.id, privacy: .public)")
+        load(video: next)
     }
 
     // MARK: - Playback controls

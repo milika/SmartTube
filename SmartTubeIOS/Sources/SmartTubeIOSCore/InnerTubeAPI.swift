@@ -105,13 +105,10 @@ public actor InnerTubeAPI {
     }
 
     /// Fetches the trending feed.
-    /// Uses the TV client (youtubei.googleapis.com) which is more permissive than
-    /// the WEB client on www.youtube.com (which can return 400 for non-browser requests).
+    /// NOTE: YouTube deprecated the `FEtrending` browseId — it returns 400 for all clients.
+    /// This method now throws `APIError.unavailable` immediately.
     public func fetchTrending() async throws -> VideoGroup {
-        var body = makeBody(client: tvClientContext)
-        body["browseId"] = "FEtrending"
-        let data = try await postTV(endpoint: "browse", body: body)
-        return try parseVideoGroup(from: data, title: "Trending")
+        throw APIError.unavailable("Trending is no longer available on YouTube")
     }
 
     /// Fetches subscriptions feed (requires auth).
@@ -367,11 +364,12 @@ public actor InnerTubeAPI {
     /// Android alignment: when Bearer token is present, no ?key= param is sent
     /// (mirrors RetrofitOkHttpHelper — authHeaders non-empty → skip key, apply Bearer headers).
     /// When unauthenticated (e.g. trending), the WEB key is used as on all other clients.
-    private func postTV(endpoint: String, body: [String: Any]) async throws -> [String: Any] {
+    private func postTV(endpoint: String, body: [String: Any], useAuth: Bool = true) async throws -> [String: Any] {
         var comps = URLComponents(url: playerBaseURL.appendingPathComponent(endpoint),
                                   resolvingAgainstBaseURL: false)!
         // Android: no ?key= when Bearer present; WEB key for unauthenticated
-        if authToken == nil {
+        let shouldAuthenticate = useAuth && authToken != nil
+        if !shouldAuthenticate {
             comps.queryItems = [URLQueryItem(name: "key", value: apiKey)]
         }
         var request = URLRequest(url: comps.url!)
@@ -379,7 +377,7 @@ public actor InnerTubeAPI {
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue("7", forHTTPHeaderField: "X-YouTube-Client-Name")
         request.setValue("7.20230405.08.01", forHTTPHeaderField: "X-YouTube-Client-Version")
-        if let token = authToken {
+        if shouldAuthenticate, let token = authToken {
             request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         }
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
@@ -871,12 +869,14 @@ public enum APIError: LocalizedError {
     case httpError(Int)
     case decodingError(String)
     case notAuthenticated
+    case unavailable(String)
 
     public var errorDescription: String? {
         switch self {
-        case .httpError(let code):   return "HTTP error \(code)"
-        case .decodingError(let msg): return "Decoding error: \(msg)"
-        case .notAuthenticated:       return "You are not signed in"
+        case .httpError(let code):      return "HTTP error \(code)"
+        case .decodingError(let msg):   return "Decoding error: \(msg)"
+        case .notAuthenticated:          return "You are not signed in"
+        case .unavailable(let reason):   return reason
         }
     }
 }

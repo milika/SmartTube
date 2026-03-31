@@ -21,7 +21,7 @@ let package = Package(
     ],
     dependencies: [],
     targets: [
-        // MARK: Core – builds on Linux, iOS, macOS (Foundation only)
+        // MARK: Core – iOS, macOS (Foundation only)
         .target(
             name: "SmartTubeIOSCore",
             dependencies: [],
@@ -33,7 +33,7 @@ let package = Package(
             dependencies: ["SmartTubeIOSCore"],
             path: "Sources/SmartTubeIOS"
         ),
-        // MARK: Tests – only test cross-platform core so they run on Linux CI too
+        // MARK: Tests
         .testTarget(
             name: "SmartTubeIOSTests",
             dependencies: ["SmartTubeIOSCore"],
