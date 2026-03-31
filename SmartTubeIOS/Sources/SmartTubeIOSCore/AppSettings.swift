@@ -68,7 +68,7 @@ public struct AppSettings: Codable {
         compactThumbnails    = false
         hideShorts           = false
         themeName            = .system
-        enabledSections      = [.home, .trending, .subscriptions, .history, .playlists, .channels]
+        enabledSections      = [.home, .subscriptions, .history, .playlists, .channels]
         sponsorBlockEnabled  = true
         sponsorBlockCategories = [.sponsor, .selfPromo, .interaction]
         deArrowEnabled       = false

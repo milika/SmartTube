@@ -102,36 +102,24 @@ public struct BrowseView: View {
 
     private var emptyState: some View {
         VStack(spacing: 16) {
-            if vm.currentSection.type == .trending {
-                Image(systemName: "chart.bar.xaxis")
-                    .font(.system(size: 60))
-                    .foregroundStyle(.secondary)
-                Text("Trending is no longer available")
+            Image(systemName: vm.isAuthRequired ? "person.crop.circle.badge.exclamationmark" : "play.tv")
+                .font(.system(size: 60))
+                .foregroundStyle(.secondary)
+            if vm.isAuthRequired && !auth.isSignedIn {
+                Text("Sign in to see your feed")
                     .font(.title3)
-                Text("YouTube has removed the Trending feed.")
+                Text("Your home feed, subscriptions and history\nrequire a Google account.")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
+                Button("Sign In") { showSignIn = true }
+                    .buttonStyle(.borderedProminent)
             } else {
-                Image(systemName: vm.isAuthRequired ? "person.crop.circle.badge.exclamationmark" : "play.tv")
-                    .font(.system(size: 60))
+                Text("Nothing here yet")
+                    .font(.title3)
                     .foregroundStyle(.secondary)
-                if vm.isAuthRequired && !auth.isSignedIn {
-                    Text("Sign in to see your feed")
-                        .font(.title3)
-                    Text("Your home feed, subscriptions and history\nrequire a Google account.")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                        .multilineTextAlignment(.center)
-                    Button("Sign In") { showSignIn = true }
-                        .buttonStyle(.borderedProminent)
-                } else {
-                    Text("Nothing here yet")
-                        .font(.title3)
-                        .foregroundStyle(.secondary)
-                    Button("Refresh") { vm.loadContent(refresh: true) }
-                        .buttonStyle(.borderedProminent)
-                }
+                Button("Refresh") { vm.loadContent(refresh: true) }
+                    .buttonStyle(.borderedProminent)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)

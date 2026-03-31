@@ -6,7 +6,7 @@ private let homeLog = Logger(subsystem: "com.smarttube.app", category: "Home")
 
 // MARK: - HomeViewModel
 //
-// Fetches Trending, Subscriptions and Recommended shelves in parallel
+// Fetches Subscriptions and Recommended shelves in parallel
 // to populate the Home tab's multi-section feed.
 
 @MainActor
@@ -31,7 +31,6 @@ public final class HomeViewModel: ObservableObject {
 
     public static let shelfSections: [BrowseSection] = [
         BrowseSection(id: "home",          title: "Recommended",   type: .home),
-        BrowseSection(id: "trending",      title: "Trending",      type: .trending),
         BrowseSection(id: "subscriptions", title: "Subscriptions", type: .subscriptions),
     ]
 
@@ -89,9 +88,6 @@ public final class HomeViewModel: ObservableObject {
     private static func fetchVideos(type: BrowseSection.SectionType, api: InnerTubeAPI) async -> [Video] {
         do {
             switch type {
-            case .trending:
-                let group = try await api.fetchTrending()
-                return Array(group.videos.prefix(20))
             case .subscriptions:
                 let group = try await api.fetchSubscriptions()
                 return Array(group.videos.prefix(20))

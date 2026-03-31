@@ -102,7 +102,7 @@ var body: some Scene {
 | `SmartTubeApp.swift` | ~20 | @main entry, DI setup |
 | `AuthService.swift` | ~450 | OAuth Device Authorization Grant flow |
 | `SettingsStore.swift` | ~30 | Auto-persisting settings wrapper |
-| `BrowseViewModel.swift` | ~180 | Browse feed logic (home, trending, subs, history, playlists, channels) |
+| `BrowseViewModel.swift` | ~180 | Browse feed logic (home, subs, history, playlists, channels) |
 | `PlaybackViewModel.swift` | ~300 | Video playback (AVPlayer, SponsorBlock, formats) |
 | `SearchViewModel.swift` | ~120 | Search + suggestions + channel VM |
 | `RootView.swift` | ~100 | Root layout (TabView on iOS, NavigationSplitView on macOS) |
@@ -152,7 +152,6 @@ var body: some Scene {
 | Method | Uses | Auth | Continuation |
 |--------|------|------|-------------|
 | `fetchHome(continuationToken:)` | WEB `/browse` (`FEwhat_to_watch`) | Optional | ✅ |
-| `fetchTrending()` | WEB `/browse` (`FEtrending`) | No | ❌ |
 | `fetchSubscriptions(continuationToken:)` | WEB `/browse` (`FEsubscriptions`) | Required | ✅ |
 | `fetchHistory(continuationToken:)` | WEB `/browse` (`FEhistory`) | Required | ✅ |
 | `search(query:continuationToken:)` | WEB `/search` | Optional | ✅ |
@@ -215,13 +214,12 @@ public struct BrowseSection: Identifiable, Hashable {
     public let type: SectionType
     
     public enum SectionType: String, CaseIterable, Codable {
-        case home, trending, subscriptions, history, playlists, channels
+        case home, subscriptions, history, playlists, channels
         case shorts, music, news, gaming, settings
     }
     
     public static let defaultSections: [BrowseSection] = [
         .init(id: "home", title: "Home", type: .home),
-        .init(id: "trending", title: "Trending", type: .trending),
         .init(id: "subscriptions", title: "Subscriptions", type: .subscriptions),
         .init(id: "history", title: "History", type: .history),
         .init(id: "playlists", title: "Playlists", type: .playlists),

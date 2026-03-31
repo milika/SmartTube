@@ -53,7 +53,6 @@ public struct BrowseSection: Identifiable, Hashable {
 
     public enum SectionType: String, CaseIterable, Codable {
         case home          = "home"
-        case trending      = "trending"
         case subscriptions = "subscriptions"
         case history       = "history"
         case playlists     = "playlists"

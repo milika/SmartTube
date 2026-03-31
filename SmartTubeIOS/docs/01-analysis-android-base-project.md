@@ -46,7 +46,7 @@ public class BrowsePresenter extends BasePresenter<BrowseView> {
 **Presenters found (52+):**
 | Presenter | Purpose |
 |-----------|---------|
-| `BrowsePresenter` | Home/Trending/Subscriptions/History/Channels/Playlists/Settings sections |
+| `BrowsePresenter` | Home/Subscriptions/History/Channels/Playlists/Settings sections |
 | `SearchPresenter` | Search with filters, voice, suggestions |
 | `PlaybackPresenter` | Video playback orchestrator — delegates to 10 controllers |
 | `ChannelPresenter` | Channel page |
@@ -79,7 +79,7 @@ protected SignInService getSignInService() {
 **Service interfaces:**
 | Interface | Purpose | Key Methods |
 |-----------|---------|-------------|
-| `ContentService` | Browse feeds | `getHomeObserve()`, `getTrendingObserve()`, `getSubscriptionsObserve()`, `getHistoryObserve()`, `getSearchObserve()`, `getShortsObserve()`, `getMusicObserve()`, `getGamingObserve()`, `getNewsObserve()`, `getLiveObserve()`, `getKidsHomeObserve()`, `getSportsObserve()` |
+| `ContentService` | Browse feeds | `getHomeObserve()`, `getSubscriptionsObserve()`, `getHistoryObserve()`, `getSearchObserve()`, `getShortsObserve()`, `getMusicObserve()`, `getGamingObserve()`, `getNewsObserve()`, `getLiveObserve()`, `getKidsHomeObserve()`, `getSportsObserve()` |
 | `MediaItemService` | Video metadata & formats | `getMetadataObserve()`, `getFormatInfoObserve()` |
 | `SignInService` | Auth | `signInObserve()`, `getAccounts()`, `selectAccount()`, `isSigned()` |
 | `CommentsService` | Comments | Referenced in `ChatController`, `CommentsController` |
@@ -196,7 +196,7 @@ public class VideoGroup {
 ### BrowseSection (Android)
 Section types: `TYPE_GRID`, `TYPE_ROW`, `TYPE_SETTINGS_GRID`, `TYPE_MULTI_GRID`, `TYPE_ERROR`, `TYPE_SHORTS_GRID`
 
-Section IDs mapped to `MediaGroup.TYPE_*`: HOME, SHORTS, TRENDING, KIDS_HOME, SPORTS, LIVE, MY_VIDEOS, GAMING, NEWS, MUSIC, CHANNEL_UPLOADS, SUBSCRIPTIONS, HISTORY, BLOCKED_CHANNELS, USER_PLAYLISTS, NOTIFICATIONS, PLAYBACK_QUEUE, SETTINGS.
+Section IDs mapped to `MediaGroup.TYPE_*`: HOME, SHORTS, KIDS_HOME, SPORTS, LIVE, MY_VIDEOS, GAMING, NEWS, MUSIC, CHANNEL_UPLOADS, SUBSCRIPTIONS, HISTORY, BLOCKED_CHANNELS, USER_PLAYLISTS, NOTIFICATIONS, PLAYBACK_QUEUE, SETTINGS.
 
 ---
 
@@ -205,7 +205,6 @@ Section IDs mapped to `MediaGroup.TYPE_*`: HOME, SHORTS, TRENDING, KIDS_HOME, SP
 | Section | Android | iOS |
 |---------|---------|-----|
 | Home | ✅ (TYPE_ROW — multiple row groups) | ✅ (single grid) |
-| Trending | ✅ (TYPE_ROW) | ✅ (grid) |
 | Subscriptions | ✅ (TYPE_GRID, auth) | ✅ (grid, auth) |
 | History | ✅ (TYPE_GRID, auth) | ✅ (grid, auth) |
 | Playlists | ✅ (TYPE_ROW or TYPE_GRID) | ✅ (list) |
@@ -267,7 +266,7 @@ Section IDs mapped to `MediaGroup.TYPE_*`: HOME, SHORTS, TRENDING, KIDS_HOME, SP
 ### Key Endpoints
 | Endpoint | Method | Client | Auth | Purpose |
 |----------|--------|--------|------|---------|
-| `/browse` | POST | WEB | Optional | Home, trending, subscriptions, history, channels, playlists |
+| `/browse` | POST | WEB | Optional | Home, subscriptions, history, channels, playlists |
 | `/search` | POST | WEB | Optional | Search results |
 | `/player` | POST | iOS | No | Stream URLs (HLS, DASH, formats) |
 | `/account/accounts` | POST | TVHTML5 + TV key | Bearer | Account name/avatar |

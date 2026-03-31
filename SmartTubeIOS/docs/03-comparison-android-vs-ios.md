@@ -68,7 +68,6 @@ The iOS port covers the core functionality but diverges from the Android project
 | Browse ID | Android | iOS |
 |-----------|---------|-----|
 | `FEwhat_to_watch` | ✅ Home | ✅ Home |
-| `FEtrending` | ✅ Trending | ✅ Trending |
 | `FEsubscriptions` | ✅ Subscriptions | ✅ Subscriptions |
 | `FEhistory` | ✅ History | ✅ History |
 | `FEmy_videos` | ✅ My Videos | ✅ (used for playlists) |
@@ -229,7 +228,7 @@ The iOS port covers the core functionality but diverges from the Android project
 | | Android | iOS |
 |-|---------|-----|
 | Layout | Multiple horizontal rows (TYPE_ROW) — each row is a group | Single vertical grid |
-| Row titles | ✅ "Recommended", "Trending", etc. | ❌ (all videos in one flat grid) |
+| Row titles | ✅ "Recommended", etc. | ❌ (all videos in one flat grid) |
 | **Impact** | Android shows richer sectioned home; iOS flattens all into one list |
 
 ### 5.3 Video Card Context Menu

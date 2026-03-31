@@ -14,21 +14,53 @@ public struct SearchView: View {
     public init() {}
 
     public var body: some View {
-        Group {
-            if vm.results.isEmpty && !vm.isLoading && vm.query.isEmpty {
-                placeholderView
-            } else if vm.results.isEmpty && !vm.isLoading && !vm.query.isEmpty {
-                noResultsView
-            } else {
-                resultsView
+        VStack(spacing: 0) {
+            searchBar
+            Divider()
+            Group {
+                if vm.results.isEmpty && !vm.isLoading && vm.query.isEmpty {
+                    placeholderView
+                } else if vm.results.isEmpty && !vm.isLoading && !vm.query.isEmpty {
+                    noResultsView
+                } else {
+                    resultsView
+                }
             }
         }
-        .navigationTitle("Search")
-        .searchable(text: $vm.query, prompt: "Search YouTube")
-        .onSubmit(of: .search) { vm.search() }
+        .toolbarVisibility(.hidden, for: .navigationBar)
         .navigationDestination(item: $selectedVideo) { video in
             PlayerView(video: video)
         }
+    }
+
+    // MARK: - Search bar
+
+    private var searchBar: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "magnifyingglass")
+                .foregroundStyle(.secondary)
+            TextField("Search YouTube", text: $vm.query)
+                .focused($isSearchFocused)
+                .submitLabel(.search)
+                .autocorrectionDisabled()
+                #if os(iOS)
+                .textInputAutocapitalization(.never)
+                #endif
+                .onSubmit { vm.search() }
+            if !vm.query.isEmpty {
+                Button {
+                    vm.query = ""
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(10)
+        .background(Color.secondary.opacity(0.12), in: RoundedRectangle(cornerRadius: 10))
+        .padding(.horizontal)
+        .padding(.vertical, 8)
     }
 
     // MARK: - Results

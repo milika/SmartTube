@@ -5,7 +5,7 @@ import SmartTubeIOSCore
 //
 // YouTube-style home tab.  A horizontal chip bar at the top lets the user
 // switch between every available section:
-//   • "Home"  chip  → multi-shelf overview (Trending row, Subscriptions row,
+//   • "Home"  chip  → multi-shelf overview (Subscriptions row,
 //                      Recommended row) driven by HomeViewModel.
 //   • Any other chip → full-screen video feed for that section driven by a
 //                      dedicated BrowseViewModel instance.
@@ -34,7 +34,7 @@ public struct HomeView: View {
                     PlayerView(video: video)
                 }
         }
-        .navigationTitle("Home")
+        .toolbarVisibility(.hidden, for: .navigationBar)
         .sheet(isPresented: $showSignIn) { SignInView() }
         .task(id: auth.accessToken) {
             await homeVM.updateAuthToken(auth.accessToken)

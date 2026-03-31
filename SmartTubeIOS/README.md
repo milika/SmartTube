@@ -11,7 +11,7 @@ A SwiftUI port of the [SmartTube](https://github.com/yuliskov/SmartTube) Android
 
 | Android Feature | iOS Implementation |
 |---|---|
-| Home / Trending / Subscriptions / History feeds | `BrowseView` + `BrowseViewModel` → InnerTube API |
+| Home / Subscriptions / History feeds | `BrowseView` + `BrowseViewModel` → InnerTube API |
 | Video playback (adaptive, HLS, DASH) | `PlayerView` + `PlaybackViewModel` → AVPlayer / AVKit |
 | Search with suggestions | `SearchView` + `SearchViewModel` |
 | Channel browser | `ChannelView` + `ChannelViewModel` |
@@ -41,7 +41,7 @@ SmartTubeIOS/
     │   ├── AuthService.swift       # Google OAuth 2.0
     │   └── SettingsStore.swift     # UserDefaults-backed preferences store
     ├── ViewModels/
-    │   ├── BrowseViewModel.swift   # Home/trending/subs feeds
+    │   ├── BrowseViewModel.swift   # Home/subs feeds
     │   ├── PlaybackViewModel.swift # AVPlayer wrapper + SponsorBlock skip
     │   └── SearchViewModel.swift   # Search + ChannelViewModel
     └── Views/

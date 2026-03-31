@@ -104,13 +104,6 @@ public actor InnerTubeAPI {
         return try parseVideoGroup(from: data, title: "Home")
     }
 
-    /// Fetches the trending feed.
-    /// NOTE: YouTube deprecated the `FEtrending` browseId — it returns 400 for all clients.
-    /// This method now throws `APIError.unavailable` immediately.
-    public func fetchTrending() async throws -> VideoGroup {
-        throw APIError.unavailable("Trending is no longer available on YouTube")
-    }
-
     /// Fetches subscriptions feed (requires auth).
     /// Uses TVHTML5 client on youtubei.googleapis.com — the only endpoint that accepts
     /// the OAuth token issued by the TV device-code flow.
@@ -363,7 +356,7 @@ public actor InnerTubeAPI {
     ///
     /// Android alignment: when Bearer token is present, no ?key= param is sent
     /// (mirrors RetrofitOkHttpHelper — authHeaders non-empty → skip key, apply Bearer headers).
-    /// When unauthenticated (e.g. trending), the WEB key is used as on all other clients.
+    /// When unauthenticated, the WEB key is used as on all other clients.
     private func postTV(endpoint: String, body: [String: Any], useAuth: Bool = true) async throws -> [String: Any] {
         var comps = URLComponents(url: playerBaseURL.appendingPathComponent(endpoint),
                                   resolvingAgainstBaseURL: false)!

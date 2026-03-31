@@ -118,10 +118,6 @@ public final class BrowseViewModel: ObservableObject {
                     }
                 }
 
-            case .trending:
-                // YouTube deprecated FEtrending — show empty state instead of propagating error
-                videoGroups = []
-
             case .subscriptions:
                 let group = try await api.fetchSubscriptions()
                 if !Task.isCancelled {
