@@ -1,6 +1,14 @@
 import SwiftUI
 import SmartTubeIOSCore
 
+// MARK: - Notification names
+
+extension Notification.Name {
+    /// Posted when the user selects "Open Channel" from a video's context menu.
+    /// userInfo keys: "channelId", "channelTitle"
+    static let openChannel = Notification.Name("com.smarttube.openChannel")
+}
+
 // MARK: - VideoCardView
 //
 // A card showing a video thumbnail, title, channel and metadata.
@@ -16,10 +24,28 @@ public struct VideoCardView: View {
     }
 
     public var body: some View {
-        if compact {
-            compactLayout
-        } else {
-            gridLayout
+        Group {
+            if compact {
+                compactLayout
+            } else {
+                gridLayout
+            }
+        }
+        .contextMenu {
+            ShareLink(item: URL(string: "https://www.youtube.com/watch?v=\(video.id)")!) {
+                Label("Share", systemImage: "square.and.arrow.up")
+            }
+            if let channelId = video.channelId, !channelId.isEmpty {
+                Button {
+                    NotificationCenter.default.post(
+                        name: .openChannel,
+                        object: nil,
+                        userInfo: ["channelId": channelId, "channelTitle": video.channelTitle]
+                    )
+                } label: {
+                    Label("Open Channel", systemImage: "person.crop.rectangle")
+                }
+            }
         }
     }
 

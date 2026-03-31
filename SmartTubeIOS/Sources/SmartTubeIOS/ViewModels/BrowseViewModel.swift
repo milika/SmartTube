@@ -39,6 +39,18 @@ public final class BrowseViewModel: ObservableObject {
         loadContent(for: section, refresh: true)
     }
 
+    /// Rebuilds the visible sections list from settings.
+    /// Call this when AppSettings.enabledSections changes.
+    public func configureSections(_ enabledTypes: [BrowseSection.SectionType]) {
+        let allSections = BrowseSection.allSections
+        let ordered = enabledTypes.compactMap { type in allSections.first { $0.type == type } }
+        sections = ordered.isEmpty ? BrowseSection.defaultSections : ordered
+        // If current section is no longer in the list, switch to first
+        if !sections.contains(currentSection), let first = sections.first {
+            currentSection = first
+        }
+    }
+
     // MARK: - Loading
 
     public func loadContent(for section: BrowseSection? = nil, refresh: Bool = false) {
@@ -79,37 +91,103 @@ public final class BrowseViewModel: ObservableObject {
         defer { isLoading = false }
         browseLog.notice("Fetching section: \(section.title, privacy: .public) (\(String(describing: section.type), privacy: .public))")
         do {
-            let group: VideoGroup
             switch section.type {
+
             case .home:
-                let homeGroup = try await api.fetchHome()
-                if homeGroup.videos.isEmpty {
-                    // YouTube gates FEwhat_to_watch behind login — show popular content for guests
-                    isAuthRequired = true
-                    group = try await api.search(query: "popular")
-                } else {
-                    isAuthRequired = false
-                    group = homeGroup
+                let rows = try await api.fetchHomeRows()
+                if !Task.isCancelled {
+                    if rows.flatMap({ $0.videos }).isEmpty {
+                        isAuthRequired = true
+                        let popular = try await api.search(query: "popular")
+                        videoGroups = [popular]
+                    } else {
+                        isAuthRequired = false
+                        videoGroups = rows
+                    }
                 }
-            case .trending:      group = try await api.search(query: "trending")  // FEtrending is deprecated
-            case .subscriptions: group = try await api.fetchSubscriptions()
-            case .history:       group = try await api.fetchHistory()
-            case .shorts:        group = try await api.fetchHome()   // filtered client-side
-            default:             group = try await api.fetchHome()
-            }
-            if !Task.isCancelled {
-                if section.type != .home {   // home already sets isAuthRequired above
-                    let authSections: Set<BrowseSection.SectionType> = [.subscriptions, .history]
-                    isAuthRequired = group.videos.isEmpty && authSections.contains(section.type)
+
+            case .trending:
+                let group = try await api.fetchTrending()
+                if !Task.isCancelled { videoGroups = [group] }
+
+            case .subscriptions:
+                let group = try await api.fetchSubscriptions()
+                if !Task.isCancelled {
+                    isAuthRequired = group.videos.isEmpty
+                    videoGroups = group.videos.isEmpty ? [] : [group]
                 }
-                browseLog.notice("✅ \(section.title, privacy: .public): \(group.videos.count, privacy: .public) videos, authRequired=\(self.isAuthRequired, privacy: .public)")
-                videoGroups = [group]
+
+            case .history:
+                let group = try await api.fetchHistory()
+                if !Task.isCancelled {
+                    isAuthRequired = group.videos.isEmpty
+                    videoGroups = group.videos.isEmpty ? [] : [group]
+                }
+
+            case .playlists:
+                let playlists = try await api.fetchUserPlaylists()
+                if !Task.isCancelled {
+                    isAuthRequired = playlists.isEmpty
+                    // Convert PlaylistInfo list into a VideoGroup of placeholder videos
+                    let videos = playlists.map { pl -> Video in
+                        Video(id: pl.id, title: pl.title, channelTitle: pl.videoCount.map { "\($0) videos" } ?? "",
+                              thumbnailURL: pl.thumbnailURL, playlistId: pl.id)
+                    }
+                    videoGroups = videos.isEmpty ? [] : [VideoGroup(title: "Playlists", videos: videos)]
+                }
+
+            case .channels:
+                // Channels section falls through to subscriptions feed;
+                // a dedicated channel-list endpoint requires deeper API work.
+                let group = try await api.fetchSubscriptions()
+                if !Task.isCancelled {
+                    isAuthRequired = group.videos.isEmpty
+                    videoGroups = group.videos.isEmpty ? [] : [group]
+                }
+
+            case .shorts:
+                let group = try await api.fetchShorts()
+                if !Task.isCancelled { videoGroups = [group] }
+
+            case .music:
+                let group = try await api.fetchMusic()
+                if !Task.isCancelled { videoGroups = [group] }
+
+            case .gaming:
+                let group = try await api.fetchGaming()
+                if !Task.isCancelled { videoGroups = [group] }
+
+            case .news:
+                let group = try await api.fetchNews()
+                if !Task.isCancelled { videoGroups = [group] }
+
+            case .live:
+                let group = try await api.fetchLive()
+                if !Task.isCancelled { videoGroups = [group] }
+
+            case .sports:
+                let group = try await api.fetchSports()
+                if !Task.isCancelled { videoGroups = [group] }
+
+            case .settings:
+                break
             }
         } catch {
             if !Task.isCancelled {
-                isAuthRequired = false
-                browseLog.error("❌ \(section.title, privacy: .public) error: \(String(describing: error), privacy: .public)")
-                self.error = error
+                // HTTP 401/403 on an auth-gated section means the user is not signed in
+                // rather than a real error — surface it as a sign-in prompt.
+                let authSections: Set<BrowseSection.SectionType> = [.subscriptions, .history, .playlists]
+                if let apiErr = error as? APIError,
+                   case .httpError(let code) = apiErr,
+                   (code == 401 || code == 403),
+                   authSections.contains(section.type) {
+                    isAuthRequired = true
+                    browseLog.notice("Auth required for \(section.title, privacy: .public) (HTTP \(code, privacy: .public))")
+                } else {
+                    isAuthRequired = false
+                    browseLog.error("❌ \(section.title, privacy: .public) error: \(String(describing: error), privacy: .public)")
+                    self.error = error
+                }
             }
         }
     }
@@ -119,15 +197,18 @@ public final class BrowseViewModel: ObservableObject {
         isLoading = true
         defer { isLoading = false }
         do {
-            let group: VideoGroup
             switch section.type {
-            case .home:          group = try await api.fetchHome(continuationToken: token)
-            case .subscriptions: group = try await api.fetchSubscriptions(continuationToken: token)
-            case .history:       group = try await api.fetchHistory(continuationToken: token)
-            default:             return
-            }
-            if !Task.isCancelled {
-                videoGroups.append(group)
+            case .home:
+                let newRows = try await api.fetchHomeRows(continuationToken: token)
+                if !Task.isCancelled { videoGroups.append(contentsOf: newRows) }
+            case .subscriptions:
+                let group = try await api.fetchSubscriptions(continuationToken: token)
+                if !Task.isCancelled { videoGroups.append(group) }
+            case .history:
+                let group = try await api.fetchHistory(continuationToken: token)
+                if !Task.isCancelled { videoGroups.append(group) }
+            default:
+                break
             }
         } catch {
             if !Task.isCancelled { self.error = error }

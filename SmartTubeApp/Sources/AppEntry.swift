@@ -6,6 +6,7 @@ import SmartTubeIOS
 struct AppEntry: App {
     @StateObject private var authService     = AuthService()
     @StateObject private var browseViewModel = BrowseViewModel()
+    @StateObject private var settingsStore   = SettingsStore()
 
     var body: some Scene {
         #if os(macOS)
@@ -13,8 +14,12 @@ struct AppEntry: App {
             RootView()
                 .environmentObject(authService)
                 .environmentObject(browseViewModel)
+                .environmentObject(settingsStore)
                 .onChange(of: authService.accessToken, initial: true) { _, newToken in
                     Task { await browseViewModel.updateAuthToken(newToken) }
+                }
+                .onChange(of: settingsStore.settings.enabledSections) { _, newSections in
+                    browseViewModel.configureSections(newSections)
                 }
         }
         .defaultSize(width: 1280, height: 800)
@@ -23,7 +28,7 @@ struct AppEntry: App {
             SettingsView()
                 .environmentObject(authService)
                 .environmentObject(browseViewModel)
-                .environmentObject(SettingsStore())
+                .environmentObject(settingsStore)
                 .frame(minWidth: 480)
         }
         #else
@@ -31,8 +36,12 @@ struct AppEntry: App {
             RootView()
                 .environmentObject(authService)
                 .environmentObject(browseViewModel)
+                .environmentObject(settingsStore)
                 .onChange(of: authService.accessToken, initial: true) { _, newToken in
                     Task { await browseViewModel.updateAuthToken(newToken) }
+                }
+                .onChange(of: settingsStore.settings.enabledSections) { _, newSections in
+                    browseViewModel.configureSections(newSections)
                 }
         }
         #endif

@@ -20,7 +20,8 @@
 - The device authorization grant uses the **YouTube TV client credentials** scraped from `youtube.com/tv`
 - The `id="base-js"` element in the TV HTML points to the kabuki `/m=base` script that contains `clientId`/`clientSecret` — match Android's `AppInfo.java` regex exactly: `id="base-js" src="([^"]+)"`
 - The fallback credentials (`YouTubeClientCredentialsFetcher.fallback`) must be kept up to date with the live `client_id` from `base-js`
-- **Do not** call `/oauth2/v3/userinfo` for account info — the granted scopes (`gdata.youtube.com`, `youtube-paid-content`) do not include `openid`/`profile`; use `GET /youtube/v3/channels?part=snippet&mine=true` instead
+- **Do not** call `/oauth2/v3/userinfo` or `youtube/v3/channels` for account info — the TV OAuth credentials (`861556708454`) do not have YouTube Data API v3 enabled; use `POST youtubei.googleapis.com/youtubei/v1/account/accounts` with the TVHTML5 client context instead
+- **Authenticated InnerTube requests** (subscriptions, history) must use the **TVHTML5 client context** with the TV API key (`AIzaSyDCU8hByM-4DrUqRUYnGn-3llEO78bcxq8`) on `youtubei.googleapis.com` — the OAuth token is issued by the TV device-code flow and is matched to the TV client. The WEB client on `www.youtube.com` rejects OAuth Bearer tokens (returns 400).
 - Tokens are stored in `UserDefaults` (keyed with `st_*` prefixes); migrate to Keychain before any public release
 
 ## Project structure

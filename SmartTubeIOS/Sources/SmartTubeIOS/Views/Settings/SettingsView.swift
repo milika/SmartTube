@@ -67,6 +67,19 @@ public struct SettingsView: View {
                 .pickerStyle(.menu)
             }
 
+            Stepper(
+                "Seek Back: \(store.settings.seekBackSeconds)s",
+                value: $store.settings.seekBackSeconds,
+                in: 5...60,
+                step: 5
+            )
+            Stepper(
+                "Seek Forward: \(store.settings.seekForwardSeconds)s",
+                value: $store.settings.seekForwardSeconds,
+                in: 5...60,
+                step: 5
+            )
+
             Toggle("Autoplay next video", isOn: $store.settings.autoplayEnabled)
             Toggle("Subtitles", isOn: $store.settings.subtitlesEnabled)
             Toggle("Background Playback", isOn: $store.settings.backgroundPlaybackEnabled)
@@ -84,6 +97,10 @@ public struct SettingsView: View {
             }
             Toggle("Hide Shorts", isOn: $store.settings.hideShorts)
             Toggle("Compact Thumbnails", isOn: $store.settings.compactThumbnails)
+            NavigationLink("Visible Sections") {
+                SectionsSettingsView()
+                    .environmentObject(store)
+            }
         }
     }
 
@@ -157,6 +174,47 @@ private extension SponsorSegment.Category {
         case .preview:       return "Preview/Hook"
         case .filler:        return "Filler Tangent"
         case .musicOfftopic: return "Music (Off-Topic)"
+        case .poiHighlight:  return "Highlight (Point of Interest)"
         }
+    }
+}
+
+// MARK: - SectionsSettingsView
+
+/// Lets the user configure which sections appear in the sidebar / tab bar.
+/// Mirrors Android's `MainUIData` section ordering/enabling UI.
+struct SectionsSettingsView: View {
+    @EnvironmentObject private var store: SettingsStore
+
+    private let allSections = BrowseSection.allSections
+
+    var body: some View {
+        List {
+            ForEach(allSections) { section in
+                Toggle(section.title, isOn: Binding(
+                    get: { store.settings.enabledSections.contains(section.type) },
+                    set: { enabled in
+                        if enabled {
+                            if !store.settings.enabledSections.contains(section.type) {
+                                // Insert in canonical order
+                                let ordered = allSections
+                                    .filter { store.settings.enabledSections.contains($0.type) || $0.type == section.type }
+                                    .map { $0.type }
+                                store.settings.enabledSections = ordered
+                            }
+                        } else {
+                            // Don't allow disabling the last section
+                            if store.settings.enabledSections.count > 1 {
+                                store.settings.enabledSections.removeAll { $0 == section.type }
+                            }
+                        }
+                    }
+                ))
+            }
+        }
+        .navigationTitle("Visible Sections")
+        #if os(iOS)
+        .navigationBarTitleDisplayMode(.inline)
+        #endif
     }
 }

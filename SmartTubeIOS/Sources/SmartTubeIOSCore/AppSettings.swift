@@ -11,12 +11,19 @@ public struct AppSettings: Codable {
     public var subtitlesEnabled: Bool
     public var subtitlesLanguage: String?
     public var backgroundPlaybackEnabled: Bool
+    /// Seconds to seek backward (configurable; default 10 mirrors Android's default).
+    public var seekBackSeconds: Int
+    /// Seconds to seek forward (configurable; default 30 mirrors Android's default).
+    public var seekForwardSeconds: Int
 
     // MARK: UI
     public var defaultSection: String
     public var compactThumbnails: Bool
     public var hideShorts: Bool
     public var themeName: ThemeName
+    /// Ordered list of section types visible in the sidebar/tab bar.
+    /// When empty, all default sections are shown.
+    public var enabledSections: [BrowseSection.SectionType]
 
     // MARK: SponsorBlock
     public var sponsorBlockEnabled: Bool
@@ -55,10 +62,13 @@ public struct AppSettings: Codable {
         subtitlesEnabled     = false
         subtitlesLanguage    = nil
         backgroundPlaybackEnabled = false
+        seekBackSeconds      = 10
+        seekForwardSeconds   = 30
         defaultSection       = "home"
         compactThumbnails    = false
         hideShorts           = false
         themeName            = .system
+        enabledSections      = [.home, .trending, .subscriptions, .history, .playlists, .channels]
         sponsorBlockEnabled  = true
         sponsorBlockCategories = [.sponsor, .selfPromo, .interaction]
         deArrowEnabled       = false

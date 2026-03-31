@@ -4,14 +4,19 @@ import SwiftUI
 struct SmartTubeApp: App {
     @StateObject private var authService = AuthService()
     @StateObject private var browseViewModel = BrowseViewModel()
+    @StateObject private var settingsStore = SettingsStore()
 
     var body: some Scene {
         WindowGroup {
             RootView()
                 .environmentObject(authService)
                 .environmentObject(browseViewModel)
+                .environmentObject(settingsStore)
                 .onChange(of: authService.accessToken) { _, newToken in
                     Task { await browseViewModel.updateAuthToken(newToken) }
+                }
+                .onChange(of: settingsStore.settings.enabledSections) { _, newSections in
+                    browseViewModel.configureSections(newSections)
                 }
         }
         #if os(macOS)

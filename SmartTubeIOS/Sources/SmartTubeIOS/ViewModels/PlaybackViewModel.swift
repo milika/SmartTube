@@ -33,6 +33,8 @@ public final class PlaybackViewModel: ObservableObject {
     private var timeObserver: Any?
     private var statusObserver: AnyCancellable?
     private var controlsTimer: Task<Void, Never>?
+    /// Position to seek to once the AVPlayerItem is ready.
+    private var savedPositionToRestore: TimeInterval? = nil
 
     // MARK: - Dependencies
 
@@ -88,9 +90,22 @@ public final class PlaybackViewModel: ObservableObject {
                 )
             }
 
-            // Related videos
-            let related = try? await api.search(query: info.video.title)
-            relatedVideos = related?.videos.filter { $0.id != video.id }.prefix(20).map { $0 } ?? []
+            // Related videos — use /next endpoint (mirrors SuggestionsController)
+            let related = try? await api.fetchNextInfo(videoId: video.id)
+            if let related, !related.isEmpty {
+                relatedVideos = related.filter { $0.id != video.id }
+            } else {
+                // Fallback to search if /next returns nothing
+                let searched = try? await api.search(query: info.video.title)
+                relatedVideos = searched?.videos.filter { $0.id != video.id }.prefix(20).map { $0 } ?? []
+            }
+
+            // Restore saved watch position (mirrors VideoStateController)
+            let savedState = VideoStateStore.shared.state(for: video.id)
+            if let pos = savedState?.position, pos > 5 {
+                savedPositionToRestore = pos
+                playerLog.notice("Restoring position \(Int(pos), privacy: .public)s for \(video.id, privacy: .public)")
+            }
 
             // Build player item
             guard let url = info.preferredStreamURL else {
@@ -106,6 +121,11 @@ public final class PlaybackViewModel: ObservableObject {
                     switch status {
                     case .readyToPlay:
                         playerLog.notice("✅ AVPlayerItem readyToPlay")
+                        // Restore saved position once the item is ready to seek
+                        if let pos = self?.savedPositionToRestore, pos > 0 {
+                            self?.savedPositionToRestore = nil
+                            self?.seek(to: pos)
+                        }
                     case .failed:
                         let err = item.error.map { "\($0)" } ?? "nil"
                         playerLog.error("❌ AVPlayerItem failed: \(err, privacy: .public)")
@@ -195,6 +215,12 @@ public final class PlaybackViewModel: ObservableObject {
     // MARK: - Cleanup
 
     public func stop() {
+        // Save watch position before stopping (mirrors VideoStateController)
+        if let videoId = playerInfo?.video.id, duration > 0 {
+            let pos = self.currentTime
+            VideoStateStore.shared.save(videoId: videoId, position: pos, duration: duration)
+            playerLog.notice("Saved position \(Int(pos), privacy: .public)s for \(videoId, privacy: .public)")
+        }
         player.pause()
         player.replaceCurrentItem(with: nil)
         isPlaying = false

@@ -62,7 +62,12 @@ public struct BrowseView: View {
                             .padding(.top, 16)
                             .padding(.bottom, 4)
                     }
-                    VideoGridSection(videos: group.videos, onSelect: { selectedVideo = $0 })
+                    if group.layout == .row {
+                        VideoRowSection(videos: group.videos, onSelect: { selectedVideo = $0 })
+                    } else {
+                        VideoGridSection(videos: group.videos, onSelect: { selectedVideo = $0 },
+                                         loadMore: { if let last = group.videos.last { vm.loadMoreIfNeeded(lastVideo: last) } })
+                    }
                 }
                 if vm.isLoading {
                     ProgressView()
@@ -142,6 +147,7 @@ public struct BrowseView: View {
 struct VideoGridSection: View {
     let videos: [Video]
     let onSelect: (Video) -> Void
+    var loadMore: (() -> Void)? = nil
 
     private let columns = [GridItem(.adaptive(minimum: 300, maximum: 400), spacing: 12)]
 
@@ -150,9 +156,34 @@ struct VideoGridSection: View {
             ForEach(videos) { video in
                 VideoCardView(video: video)
                     .onTapGesture { onSelect(video) }
+                    .onAppear {
+                        if video.id == videos.last?.id { loadMore?() }
+                    }
             }
         }
         .padding(.horizontal)
         .padding(.vertical, 8)
+    }
+}
+
+// MARK: - VideoRowSection
+
+/// Horizontal scrolling shelf row — used for home feed shelves (layout == .row).
+struct VideoRowSection: View {
+    let videos: [Video]
+    let onSelect: (Video) -> Void
+
+    var body: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            LazyHStack(spacing: 12) {
+                ForEach(videos) { video in
+                    VideoCardView(video: video, compact: false)
+                        .frame(width: 220)
+                        .onTapGesture { onSelect(video) }
+                }
+            }
+            .padding(.horizontal)
+            .padding(.vertical, 4)
+        }
     }
 }

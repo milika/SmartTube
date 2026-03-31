@@ -9,6 +9,10 @@ public struct VideoGroup: Identifiable {
     public var videos: [Video]
     public var nextPageToken: String?
     public var action: Action
+    /// How this group should be laid out in the UI.
+    /// `.row` renders as a horizontal scrolling shelf (home feed rows);
+    /// `.grid` renders as the default adaptive vertical grid.
+    public var layout: Layout
 
     public enum Action {
         case append
@@ -17,18 +21,25 @@ public struct VideoGroup: Identifiable {
         case prepend
     }
 
+    public enum Layout {
+        case grid
+        case row
+    }
+
     public init(
         id: UUID = UUID(),
         title: String? = nil,
         videos: [Video] = [],
         nextPageToken: String? = nil,
-        action: Action = .replace
+        action: Action = .replace,
+        layout: Layout = .grid
     ) {
         self.id = id
         self.title = title
         self.videos = videos
         self.nextPageToken = nextPageToken
         self.action = action
+        self.layout = layout
     }
 }
 
@@ -40,7 +51,7 @@ public struct BrowseSection: Identifiable, Hashable {
     public var title: String
     public var type: SectionType
 
-    public enum SectionType: String, CaseIterable {
+    public enum SectionType: String, CaseIterable, Codable {
         case home          = "home"
         case trending      = "trending"
         case subscriptions = "subscriptions"
@@ -51,6 +62,8 @@ public struct BrowseSection: Identifiable, Hashable {
         case music         = "music"
         case news          = "news"
         case gaming        = "gaming"
+        case live          = "live"
+        case sports        = "sports"
         case settings      = "settings"
     }
 
@@ -67,6 +80,16 @@ public struct BrowseSection: Identifiable, Hashable {
         BrowseSection(id: "history",       title: "History",       type: .history),
         BrowseSection(id: "playlists",     title: "Playlists",     type: .playlists),
         BrowseSection(id: "channels",      title: "Channels",      type: .channels),
+    ]
+
+    /// All known sections including extended categories (music, gaming, etc.).
+    public static let allSections: [BrowseSection] = defaultSections + [
+        BrowseSection(id: "shorts",  title: "Shorts",  type: .shorts),
+        BrowseSection(id: "music",   title: "Music",   type: .music),
+        BrowseSection(id: "gaming",  title: "Gaming",  type: .gaming),
+        BrowseSection(id: "news",    title: "News",    type: .news),
+        BrowseSection(id: "live",    title: "Live",    type: .live),
+        BrowseSection(id: "sports",  title: "Sports",  type: .sports),
     ]
 }
 
@@ -173,6 +196,7 @@ public struct SponsorSegment: Identifiable, Codable {
         case preview       = "preview"
         case filler        = "filler"
         case musicOfftopic = "music_offtopic"
+        case poiHighlight  = "poi_highlight"
     }
 
     public init(id: UUID = UUID(), start: TimeInterval, end: TimeInterval, category: Category) {

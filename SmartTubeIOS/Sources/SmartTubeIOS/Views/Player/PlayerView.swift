@@ -12,6 +12,8 @@ public struct PlayerView: View {
     public let video: Video
     @StateObject private var vm = PlaybackViewModel()
     @Environment(\.dismiss) private var dismiss
+    @EnvironmentObject private var store: SettingsStore
+    @State private var showSpeedPicker = false
 
     public init(video: Video) {
         self.video = video
@@ -54,8 +56,11 @@ public struct PlayerView: View {
         .statusBarHidden(true)
         .toolbar(.hidden, for: .tabBar)
         #endif
-        .onAppear  { vm.load(video: video) }
+        .onAppear  { vm.load(video: video); vm.setPlaybackSpeed(store.settings.playbackSpeed) }
         .onDisappear { vm.stop() }
+        .sheet(isPresented: $showSpeedPicker) {
+            speedPickerSheet
+        }
         #if os(iOS)
         .ignoresSafeArea(.all)
         #endif
@@ -86,6 +91,19 @@ public struct PlayerView: View {
                         .lineLimit(1)
                 }
                 Spacer()
+                // Speed picker button
+                Button {
+                    showSpeedPicker = true
+                } label: {
+                    Text(store.settings.playbackSpeed == 1.0 ? "1×"
+                         : "\(store.settings.playbackSpeed, specifier: "%.2g")×")
+                        .font(.callout.weight(.semibold))
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 6)
+                        .background(.black.opacity(0.4))
+                        .clipShape(Capsule())
+                }
             }
             .padding(.horizontal, 20)
             .padding(.top, 20)
@@ -94,9 +112,11 @@ public struct PlayerView: View {
 
             // Centre: rewind / play-pause / forward
             HStack(spacing: 40) {
-                seekButton(symbol: "gobackward.10",  seconds: -10)
+                seekButton(symbol: "gobackward.\(store.settings.seekBackSeconds)",
+                           seconds: -Double(store.settings.seekBackSeconds))
                 playPauseButton
-                seekButton(symbol: "goforward.30",  seconds:  30)
+                seekButton(symbol: "goforward.\(store.settings.seekForwardSeconds)",
+                           seconds: Double(store.settings.seekForwardSeconds))
             }
 
             Spacer()
@@ -164,7 +184,7 @@ public struct PlayerView: View {
                 let x = geo.size.width * CGFloat(seg.start / max(vm.duration, 1))
                 let w = geo.size.width * CGFloat((seg.end - seg.start) / max(vm.duration, 1))
                 Rectangle()
-                    .fill(Color.green.opacity(0.7))
+                    .fill(seg.category.color.opacity(0.8))
                     .frame(width: max(w, 2), height: 4)
                     .position(x: x + w / 2, y: geo.size.height / 2)
             }
@@ -222,6 +242,43 @@ public struct PlayerView: View {
         let s = total % 60
         if h > 0 { return String(format: "%d:%02d:%02d", h, m, s) }
         return String(format: "%d:%02d", m, s)
+    }
+
+    // MARK: - Speed picker sheet
+
+    @ViewBuilder
+    private var speedPickerSheet: some View {
+        NavigationStack {
+            List {
+                ForEach([0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0] as [Double], id: \.self) { (speed: Double) in
+                    Button {
+                        store.settings.playbackSpeed = speed
+                        vm.setPlaybackSpeed(speed)
+                        showSpeedPicker = false
+                    } label: {
+                        HStack {
+                            Text(speed == 1.0 ? "Normal (1\u{d7})" : "\(speed, specifier: "%.2g")\u{d7}")
+                                .foregroundStyle(.primary)
+                            Spacer()
+                            if abs(store.settings.playbackSpeed - speed) < 0.01 {
+                                Image(systemName: "checkmark")
+                                    .foregroundStyle(Color.accentColor)
+                            }
+                        }
+                    }
+                }
+            }
+            .navigationTitle("Playback Speed")
+            #if os(iOS)
+            .navigationBarTitleDisplayMode(.inline)
+            #endif
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { showSpeedPicker = false }
+                }
+            }
+        }
+        .presentationDetents([.medium])
     }
 }
 

@@ -33,8 +33,8 @@ public struct RootView: View {
 struct MainTabView: View {
     @EnvironmentObject private var auth: AuthService
     @EnvironmentObject private var browseVM: BrowseViewModel
+    @EnvironmentObject private var settingsStore: SettingsStore
     @StateObject private var searchVM   = SearchViewModel()
-    @StateObject private var settingsStore = SettingsStore()
 
     var body: some View {
         TabView {
@@ -59,7 +59,6 @@ struct MainTabView: View {
             .tabItem { Label("Settings", systemImage: "gearshape.fill") }
         }
         .environmentObject(searchVM)
-        .environmentObject(settingsStore)
     }
 }
 
@@ -68,8 +67,8 @@ struct MainTabView: View {
 struct MainSidebarView: View {
     @EnvironmentObject private var auth: AuthService
     @EnvironmentObject private var browseVM: BrowseViewModel
+    @EnvironmentObject private var settingsStore: SettingsStore
     @StateObject private var searchVM      = SearchViewModel()
-    @StateObject private var settingsStore = SettingsStore()
 
     @State private var selectedSection: AppSection? = .home
 
@@ -119,6 +118,5 @@ struct MainSidebarView: View {
             }
         }
         .environmentObject(searchVM)
-        .environmentObject(settingsStore)
     }
 }
