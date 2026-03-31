@@ -26,11 +26,12 @@ The iOS port covers the core functionality but diverges from the Android project
 | Sends client_secret | Yes (in device/code request) | No — only sends `client_id` and `scope` |
 | **Impact** | Some OAuth servers accept without client_secret but this diverges from Android behavior |
 
-### 1.4 Auth Token Usage for Browse Requests (CRITICAL)
+### 1.4 Auth Token Usage for Browse Requests ✅ ALIGNED
 | | Android | iOS |
 |-|---------|-----|
-| Auth'd browse (subs, history) | Uses **TVHTML5 client** on `youtubei.googleapis.com` with TV API key | Uses **WEB client** on `www.youtube.com` with WEB API key |
-| **Impact** | The WEB client on www.youtube.com **rejects OAuth Bearer tokens (returns 400)** — this is documented in iOS RULES.md but the code still uses WEB client for auth'd requests |
+| Auth'd browse (subs, history) | **TVHTML5 client** on `youtubei.googleapis.com`, **no ?key=** (Bearer replaces key) | **TVHTML5 client** on `youtubei.googleapis.com`, **no ?key=** (Bearer replaces key) |
+| Unauthenticated requests | WEB key as `?key=` | WEB key as `?key=` |
+| TV key usage | `API_KEY_OLD` — never used in any request | Removed — never used |
 
 ### 1.5 Credential Fetcher Architecture
 | | Android | iOS |
@@ -43,12 +44,10 @@ The iOS port covers the core functionality but diverges from the Android project
 
 ## 2. API CLIENT DIFFERENCES
 
-### 2.1 Authenticated Requests Architecture
-**Android:** Authenticated requests (subscriptions, history, playlists) go through `YouTubeServiceManager → ContentService → InnerTube endpoint` using **TVHTML5 client context** + TV API key on `youtubei.googleapis.com`.
+### 2.1 Authenticated Requests Architecture ✅ ALIGNED
+**Android:** Authenticated requests (subscriptions, history, playlists) use **TVHTML5 client context** on `youtubei.googleapis.com`. The key (`?key=`) is omitted when `authHeaders` are non-empty — only the Bearer token is sent (`RetrofitOkHttpHelper`).
 
-**iOS:** ALL requests go through a single `post()` method using **WEB client** on `www.youtube.com`. Auth token is attached as `Bearer` header but the WEB endpoint rejects it.
-
-**Fix needed:** iOS must use a separate request path for authenticated calls using TVHTML5 client + TV API key on `youtubei.googleapis.com`.
+**iOS:** Matches Android exactly — `postTV()` omits `?key=` when `authToken != nil`, appending only the Bearer header. When unauthenticated, the WEB key is used.
 
 ### 2.2 Player Request Headers
 | | Android | iOS |

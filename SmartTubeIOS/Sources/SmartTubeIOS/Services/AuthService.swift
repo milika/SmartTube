@@ -290,9 +290,8 @@ public final class AuthService: ObservableObject {
         // Android methodology: POST to www.youtube.com/youtubei/v1/account/accounts_list
         // with TV client context + accountReadMask. Mirrors AuthApi.java @POST accounts_list
         // and AuthApiHelper.getAccountsListQuery() which uses PostDataHelper.createQueryTV().
-        // TV API key — nosec: this is the public key embedded in YouTube TV JS.
-        let tvApiKey = "AIzaSyDCU8hByM-4DrUqRUYnGn-3llEO78bcxq8" // gitleaks:allow
-        var req = URLRequest(url: URL(string: "https://www.youtube.com/youtubei/v1/account/accounts_list?key=\(tvApiKey)")!)
+        // Android alignment: no ?key= when Bearer token is present (RetrofitOkHttpHelper pattern).
+        var req = URLRequest(url: URL(string: "https://www.youtube.com/youtubei/v1/account/accounts_list")!)
         req.httpMethod = "POST"
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
         req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")

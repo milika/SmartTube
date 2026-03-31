@@ -18,20 +18,20 @@
 ### 0.1 Fix authenticated browse requests (CRITICAL) ✅
 **Problem:** iOS sends auth'd browse requests (subscriptions, history, playlists) via WEB client on `www.youtube.com` with OAuth Bearer token. Per RULES.md and Android's architecture, the WEB endpoint **rejects OAuth tokens (returns 400)**.
 
-**Android approach:** Auth'd browse requests use TVHTML5 client context + TV API key on `youtubei.googleapis.com`.
+**Android approach:** Auth'd browse requests use TVHTML5 client context on `youtubei.googleapis.com` — **no `?key=` param** when Bearer token is present (Android's `RetrofitOkHttpHelper`: `authHeaders` non-empty → skip key, apply Bearer headers only). Unauthenticated calls use the WEB key. The TV key (`AIzaSyDCU8...`) is `API_KEY_OLD` in Android and never used.
 
 **Fix:**
-- In `InnerTubeAPI.swift`, add a new `tvClientContext` (TVHTML5) and a `postAuthenticated()` method that:
+- In `InnerTubeAPI.swift`, add a new `tvClientContext` (TVHTML5) and a `postTV()` method that:
   - Uses `youtubei.googleapis.com/youtubei/v1` base URL
-  - Includes TV API key (`AIzaSyDCU8hByM-4DrUqRUYnGn-3llEO78bcxq8`)
-  - Sends `Authorization: Bearer {token}`
+  - Sends `Authorization: Bearer {token}` when authenticated, **no `?key=`**
+  - Sends `?key=WEB_KEY` when unauthenticated
   - Uses TVHTML5 client context
-- Update `fetchSubscriptions()`, `fetchHistory()`, `fetchUserPlaylists()`, `fetchPlaylistVideos()` to use `postAuthenticated()` when `authToken` is set
+- Update `fetchSubscriptions()`, `fetchHistory()`, `fetchUserPlaylists()`, `fetchPlaylistVideos()` to use `postTV()` when `authToken` is set
 
 **Files:** `InnerTubeAPI.swift`
 
 **How it was done:**
-Added `tvClientContext` and `tvApiKey` constants to `InnerTubeAPI`. Added a private `postTV(endpoint:body:)` method that routes to `youtubei.googleapis.com` with TVHTML5 client+version headers and a `Bearer` auth header. All auth-gated browse methods (`fetchSubscriptions`, `fetchHistory`, `fetchUserPlaylists`, `fetchPlaylistVideos`) and personalised home now call `postTV` when `authToken != nil`. The `post()` (WEB) method was updated to never send an auth token. The iOS player still uses its own separate `postPlayer()`.
+Added `tvClientContext` constant to `InnerTubeAPI`. Removed `tvApiKey` — TV key is dead code in Android (`API_KEY_OLD`). Added `postTV(endpoint:body:)` that routes to `youtubei.googleapis.com` with TVHTML5 client/version headers and a `Bearer` auth header. Key logic: `?key=WEB_KEY` only when `authToken == nil` (Bearer replaces key when present). All auth-gated browse methods (`fetchSubscriptions`, `fetchHistory`, `fetchUserPlaylists`, `fetchPlaylistVideos`) and personalised home call `postTV` when `authToken != nil`. `AuthService.fetchUserInfo()` also drops `?key=` since it always has a Bearer token.
 
 ### 0.2 Fix sign-in URL to match Android ✅
 **Problem:** iOS shows `youtube.com/activate`, Android uses `yt.be/activate`.

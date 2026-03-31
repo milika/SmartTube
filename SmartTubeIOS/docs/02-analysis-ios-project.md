@@ -132,11 +132,11 @@ var body: some Scene {
 | iOS | `"iOS"` | `20.11.6` | Stream URLs (HLS) | `youtubei.googleapis.com/youtubei/v1` |
 | TVHTML5 | `"TVHTML5"` | `7.20230405.08.01` | Account info only | `youtubei.googleapis.com/youtubei/v1` |
 
-### API Keys (matches Android)
+### API Keys (aligned to Android)
 | Key | Value | Use |
 |-----|-------|-----|
-| WEB | `AIzaSyAO_FJ2SlqU8Q4STEHLGCilw_Y9_11qcW8` | Browse/Search |
-| TV | `AIzaSyDCU8hByM-4DrUqRUYnGn-3llEO78bcxq8` | Account info fetch |
+| WEB | `AIzaSyAO_FJ2SlqU8Q4STEHLGCilw_Y9_11qcW8` | All unauthenticated requests (`?key=`) |
+| TV | `AIzaSyDCU8hByM-4DrUqRUYnGn-3llEO78bcxq8` | **Not used** — `API_KEY_OLD` in Android; Bearer token replaces key when authenticated |
 
 ### OAuth (matches Android)
 - Same Device Authorization Grant (RFC 8628)

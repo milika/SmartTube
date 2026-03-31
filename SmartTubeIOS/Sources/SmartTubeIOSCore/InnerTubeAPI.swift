@@ -68,10 +68,9 @@ public actor InnerTubeAPI {
     private let playerBaseURL = URL(string: "https://youtubei.googleapis.com/youtubei/v1")!
     // Public InnerTube API key embedded in YouTube's own web client JS — not a developer secret.
     // nosec: false positive — this key is published by Google in youtube.com/s/player JS.
+    // Used only for unauthenticated requests (aligned to Android RetrofitOkHttpHelper pattern).
     private let apiKey = "AIzaSyAO_FJ2SlqU8Q4STEHLGCilw_Y9_11qcW8" // gitleaks:allow
-    // TV API key — used with TVHTML5 client for authenticated requests on youtubei.googleapis.com.
-    // nosec: this key is embedded in YouTube TV's own JS and is not a developer secret.
-    private let tvApiKey = "AIzaSyDCU8hByM-4DrUqRUYnGn-3llEO78bcxq8" // gitleaks:allow
+    // Note: TV key (AIzaSyDCU8...) is defined in Android as API_KEY_OLD and never used.
 
     public init(authToken: String? = nil) {
         self.session = URLSession(configuration: .default)
@@ -364,10 +363,17 @@ public actor InnerTubeAPI {
     /// Required for subscriptions, history, playlists, and personalised home: the OAuth
     /// token issued by the TV device-code flow is matched to this client. The WEB client
     /// on www.youtube.com rejects Bearer tokens (returns 400).
+    ///
+    /// Android alignment: when Bearer token is present, no ?key= param is sent
+    /// (mirrors RetrofitOkHttpHelper — authHeaders non-empty → skip key, apply Bearer headers).
+    /// When unauthenticated (e.g. trending), the WEB key is used as on all other clients.
     private func postTV(endpoint: String, body: [String: Any]) async throws -> [String: Any] {
         var comps = URLComponents(url: playerBaseURL.appendingPathComponent(endpoint),
                                   resolvingAgainstBaseURL: false)!
-        comps.queryItems = [URLQueryItem(name: "key", value: tvApiKey)]
+        // Android: no ?key= when Bearer present; WEB key for unauthenticated
+        if authToken == nil {
+            comps.queryItems = [URLQueryItem(name: "key", value: apiKey)]
+        }
         var request = URLRequest(url: comps.url!)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")

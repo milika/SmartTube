@@ -149,7 +149,8 @@ public struct SignInView: View {
                     Text("Scan to open activation page")
                         .font(.caption)
                         .foregroundStyle(.secondary)
-                    Link(info.verificationURL.absoluteString, destination: info.verificationURL)
+                    Link(info.verificationURL.absoluteString,
+                         destination: URL(string: activationQRURL(info: info)) ?? info.verificationURL)
                         .font(.caption)
                         .foregroundStyle(.blue)
                 }
