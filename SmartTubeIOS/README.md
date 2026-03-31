@@ -1,15 +1,14 @@
-# SmartTube iOS
+# SmartTube
 
-A SwiftUI port of the [SmartTube](https://github.com/yuliskov/SmartTube) Android TV YouTube client, targeting **iPhone**, **iPad**, and **macOS** (Catalyst / native macOS 13+).
+A native Swift/SwiftUI YouTube client for **iPhone**, **iPad**, and **macOS** (Catalyst / native macOS 14+).
 
-> **tvOS is intentionally out of scope.**  
-> The Android TV Leanback UI is not replicated; instead a native SwiftUI adaptive layout is used.
+> **tvOS is intentionally out of scope.**
 
 ---
 
-## Feature Parity
+## Features
 
-| Android Feature | iOS Implementation |
+| Feature | Implementation |
 |---|---|
 | Home / Subscriptions / History feeds | `BrowseView` + `BrowseViewModel` → InnerTube API |
 | Video playback (adaptive, HLS, DASH) | `PlayerView` + `PlaybackViewModel` → AVPlayer / AVKit |
@@ -17,7 +16,7 @@ A SwiftUI port of the [SmartTube](https://github.com/yuliskov/SmartTube) Android
 | Channel browser | `ChannelView` + `ChannelViewModel` |
 | SponsorBlock auto-skip | `SponsorBlockService` + segment markers on progress bar |
 | DeArrow community titles/thumbnails | `DeArrowService` |
-| Google OAuth sign-in | `AuthService` via `ASWebAuthenticationSession` |
+| Google sign-in | `AuthService` — YouTube TV device authorization grant |
 | Settings (quality, speed, theme, SponsorBlock categories) | `SettingsView` + `SettingsStore` |
 | Library (playlists, history) | `LibraryView` |
 | Picture-in-Picture | Built-in via `AVKit.VideoPlayer` |
@@ -64,26 +63,26 @@ SmartTubeIOS/
 
 ### Design Patterns
 
-| Android | iOS Port |
+| Pattern | Implementation |
 |---|---|
-| MVP (Presenter / View / Model) | **MVVM** (`@StateObject` / `@EnvironmentObject` ViewModels) |
-| RxJava / RxAndroid | **Combine** + Swift **async/await** |
-| Leanback Fragment navigation | **NavigationStack** + `TabView` (iOS) / `NavigationSplitView` (macOS) |
-| ExoPlayer | **AVPlayer** + AVKit `VideoPlayer` |
-| Glide image loading | **AsyncImage** (SwiftUI built-in) |
-| SharedPreferences | **UserDefaults** via `SettingsStore` |
-| Google OAuth (WebView flow) | **ASWebAuthenticationSession** |
+| UI architecture | **MVVM** (`@Observable` ViewModels) |
+| Async | Swift **async/await** |
+| Navigation | **NavigationStack** + `TabView` (iOS) / `NavigationSplitView` (macOS) |
+| Playback | **AVPlayer** + AVKit `VideoPlayer` |
+| Image loading | **AsyncImage** (SwiftUI built-in) |
+| Preferences | **UserDefaults** via `SettingsStore` (migrate to Keychain for secrets) |
+| Authentication | YouTube TV device authorization grant via `ASWebAuthenticationSession` |
 
 ---
 
 ## Requirements
 
-| Platform | Minimum Version |
+| Platform | Minimum |
 |---|---|
-| iOS / iPadOS | 16.0 |
-| macOS | 13.0 (Ventura) |
-
-Xcode 15+ is required to build the project.
+| iOS / iPadOS | 17.0 |
+| macOS | 14.0 (Sonoma) |
+| Xcode | 16.0 |
+| Swift | 6.0 |
 
 ---
 
@@ -92,17 +91,16 @@ Xcode 15+ is required to build the project.
 ### 1. Open in Xcode
 
 ```bash
-open SmartTubeIOS/Package.swift
+git clone https://github.com/yuliskov/SmartTube
+cd SmartTube
+open SmartTube.xcworkspace
 ```
 
-Or add the `SmartTubeIOS` folder as a local Swift Package to an `.xcodeproj`.
+Select the **SmartTube** scheme and run on a simulator or device.
 
-### 2. Configure Google OAuth
+### 2. Authentication
 
-1. Create a project at <https://console.cloud.google.com/apis/credentials>.
-2. Add an **iOS** OAuth 2.0 client ID.
-3. Register the custom URL scheme `smarttube` in your app's Info.plist.
-4. Replace `YOUR_GOOGLE_CLIENT_ID` in `AuthService.swift` with your client ID.
+Sign-in uses the YouTube TV device authorization grant — no external OAuth credentials are required. `AuthService` scrapes the YouTube TV client credentials automatically at runtime.
 
 ### 3. Run Tests
 
@@ -114,7 +112,8 @@ swift test --package-path SmartTubeIOS
 
 ## Notes
 
-- The [InnerTube API](https://github.com/LuanRT/YouTube.js) used here is **unofficial** and may break when YouTube updates its backend.  The Android SmartTube project uses the same API via `MediaServiceCore`.
+- The [InnerTube API](https://github.com/LuanRT/YouTube.js) used here is **unofficial** and may break when YouTube updates its backend.
 - Stream URLs returned by the InnerTube player endpoint are time-limited; long-running downloads will require re-fetching.
 - Background audio playback requires the `audio` background mode to be added to the app's Info.plist.
-- For production use, replace the `UserDefaults`-backed token storage in `AuthService` with `Keychain`.
+- OAuth tokens are currently stored in `UserDefaults` — migrate to Keychain before any public release (tracked in [docs/05-migration-new-code-rules.md](docs/05-migration-new-code-rules.md)).
+- For original Android repo references see [docs/android-repos.md](docs/android-repos.md).

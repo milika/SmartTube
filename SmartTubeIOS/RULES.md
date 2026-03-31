@@ -32,8 +32,8 @@
 
 ## Icon / assets
 - `AppIcon.appiconset` lives at `SmartTubeApp/SmartTubeApp/Assets.xcassets/AppIcon.appiconset`
-- Source icon is `smarttubetv/src/main/res/mipmap-nodpi/app_icon.png`; resize with `sips` when updating
 - `Contents.json` must cover all iOS (iPhone + iPad) and macOS icon slots
+- Resize source icons with `sips` when updating
 
 ## Code style
 - No force-unwraps except in clearly impossible cases (document why)
