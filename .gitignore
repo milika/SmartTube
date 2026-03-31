@@ -1,53 +1,53 @@
-# built application files
-*.apk
-*.ap_
-
-# files for the dex VM
-*.dex
-
-# Java class files
-*.class
-
-# generated files
-bin/
-gen/
-
-# Local configuration file (sdk path, etc)
-local.properties
-
-# Windows thumbnail db
-Thumbs.db
-
-# OSX files
+# macOS
 .DS_Store
+.AppleDouble
+.LSOverride
+._*
 
-# Eclipse project files
-.classpath
-.project
+# Xcode
+*.xcuserstate
+xcuserdata/
+*.xcscmblueprint
+*~.nib
+*.pbxuser
+DerivedData/
+*.moved-aside
+*.hmap
+*.ipa
+*.dSYM.zip
+*.dSYM
 
-# Android Studio
-.idea
-*.iml
+# Swift Package Manager
+.build/
+.swiftpm/xcode/
+*.resolved
+# Keep Package.resolved when using SPM directly:
+# !Package.resolved
 
-#.idea/workspace.xml - remove # and delete .idea if it better suit your needs.
-.gradle
-.google
-build/
+# CocoaPods
+Pods/
+*.xcworkspace/
+!*.xcworkspace/contents.xcworkspacedata
 
-# my other stuff
-/smartyoutubetv2/release
-/smarttube/release
-/smarttubetv/release
-# gradle 6 fix
-/smarttube/output
-/smarttubetv/output
-/smarttubemobile/release
-# google-services.json
-*.hprof
-log.txt
-android.keystore
-android-upd2.keystore
-build.log
+# Fastlane
+fastlane/report.xml
+fastlane/Preview.html
+fastlane/screenshots/**/*.png
+fastlane/test_output
+
+# Environment / secrets
+*.env
+*.p8
+*.p12
+*.mobileprovision
+AuthKey_*.p8
+
+# Simulator
+*.app
+
+# Misc
+.venv/
+*.log
 notes.txt
 out.txt
 out1.txt
