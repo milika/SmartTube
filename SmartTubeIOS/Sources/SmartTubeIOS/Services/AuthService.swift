@@ -404,22 +404,20 @@ public final class AuthService {
     // MARK: - Keychain helpers
 
     private func keychainSet(key: String, value: String?) {
-        let serviceData = "com.smarttube.auth".data(using: .utf8)!
-        let accountData = key.data(using: .utf8)!
         // Always delete the existing item first to avoid errSecDuplicateItem
         let deleteQuery: [CFString: Any] = [
-            kSecClass:   kSecClassGenericPassword,
-            kSecAttrService: serviceData,
-            kSecAttrAccount: accountData,
+            kSecClass:       kSecClassGenericPassword,
+            kSecAttrService: "com.smarttube.auth",
+            kSecAttrAccount: key,
         ]
         SecItemDelete(deleteQuery as CFDictionary)
         guard let value, let valueData = value.data(using: .utf8) else { return }
         let addQuery: [CFString: Any] = [
-            kSecClass:              kSecClassGenericPassword,
-            kSecAttrService:        serviceData,
-            kSecAttrAccount:        accountData,
-            kSecValueData:          valueData,
-            kSecAttrAccessible:     kSecAttrAccessibleAfterFirstUnlock,
+            kSecClass:          kSecClassGenericPassword,
+            kSecAttrService:    "com.smarttube.auth",
+            kSecAttrAccount:    key,
+            kSecValueData:      valueData,
+            kSecAttrAccessible: kSecAttrAccessibleAfterFirstUnlock,
         ]
         let status = SecItemAdd(addQuery as CFDictionary, nil)
         if status != errSecSuccess {
@@ -428,14 +426,12 @@ public final class AuthService {
     }
 
     private func keychainGet(key: String) -> String? {
-        let serviceData = "com.smarttube.auth".data(using: .utf8)!
-        let accountData = key.data(using: .utf8)!
         let query: [CFString: Any] = [
-            kSecClass:            kSecClassGenericPassword,
-            kSecAttrService:      serviceData,
-            kSecAttrAccount:      accountData,
-            kSecReturnData:       true,
-            kSecMatchLimit:       kSecMatchLimitOne,
+            kSecClass:        kSecClassGenericPassword,
+            kSecAttrService:  "com.smarttube.auth",
+            kSecAttrAccount:  key,
+            kSecReturnData:   true,
+            kSecMatchLimit:   kSecMatchLimitOne,
         ]
         var result: AnyObject?
         let status = SecItemCopyMatching(query as CFDictionary, &result)
@@ -444,12 +440,10 @@ public final class AuthService {
     }
 
     private func keychainDelete(key: String) {
-        let serviceData = "com.smarttube.auth".data(using: .utf8)!
-        let accountData = key.data(using: .utf8)!
         let query: [CFString: Any] = [
             kSecClass:       kSecClassGenericPassword,
-            kSecAttrService: serviceData,
-            kSecAttrAccount: accountData,
+            kSecAttrService: "com.smarttube.auth",
+            kSecAttrAccount: key,
         ]
         SecItemDelete(query as CFDictionary)
     }
