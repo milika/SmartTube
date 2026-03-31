@@ -1,4 +1,5 @@
 import Foundation
+import Observation
 import os
 import SmartTubeIOSCore
 
@@ -21,21 +22,22 @@ private let authLog = Logger(subsystem: "com.smarttube.app", category: "Auth")
 // No redirect URI, no registered client ID, no ASWebAuthenticationSession.
 
 @MainActor
-public final class AuthService: ObservableObject {
+@Observable
+public final class AuthService {
 
-    // MARK: - Published state
+    // MARK: - Observable state
 
-    @Published public private(set) var isSignedIn: Bool = false
-    @Published public private(set) var accountName: String?
-    @Published public private(set) var accountAvatarURL: URL?
-    @Published public var error: Error?
+    public private(set) var isSignedIn: Bool = false
+    public private(set) var accountName: String?
+    public private(set) var accountAvatarURL: URL?
+    public var error: Error?
 
     /// Non-nil while waiting for the user to enter the code at youtube.com/activate.
-    @Published public private(set) var pendingActivation: ActivationInfo?
+    public private(set) var pendingActivation: ActivationInfo?
 
     // MARK: - ActivationInfo
 
-    public struct ActivationInfo {
+    public struct ActivationInfo: Sendable {
         /// The short code the user types at youtube.com/activate (e.g. "ABCD-1234").
         public let userCode: String
         /// Typically https://yt.be/activate (as used by the Android SmartTube client).
@@ -46,7 +48,7 @@ public final class AuthService: ObservableObject {
 
     // MARK: - Private state
 
-    @Published public private(set) var accessToken: String?
+    public private(set) var accessToken: String?
     private var refreshToken: String?
     private var tokenExpiry: Date?
     private var pollTask: Task<Void, Never>?
@@ -59,6 +61,12 @@ public final class AuthService: ObservableObject {
     private let expiryKey  = "st_token_expiry"
     private let accountKey = "st_account_name"
     private let avatarKey  = "st_avatar_url"
+
+    // MARK: - Static endpoint URLs (known-valid literals)
+
+    private static let deviceCodeURL      = URL(string: "https://oauth2.googleapis.com/device/code")!
+    private static let tokenURL           = URL(string: "https://oauth2.googleapis.com/token")!
+    private static let accountsListURL    = URL(string: "https://www.youtube.com/youtubei/v1/account/accounts_list")!
 
     public init() {
         loadFromKeychain()
@@ -89,7 +97,9 @@ public final class AuthService: ObservableObject {
             let deviceResponse = try await requestDeviceCode(creds: creds)
             authLog.notice("✅ Got device code. userCode=\(deviceResponse.userCode, privacy: .public) expiresIn=\(deviceResponse.expiresIn, privacy: .public)s interval=\(deviceResponse.interval, privacy: .public)s")
             let expiresAt = Date().addingTimeInterval(TimeInterval(deviceResponse.expiresIn - 10))
-            let verURL = URL(string: deviceResponse.verificationURL) ?? URL(string: "https://yt.be/activate")!
+            // Static fallback URL — safe to use URL(string:) with a known-valid literal
+            let fallbackURL = URL(string: "https://yt.be/activate") ?? URL(string: "https://youtube.com/activate")!
+            let verURL = URL(string: deviceResponse.verificationURL) ?? fallbackURL
 
             pendingActivation = ActivationInfo(
                 userCode: deviceResponse.userCode,
@@ -151,7 +161,7 @@ public final class AuthService: ObservableObject {
     }
 
     private func requestDeviceCode(creds: YouTubeClientCredentials) async throws -> DeviceCodeResponse {
-        var req = URLRequest(url: URL(string: "https://oauth2.googleapis.com/device/code")!)
+        var req = URLRequest(url: Self.deviceCodeURL)
         req.httpMethod = "POST"
         req.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
         req.httpBody = formEncode([
@@ -216,7 +226,7 @@ public final class AuthService: ObservableObject {
     }
 
     private func exchangeDeviceCode(deviceCode: String, creds: YouTubeClientCredentials) async throws {
-        var req = URLRequest(url: URL(string: "https://oauth2.googleapis.com/token")!)
+        var req = URLRequest(url: Self.tokenURL)
         req.httpMethod = "POST"
         req.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
         req.httpBody = formEncode([
@@ -258,7 +268,7 @@ public final class AuthService: ObservableObject {
     // MARK: - Token refresh
 
     private func refreshAccessToken(refreshToken: String, creds: YouTubeClientCredentials) async throws {
-        var req = URLRequest(url: URL(string: "https://oauth2.googleapis.com/token")!)
+        var req = URLRequest(url: Self.tokenURL)
         req.httpMethod = "POST"
         req.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
         req.httpBody = formEncode([
@@ -291,7 +301,7 @@ public final class AuthService: ObservableObject {
         // with TV client context + accountReadMask. Mirrors AuthApi.java @POST accounts_list
         // and AuthApiHelper.getAccountsListQuery() which uses PostDataHelper.createQueryTV().
         // Android alignment: no ?key= when Bearer token is present (RetrofitOkHttpHelper pattern).
-        var req = URLRequest(url: URL(string: "https://www.youtube.com/youtubei/v1/account/accounts_list")!)
+        var req = URLRequest(url: Self.accountsListURL)
         req.httpMethod = "POST"
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
         req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
@@ -366,30 +376,82 @@ public final class AuthService: ObservableObject {
             ?? items.compactMap { $0["accountItem"] as? [String: Any] }.first
     }
 
-    // MARK: - Persistence (UserDefaults; swap for Keychain in production)
+    // MARK: - Persistence (Keychain)
 
     private func saveToKeychain() {
-        let d = UserDefaults.standard
-        d.set(accessToken,  forKey: tokenKey)
-        d.set(refreshToken, forKey: refreshKey)
-        d.set(tokenExpiry,  forKey: expiryKey)
-        d.set(accountName,  forKey: accountKey)
-        d.set(accountAvatarURL?.absoluteString, forKey: avatarKey)
+        keychainSet(key: tokenKey,   value: accessToken)
+        keychainSet(key: refreshKey, value: refreshToken)
+        keychainSet(key: expiryKey,  value: tokenExpiry.map { ISO8601DateFormatter().string(from: $0) })
+        keychainSet(key: accountKey, value: accountName)
+        keychainSet(key: avatarKey,  value: accountAvatarURL?.absoluteString)
     }
 
     private func loadFromKeychain() {
-        let d = UserDefaults.standard
-        accessToken      = d.string(forKey: tokenKey)
-        refreshToken     = d.string(forKey: refreshKey)
-        tokenExpiry      = d.object(forKey: expiryKey) as? Date
-        accountName      = d.string(forKey: accountKey)
-        accountAvatarURL = d.string(forKey: avatarKey).flatMap { URL(string: $0) }
+        accessToken      = keychainGet(key: tokenKey)
+        refreshToken     = keychainGet(key: refreshKey)
+        if let expiryStr = keychainGet(key: expiryKey) {
+            tokenExpiry  = ISO8601DateFormatter().date(from: expiryStr)
+        }
+        accountName      = keychainGet(key: accountKey)
+        accountAvatarURL = keychainGet(key: avatarKey).flatMap { URL(string: $0) }
         isSignedIn       = accessToken != nil
     }
 
     private func clearKeychain() {
-        let d = UserDefaults.standard
-        [tokenKey, refreshKey, expiryKey, accountKey, avatarKey].forEach { d.removeObject(forKey: $0) }
+        [tokenKey, refreshKey, expiryKey, accountKey, avatarKey].forEach { keychainDelete(key: $0) }
+    }
+
+    // MARK: - Keychain helpers
+
+    private func keychainSet(key: String, value: String?) {
+        let serviceData = "com.smarttube.auth".data(using: .utf8)!
+        let accountData = key.data(using: .utf8)!
+        // Always delete the existing item first to avoid errSecDuplicateItem
+        let deleteQuery: [CFString: Any] = [
+            kSecClass:   kSecClassGenericPassword,
+            kSecAttrService: serviceData,
+            kSecAttrAccount: accountData,
+        ]
+        SecItemDelete(deleteQuery as CFDictionary)
+        guard let value, let valueData = value.data(using: .utf8) else { return }
+        let addQuery: [CFString: Any] = [
+            kSecClass:              kSecClassGenericPassword,
+            kSecAttrService:        serviceData,
+            kSecAttrAccount:        accountData,
+            kSecValueData:          valueData,
+            kSecAttrAccessible:     kSecAttrAccessibleAfterFirstUnlock,
+        ]
+        let status = SecItemAdd(addQuery as CFDictionary, nil)
+        if status != errSecSuccess {
+            authLog.error("keychainSet failed for key=\(key, privacy: .public) status=\(status, privacy: .public)")
+        }
+    }
+
+    private func keychainGet(key: String) -> String? {
+        let serviceData = "com.smarttube.auth".data(using: .utf8)!
+        let accountData = key.data(using: .utf8)!
+        let query: [CFString: Any] = [
+            kSecClass:            kSecClassGenericPassword,
+            kSecAttrService:      serviceData,
+            kSecAttrAccount:      accountData,
+            kSecReturnData:       true,
+            kSecMatchLimit:       kSecMatchLimitOne,
+        ]
+        var result: AnyObject?
+        let status = SecItemCopyMatching(query as CFDictionary, &result)
+        guard status == errSecSuccess, let data = result as? Data else { return nil }
+        return String(data: data, encoding: .utf8)
+    }
+
+    private func keychainDelete(key: String) {
+        let serviceData = "com.smarttube.auth".data(using: .utf8)!
+        let accountData = key.data(using: .utf8)!
+        let query: [CFString: Any] = [
+            kSecClass:       kSecClassGenericPassword,
+            kSecAttrService: serviceData,
+            kSecAttrAccount: accountData,
+        ]
+        SecItemDelete(query as CFDictionary)
     }
 
     // MARK: - Helpers

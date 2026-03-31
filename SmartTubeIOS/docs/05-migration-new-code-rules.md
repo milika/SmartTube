@@ -336,21 +336,21 @@ Phase 6 (Typed throws, Sendable, DocC) — ongoing, parallel with feature work
 
 | # | Task | File(s) | Priority | Status |
 |---|------|---------|----------|--------|
-| 1.1 | Move OAuth tokens to Keychain | `AuthService.swift` | 🔴 Critical Security | 🔲 |
-| 1.2 | Enable Swift 6 language mode | `Package.swift` | 🔴 Must | 🔲 |
-| 2.1 | `SettingsStore` → `@Observable` | `SettingsStore.swift` | 🔴 Must | 🔲 |
-| 2.2 | `AuthService` → `@Observable` | `AuthService.swift` | 🔴 Must | 🔲 |
-| 2.3 | `HomeViewModel` → `@Observable` | `HomeViewModel.swift` | 🔴 Must | 🔲 |
-| 2.4 | `BrowseViewModel` → `@Observable` | `BrowseViewModel.swift` | 🔴 Must | 🔲 |
-| 2.5 | `SearchViewModel`/`ChannelViewModel` → `@Observable` + async debounce | `SearchViewModel.swift` | 🔴 Must | 🔲 |
-| 2.6 | `PlaybackViewModel` → `@Observable` + async AVPlayer streams | `PlaybackViewModel.swift` | 🔴 Must | 🔲 |
-| 2.7 | Update all SwiftUI call sites | Multiple view files | 🔴 Must | 🔲 |
-| 3.1 | `VideoStateStore` → `actor` | `VideoStateStore.swift` | 🔴 Must | 🔲 |
-| 3.2 | `CountdownView` timer → `Task.sleep` | `SignInView.swift` | 🔴 Must | 🔲 |
-| 4.1 | Fix `InnerTubeAPI` force unwraps | `InnerTubeAPI.swift` | 🔴 Must | 🔲 |
-| 4.2 | Fix `AuthService` force unwrap | `AuthService.swift` | 🔴 Must | 🔲 |
-| 4.3 | Fix `VideoCardView` force unwrap | `VideoCardView.swift` | 🔴 Must | 🔲 |
-| 5.1 | Remove `print()` calls | `InnerTubeAPI.swift`, `BrowseViewModel.swift` | 🔴 Must | 🔲 |
+| 1.1 | Move OAuth tokens to Keychain | `AuthService.swift` | 🔴 Critical Security | ✅ |
+| 1.2 | Enable Swift 6 language mode | `Package.swift` | 🔴 Must | ✅ |
+| 2.1 | `SettingsStore` → `@Observable` | `SettingsStore.swift` | 🔴 Must | ✅ |
+| 2.2 | `AuthService` → `@Observable` | `AuthService.swift` | 🔴 Must | ✅ |
+| 2.3 | `HomeViewModel` → `@Observable` | `HomeViewModel.swift` | 🔴 Must | ✅ |
+| 2.4 | `BrowseViewModel` → `@Observable` | `BrowseViewModel.swift` | 🔴 Must | ✅ |
+| 2.5 | `SearchViewModel`/`ChannelViewModel` → `@Observable` + async debounce | `SearchViewModel.swift` | 🔴 Must | ✅ |
+| 2.6 | `PlaybackViewModel` → `@Observable` + async AVPlayer streams | `PlaybackViewModel.swift` | 🔴 Must | ✅ |
+| 2.7 | Update all SwiftUI call sites | Multiple view files | 🔴 Must | ✅ |
+| 3.1 | `VideoStateStore` → `actor` | `VideoStateStore.swift` | 🔴 Must | ✅ |
+| 3.2 | `CountdownView` timer → `Task.sleep` | `SignInView.swift` | 🔴 Must | ✅ |
+| 4.1 | Fix `InnerTubeAPI` force unwraps | `InnerTubeAPI.swift` | 🔴 Must | ✅ |
+| 4.2 | Fix `AuthService` force unwrap | `AuthService.swift` | 🔴 Must | ✅ |
+| 4.3 | Fix `VideoCardView` force unwrap | `VideoCardView.swift` | 🔴 Must | ✅ |
+| 5.1 | Remove `print()` calls | `InnerTubeAPI.swift`, `BrowseViewModel.swift` | 🔴 Must | ✅ |
 | 6.1 | Add typed throws | `InnerTubeAPI.swift`, `AuthService.swift` | 🟡 Should | 🔲 |
-| 6.2 | Add `Sendable` conformance | `VideoGroup.swift`, `SponsorBlockService.swift`, `AuthService.swift` | 🟡 Should | 🔲 |
+| 6.2 | Add `Sendable` conformance | `VideoGroup.swift`, `SponsorBlockService.swift`, `AuthService.swift` | 🟡 Should | ✅ |
 | 6.3 | Add DocC `///` documentation | All public API files | 🟡 Should | 🔲 |

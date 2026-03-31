@@ -3,7 +3,7 @@ import Foundation
 // MARK: - VideoGroup
 
 /// A named collection of videos that maps to an Android `VideoGroup`.
-public struct VideoGroup: Identifiable {
+public struct VideoGroup: Identifiable, Sendable {
     public let id: UUID
     public var title: String?
     public var videos: [Video]
@@ -14,14 +14,14 @@ public struct VideoGroup: Identifiable {
     /// `.grid` renders as the default adaptive vertical grid.
     public var layout: Layout
 
-    public enum Action {
+    public enum Action: Sendable {
         case append
         case replace
         case remove
         case prepend
     }
 
-    public enum Layout {
+    public enum Layout: Sendable {
         case grid
         case row
     }
@@ -46,12 +46,12 @@ public struct VideoGroup: Identifiable {
 // MARK: - BrowseSection
 
 /// Represents a tab/section shown in the main browse screen (mirrors Android `BrowseSection`).
-public struct BrowseSection: Identifiable, Hashable {
+public struct BrowseSection: Identifiable, Hashable, Sendable {
     public let id: String
     public var title: String
     public var type: SectionType
 
-    public enum SectionType: String, CaseIterable, Codable {
+    public enum SectionType: String, CaseIterable, Codable, Sendable {
         case home          = "home"
         case subscriptions = "subscriptions"
         case history       = "history"
@@ -94,7 +94,7 @@ public struct BrowseSection: Identifiable, Hashable {
 
 // MARK: - SearchResult
 
-public struct SearchResult: Identifiable {
+public struct SearchResult: Identifiable, Sendable {
     public let id: UUID
     public var videos: [Video]
     public var query: String
@@ -110,7 +110,7 @@ public struct SearchResult: Identifiable {
 
 // MARK: - Channel
 
-public struct Channel: Identifiable, Hashable, Codable {
+public struct Channel: Identifiable, Hashable, Codable, Sendable {
     public let id: String   // channelId
     public var title: String
     public var description: String?
@@ -137,7 +137,7 @@ public struct Channel: Identifiable, Hashable, Codable {
 
 // MARK: - PlaylistInfo
 
-public struct PlaylistInfo: Identifiable, Codable {
+public struct PlaylistInfo: Identifiable, Codable, Sendable {
     public let id: String
     public var title: String
     public var videoCount: Int?
@@ -153,7 +153,7 @@ public struct PlaylistInfo: Identifiable, Codable {
 
 // MARK: - VideoFormat
 
-public struct VideoFormat: Identifiable, Hashable {
+public struct VideoFormat: Identifiable, Hashable, Sendable {
     public let id: UUID
     public var label: String
     public var width: Int
@@ -180,13 +180,13 @@ public struct VideoFormat: Identifiable, Hashable {
 // MARK: - SponsorSegment
 
 /// A SponsorBlock segment within a video.
-public struct SponsorSegment: Identifiable, Codable {
+public struct SponsorSegment: Identifiable, Codable, Sendable {
     public let id: UUID
     public var start: TimeInterval
     public var end: TimeInterval
     public var category: Category
 
-    public enum Category: String, Codable, CaseIterable {
+    public enum Category: String, Codable, CaseIterable, Sendable {
         case sponsor       = "sponsor"
         case selfPromo     = "selfpromo"
         case interaction   = "interaction"

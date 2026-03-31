@@ -82,7 +82,7 @@ public actor InnerTubeAPI {
     public func setAuthToken(_ token: String?) {
         let msg = token != nil ? "token(\(token!.prefix(8))…)" : "nil"
         tubeLog.notice("setAuthToken: \(msg, privacy: .public)")
-        print("[InnerTube] setAuthToken: \(msg)")
+
         self.authToken = token
     }
 
@@ -139,7 +139,9 @@ public actor InnerTubeAPI {
     }
 
     public func fetchSearchSuggestions(query: String) async throws -> [String] {
-        var components = URLComponents(string: "https://suggestqueries-clients6.youtube.com/complete/search")!
+        guard var components = URLComponents(string: "https://suggestqueries-clients6.youtube.com/complete/search") else {
+            return []
+        }
         components.queryItems = [
             URLQueryItem(name: "client", value: "youtube"),
             URLQueryItem(name: "ds", value: "yt"),
@@ -288,9 +290,12 @@ public actor InnerTubeAPI {
 
     /// Player requests use the Android client UA, googleapis.com base, and no auth header.
     private func postPlayer(body: [String: Any]) async throws -> [String: Any] {
-        var comps = URLComponents(url: playerBaseURL.appendingPathComponent("player"), resolvingAgainstBaseURL: false)!
+        guard var comps = URLComponents(url: playerBaseURL.appendingPathComponent("player"), resolvingAgainstBaseURL: false) else {
+            throw APIError.invalidURL("player")
+        }
         comps.queryItems = [URLQueryItem(name: "key", value: apiKey)]
-        var request = URLRequest(url: comps.url!)
+        guard let url = comps.url else { throw APIError.invalidURL("player") }
+        var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue(iosUserAgent, forHTTPHeaderField: "User-Agent")
@@ -319,9 +324,12 @@ public actor InnerTubeAPI {
     }
 
     private func post(endpoint: String, body: [String: Any]) async throws -> [String: Any] {
-        var comps = URLComponents(url: baseURL.appendingPathComponent(endpoint), resolvingAgainstBaseURL: false)!
+        guard var comps = URLComponents(url: baseURL.appendingPathComponent(endpoint), resolvingAgainstBaseURL: false) else {
+            throw APIError.invalidURL(endpoint)
+        }
         comps.queryItems = [URLQueryItem(name: "key", value: apiKey)]
-        var request = URLRequest(url: comps.url!)
+        guard let url = comps.url else { throw APIError.invalidURL(endpoint) }
+        var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue("https://www.youtube.com", forHTTPHeaderField: "Origin")
@@ -329,7 +337,6 @@ public actor InnerTubeAPI {
         request.setValue("2.20260206.01.00", forHTTPHeaderField: "X-YouTube-Client-Version")
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
         tubeLog.notice("POST /\(endpoint, privacy: .public) [WEB]")
-        print("[InnerTube] POST /\(endpoint) [WEB]")
         let (data, response) = try await session.data(for: request)
         let statusCode = (response as? HTTPURLResponse)?.statusCode ?? 0
         guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
@@ -358,14 +365,17 @@ public actor InnerTubeAPI {
     /// (mirrors RetrofitOkHttpHelper — authHeaders non-empty → skip key, apply Bearer headers).
     /// When unauthenticated, the WEB key is used as on all other clients.
     private func postTV(endpoint: String, body: [String: Any], useAuth: Bool = true) async throws -> [String: Any] {
-        var comps = URLComponents(url: playerBaseURL.appendingPathComponent(endpoint),
-                                  resolvingAgainstBaseURL: false)!
+        guard var comps = URLComponents(url: playerBaseURL.appendingPathComponent(endpoint),
+                                        resolvingAgainstBaseURL: false) else {
+            throw APIError.invalidURL(endpoint)
+        }
         // Android: no ?key= when Bearer present; WEB key for unauthenticated
         let shouldAuthenticate = useAuth && authToken != nil
         if !shouldAuthenticate {
             comps.queryItems = [URLQueryItem(name: "key", value: apiKey)]
         }
-        var request = URLRequest(url: comps.url!)
+        guard let url = comps.url else { throw APIError.invalidURL(endpoint) }
+        var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue("7", forHTTPHeaderField: "X-YouTube-Client-Name")
@@ -838,7 +848,7 @@ public actor InnerTubeAPI {
 
 // MARK: - PlayerInfo
 
-public struct PlayerInfo {
+public struct PlayerInfo: Sendable {
     public let video: Video
     public let formats: [VideoFormat]
     public let hlsURL: URL?
@@ -863,6 +873,7 @@ public enum APIError: LocalizedError {
     case decodingError(String)
     case notAuthenticated
     case unavailable(String)
+    case invalidURL(String)
 
     public var errorDescription: String? {
         switch self {
@@ -870,6 +881,7 @@ public enum APIError: LocalizedError {
         case .decodingError(let msg):   return "Decoding error: \(msg)"
         case .notAuthenticated:          return "You are not signed in"
         case .unavailable(let reason):   return reason
+        case .invalidURL(let endpoint):  return "Could not build URL for endpoint: \(endpoint)"
         }
     }
 }

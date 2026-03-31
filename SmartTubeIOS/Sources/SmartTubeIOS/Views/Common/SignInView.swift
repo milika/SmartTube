@@ -8,7 +8,7 @@ import CoreImage.CIFilterBuiltins
 // No browser redirect — the user enters a short code at youtube.com/activate.
 
 public struct SignInView: View {
-    @EnvironmentObject private var auth: AuthService
+    @Environment(AuthService.self) private var auth
     @Environment(\.dismiss) private var dismiss
     @State private var showError = false
     @State private var isLoading = false
@@ -113,7 +113,9 @@ public struct SignInView: View {
     /// Builds the URL that Google accepts to auto-fill the user code:
     /// https://www.google.com/device?user_code=XXXX-XXXX
     private func activationQRURL(info: AuthService.ActivationInfo) -> String {
-        var components = URLComponents(url: info.verificationURL, resolvingAgainstBaseURL: false)!
+        guard var components = URLComponents(url: info.verificationURL, resolvingAgainstBaseURL: false) else {
+            return info.verificationURL.absoluteString
+        }
         let existing = components.queryItems ?? []
         components.queryItems = existing + [URLQueryItem(name: "user_code", value: info.userCode)]
         return components.url?.absoluteString ?? info.verificationURL.absoluteString
@@ -272,18 +274,20 @@ private struct CountdownView: View {
                     .foregroundStyle(.red)
             }
         }
-        .onAppear { tick() }
+        .task {
+            remaining = max(0, expiresAt.timeIntervalSinceNow)
+            while remaining > 0 {
+                try? await Task.sleep(for: .seconds(1))
+                guard !Task.isCancelled else { return }
+                remaining = max(0, expiresAt.timeIntervalSinceNow)
+            }
+            onExpired()
+        }
     }
 
     private var timeString: String {
         let mins = Int(remaining) / 60
         let secs = Int(remaining) % 60
         return String(format: "Code expires in %d:%02d", mins, secs)
-    }
-
-    private func tick() {
-        remaining = max(0, expiresAt.timeIntervalSinceNow)
-        if remaining <= 0 { onExpired(); return }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1) { tick() }
     }
 }

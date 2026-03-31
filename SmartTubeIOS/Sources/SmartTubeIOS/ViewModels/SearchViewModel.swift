@@ -1,5 +1,5 @@
 import Foundation
-import Combine
+import Observation
 import SmartTubeIOSCore
 
 // MARK: - SearchViewModel
@@ -7,34 +7,33 @@ import SmartTubeIOSCore
 // Mirrors the Android `SearchPresenter`.
 
 @MainActor
-public final class SearchViewModel: ObservableObject {
+@Observable
+public final class SearchViewModel {
 
-    @Published public var query: String = ""
-    @Published public private(set) var results: [Video] = []
-    @Published public private(set) var suggestions: [String] = []
-    @Published public private(set) var isLoading: Bool = false
-    @Published public var error: Error?
+    public var query: String = ""
+    public private(set) var results: [Video] = []
+    public private(set) var suggestions: [String] = []
+    public private(set) var isLoading: Bool = false
+    public var error: Error?
 
     private let api: InnerTubeAPI
     private var nextPageToken: String?
     private var searchTask: Task<Void, Never>?
     private var suggestTask: Task<Void, Never>?
-    private var cancellables = Set<AnyCancellable>()
 
     public init(api: InnerTubeAPI = InnerTubeAPI()) {
         self.api = api
-        $query
-            .removeDuplicates()
-            .debounce(for: .milliseconds(300), scheduler: RunLoop.main)
-            .sink { [weak self] q in
-                guard let self else { return }
-                if q.isEmpty {
-                    self.suggestions = []
-                } else {
-                    self.fetchSuggestions(for: q)
-                }
-            }
-            .store(in: &cancellables)
+    }
+
+    /// Call from `.task(id: query)` in the view to debounce live suggestions.
+    public func updateSuggestions(for q: String) async {
+        try? await Task.sleep(for: .milliseconds(300))
+        guard !Task.isCancelled else { return }
+        if q.isEmpty {
+            suggestions = []
+        } else {
+            fetchSuggestions(for: q)
+        }
     }
 
     public func search() {
@@ -79,12 +78,13 @@ public final class SearchViewModel: ObservableObject {
 // MARK: - ChannelViewModel
 
 @MainActor
-public final class ChannelViewModel: ObservableObject {
+@Observable
+public final class ChannelViewModel {
 
-    @Published public private(set) var channel: Channel?
-    @Published public private(set) var videos: [Video] = []
-    @Published public private(set) var isLoading: Bool = false
-    @Published public var error: Error?
+    public private(set) var channel: Channel?
+    public private(set) var videos: [Video] = []
+    public private(set) var isLoading: Bool = false
+    public var error: Error?
 
     private let api: InnerTubeAPI
     private var nextPageToken: String?

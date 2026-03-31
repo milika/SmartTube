@@ -8,8 +8,8 @@ import SmartTubeIOSCore
 // (PlayerData, MainUIData, SponsorBlockData, DeArrowData, AccountsData).
 
 public struct SettingsView: View {
-    @EnvironmentObject private var auth: AuthService
-    @EnvironmentObject private var store: SettingsStore
+    @Environment(AuthService.self) private var auth
+    @Environment(SettingsStore.self) private var store
     @State private var showSignIn = false
 
     public init() {}
@@ -49,7 +49,8 @@ public struct SettingsView: View {
     // MARK: - Player
 
     private var playerSection: some View {
-        Section("Player") {
+        @Bindable var store = store
+        return Section("Player") {
             Picker("Preferred Quality", selection: $store.settings.preferredQuality) {
                 ForEach(AppSettings.VideoQuality.allCases, id: \.self) { q in
                     Text(q.rawValue).tag(q)
@@ -89,7 +90,8 @@ public struct SettingsView: View {
     // MARK: - UI
 
     private var uiSection: some View {
-        Section("Interface") {
+        @Bindable var store = store
+        return Section("Interface") {
             Picker("Theme", selection: $store.settings.themeName) {
                 ForEach(AppSettings.ThemeName.allCases, id: \.self) { t in
                     Text(t.rawValue).tag(t)
@@ -99,7 +101,7 @@ public struct SettingsView: View {
             Toggle("Compact Thumbnails", isOn: $store.settings.compactThumbnails)
             NavigationLink("Visible Sections") {
                 SectionsSettingsView()
-                    .environmentObject(store)
+                    .environment(store)
             }
         }
     }
@@ -107,7 +109,8 @@ public struct SettingsView: View {
     // MARK: - SponsorBlock
 
     private var sponsorBlockSection: some View {
-        Section {
+        @Bindable var store = store
+        return Section {
             Toggle("Enable SponsorBlock", isOn: $store.settings.sponsorBlockEnabled)
 
             if store.settings.sponsorBlockEnabled {
@@ -134,7 +137,8 @@ public struct SettingsView: View {
     // MARK: - DeArrow
 
     private var deArrowSection: some View {
-        Section {
+        @Bindable var store = store
+        return Section {
             Toggle("Enable DeArrow", isOn: $store.settings.deArrowEnabled)
         } header: {
             Text("DeArrow")
@@ -184,11 +188,12 @@ private extension SponsorSegment.Category {
 /// Lets the user configure which sections appear in the sidebar / tab bar.
 /// Mirrors Android's `MainUIData` section ordering/enabling UI.
 struct SectionsSettingsView: View {
-    @EnvironmentObject private var store: SettingsStore
+    @Environment(SettingsStore.self) private var store
 
     private let allSections = BrowseSection.allSections
 
     var body: some View {
+        @Bindable var store = store
         List {
             ForEach(allSections) { section in
                 Toggle(section.title, isOn: Binding(

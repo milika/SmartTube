@@ -6,8 +6,8 @@ import SmartTubeIOSCore
 // Main home feed.  Mirrors the Android `BrowseFragment`.
 
 public struct BrowseView: View {
-    @EnvironmentObject private var vm: BrowseViewModel
-    @EnvironmentObject private var auth: AuthService
+    @Environment(BrowseViewModel.self) private var vm
+    @Environment(AuthService.self) private var auth
     @State private var selectedVideo: Video?
     @State private var showSignIn = false
     @State private var showError = false

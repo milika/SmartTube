@@ -3,7 +3,7 @@ import Foundation
 // MARK: - Video
 
 /// Mirrors the Android `Video` data model.
-public struct Video: Identifiable, Hashable, Codable {
+public struct Video: Identifiable, Hashable, Codable, Sendable {
     public let id: String                   // videoId
     public var title: String
     public var channelTitle: String

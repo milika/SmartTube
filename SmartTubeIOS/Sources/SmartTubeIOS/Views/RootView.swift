@@ -6,7 +6,7 @@ import SwiftUI
 // sign-in screen.  On macOS it uses a sidebar-based navigation.
 
 public struct RootView: View {
-    @EnvironmentObject private var auth: AuthService
+    @Environment(AuthService.self) private var auth
 
     public init() {}
 
@@ -31,10 +31,10 @@ public struct RootView: View {
 // MARK: - MainTabView  (iOS / iPadOS)
 
 struct MainTabView: View {
-    @EnvironmentObject private var auth: AuthService
-    @EnvironmentObject private var browseVM: BrowseViewModel
-    @EnvironmentObject private var settingsStore: SettingsStore
-    @StateObject private var searchVM   = SearchViewModel()
+    @Environment(AuthService.self) private var auth
+    @Environment(BrowseViewModel.self) private var browseVM
+    @Environment(SettingsStore.self) private var settingsStore
+    @State private var searchVM = SearchViewModel()
 
     var body: some View {
         TabView {
@@ -58,17 +58,17 @@ struct MainTabView: View {
             }
             .tabItem { Label("Settings", systemImage: "gearshape.fill") }
         }
-        .environmentObject(searchVM)
+        .environment(searchVM)
     }
 }
 
 // MARK: - MainSidebarView  (macOS)
 
 struct MainSidebarView: View {
-    @EnvironmentObject private var auth: AuthService
-    @EnvironmentObject private var browseVM: BrowseViewModel
-    @EnvironmentObject private var settingsStore: SettingsStore
-    @StateObject private var searchVM      = SearchViewModel()
+    @Environment(AuthService.self) private var auth
+    @Environment(BrowseViewModel.self) private var browseVM
+    @Environment(SettingsStore.self) private var settingsStore
+    @State private var searchVM = SearchViewModel()
 
     @State private var selectedSection: AppSection? = .home
 
@@ -117,6 +117,6 @@ struct MainSidebarView: View {
             case .settings: NavigationStack { SettingsView() }
             }
         }
-        .environmentObject(searchVM)
+        .environment(searchVM)
     }
 }

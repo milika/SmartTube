@@ -11,9 +11,9 @@ import SmartTubeIOSCore
 //                      dedicated BrowseViewModel instance.
 
 public struct HomeView: View {
-    @StateObject private var homeVM    = HomeViewModel()
-    @StateObject private var sectionVM = BrowseViewModel()
-    @EnvironmentObject private var auth: AuthService
+    @State private var homeVM    = HomeViewModel()
+    @State private var sectionVM = BrowseViewModel()
+    @Environment(AuthService.self) private var auth
     @Environment(\.colorScheme) private var colorScheme
 
     // "Home" is always first; its type is .home.

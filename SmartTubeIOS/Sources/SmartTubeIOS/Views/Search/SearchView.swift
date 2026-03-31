@@ -7,7 +7,7 @@ import SmartTubeIOSCore
 // Mirrors the Android `SearchTagsActivity`.
 
 public struct SearchView: View {
-    @EnvironmentObject private var vm: SearchViewModel
+    @Environment(SearchViewModel.self) private var vm
     @State private var selectedVideo: Video?
     @FocusState private var isSearchFocused: Bool
 
@@ -31,12 +31,14 @@ public struct SearchView: View {
         .navigationDestination(item: $selectedVideo) { video in
             PlayerView(video: video)
         }
+        .task(id: vm.query) { await vm.updateSuggestions(for: vm.query) }
     }
 
     // MARK: - Search bar
 
     private var searchBar: some View {
-        HStack(spacing: 8) {
+        @Bindable var vm = vm
+        return HStack(spacing: 8) {
             Image(systemName: "magnifyingglass")
                 .foregroundStyle(.secondary)
             TextField("Search YouTube", text: $vm.query)

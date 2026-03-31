@@ -32,8 +32,10 @@ public struct VideoCardView: View {
             }
         }
         .contextMenu {
-            ShareLink(item: URL(string: "https://www.youtube.com/watch?v=\(video.id)")!) {
-                Label("Share", systemImage: "square.and.arrow.up")
+            if let shareURL = URL(string: "https://www.youtube.com/watch?v=\(video.id)") {
+                ShareLink(item: shareURL) {
+                    Label("Share", systemImage: "square.and.arrow.up")
+                }
             }
             if let channelId = video.channelId, !channelId.isEmpty {
                 Button {

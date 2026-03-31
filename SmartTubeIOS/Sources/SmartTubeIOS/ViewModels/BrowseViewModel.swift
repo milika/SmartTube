@@ -1,5 +1,5 @@
 import Foundation
-import Combine
+import Observation
 import os
 import SmartTubeIOSCore
 
@@ -10,17 +10,18 @@ private let browseLog = Logger(subsystem: "com.smarttube.app", category: "Browse
 // Drives the main browse screen.  Mirrors the Android `BrowsePresenter`.
 
 @MainActor
-public final class BrowseViewModel: ObservableObject {
+@Observable
+public final class BrowseViewModel {
 
-    // MARK: - Published state
+    // MARK: - State
 
-    @Published public private(set) var sections: [BrowseSection] = BrowseSection.defaultSections
-    @Published public private(set) var currentSection: BrowseSection = BrowseSection.defaultSections[0]
-    @Published public private(set) var videoGroups: [VideoGroup] = []
-    @Published public private(set) var isLoading: Bool = false
-    @Published public var error: Error?
+    public private(set) var sections: [BrowseSection] = BrowseSection.defaultSections
+    public private(set) var currentSection: BrowseSection = BrowseSection.defaultSections[0]
+    public private(set) var videoGroups: [VideoGroup] = []
+    public private(set) var isLoading: Bool = false
+    public var error: Error?
     /// True when the current section requires authentication and the user is not signed in.
-    @Published public private(set) var isAuthRequired: Bool = false
+    public private(set) var isAuthRequired: Bool = false
 
     // MARK: - Dependencies
 
@@ -84,7 +85,7 @@ public final class BrowseViewModel: ObservableObject {
     public func updateAuthToken(_ token: String?) async {
         let msg = token != nil ? "token set (\(token!.prefix(8))…)" : "cleared"
         browseLog.notice("updateAuthToken: \(msg, privacy: .public)")
-        print("[Browse] updateAuthToken: \(msg)")
+
         await api.setAuthToken(token)
         if token != nil {
             loadContent(refresh: true)

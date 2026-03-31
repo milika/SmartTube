@@ -8,7 +8,7 @@ import SmartTubeIOSCore
 
 public struct ChannelView: View {
     public let channelId: String
-    @StateObject private var vm = ChannelViewModel()
+    @State private var vm = ChannelViewModel()
     @State private var selectedVideo: Video?
 
     public init(channelId: String) {

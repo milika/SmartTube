@@ -1,6 +1,6 @@
 import Foundation
 import AVFoundation
-import Combine
+import Observation
 import os
 import SmartTubeIOSCore
 
@@ -12,22 +12,23 @@ private let playerLog = Logger(subsystem: "com.smarttube.app", category: "Player
 // Mirrors the Android `PlaybackPresenter` + `PlayerUIController`.
 
 @MainActor
-public final class PlaybackViewModel: ObservableObject {
+@Observable
+public final class PlaybackViewModel {
 
-    // MARK: - Published state
+    // MARK: - State
 
-    @Published public private(set) var playerInfo: PlayerInfo?
-    @Published public private(set) var isLoading: Bool = false
-    @Published public private(set) var isPlaying: Bool = false
-    @Published public private(set) var currentTime: TimeInterval = 0
-    @Published public private(set) var duration: TimeInterval = 0
-    @Published public private(set) var availableFormats: [VideoFormat] = []
-    @Published public private(set) var sponsorSegments: [SponsorSegment] = []
-    @Published public private(set) var relatedVideos: [Video] = []
-    @Published public private(set) var hasPrevious: Bool = false
-    @Published public private(set) var hasNext: Bool = false
-    @Published public var error: Error?
-    @Published public var controlsVisible: Bool = true
+    public private(set) var playerInfo: PlayerInfo?
+    public private(set) var isLoading: Bool = false
+    public private(set) var isPlaying: Bool = false
+    public private(set) var currentTime: TimeInterval = 0
+    public private(set) var duration: TimeInterval = 0
+    public private(set) var availableFormats: [VideoFormat] = []
+    public private(set) var sponsorSegments: [SponsorSegment] = []
+    public private(set) var relatedVideos: [Video] = []
+    public private(set) var hasPrevious: Bool = false
+    public private(set) var hasNext: Bool = false
+    public var error: Error?
+    public var controlsVisible: Bool = true
 
     // MARK: - History
 
@@ -39,9 +40,11 @@ public final class PlaybackViewModel: ObservableObject {
     // MARK: - AVPlayer
 
     public let player = AVPlayer()
-    private var timeObserver: Any?
-    private var statusObserver: AnyCancellable?
-    private var endObserver: AnyCancellable?
+    // nonisolated(unsafe): set once in setupTimeObserver() (from init), read once in deinit.
+    // Safe because no concurrent mutation occurs — init and deinit are always sequential.
+    nonisolated(unsafe) private var timeObserver: Any?
+    private var itemObserverTask: Task<Void, Never>?
+    private var endObserverTask: Task<Void, Never>?
     private var controlsTimer: Task<Void, Never>?
     /// Position to seek to once the AVPlayerItem is ready.
     private var savedPositionToRestore: TimeInterval? = nil
@@ -119,7 +122,7 @@ public final class PlaybackViewModel: ObservableObject {
             }
 
             // Restore saved watch position (mirrors VideoStateController)
-            let savedState = VideoStateStore.shared.state(for: video.id)
+            let savedState = await VideoStateStore.shared.state(for: video.id)
             if let pos = savedState?.position, pos > 5 {
                 savedPositionToRestore = pos
                 playerLog.notice("Restoring position \(Int(pos), privacy: .public)s for \(video.id, privacy: .public)")
@@ -132,39 +135,45 @@ public final class PlaybackViewModel: ObservableObject {
             }
             playerLog.notice("Starting AVPlayer with: \(url.absoluteString.prefix(120), privacy: .public)")
             let item = AVPlayerItem(url: url)
-            // Observe the item status to catch AVPlayer decoding/network errors
-            statusObserver = item.publisher(for: \.status)
-                .receive(on: RunLoop.main)
-                .sink { [weak self] status in
+            // Observe item status using async/await (withCheckedContinuation is not needed
+            // here since we only need to react to status changes, not await them).
+            itemObserverTask?.cancel()
+            itemObserverTask = Task { [weak self] in
+                for await status in item.statusStream {
+                    guard let self, !Task.isCancelled else { return }
                     switch status {
                     case .readyToPlay:
                         playerLog.notice("✅ AVPlayerItem readyToPlay")
-                        // Restore saved position once the item is ready to seek
-                        if let pos = self?.savedPositionToRestore, pos > 0 {
-                            self?.savedPositionToRestore = nil
-                            self?.seek(to: pos)
+                        if let pos = self.savedPositionToRestore, pos > 0 {
+                            self.savedPositionToRestore = nil
+                            self.seek(to: pos)
                         }
                     case .failed:
                         let err = item.error.map { "\($0)" } ?? "nil"
                         playerLog.error("❌ AVPlayerItem failed: \(err, privacy: .public)")
-                        self?.error = item.error
+                        self.error = item.error
                     case .unknown:
                         playerLog.notice("AVPlayerItem status: unknown (loading)")
                     @unknown default:
                         break
                     }
                 }
+            }
             player.replaceCurrentItem(with: item)
             duration = info.video.duration ?? 0
 
-            // Autoplay: observe end-of-item and load the next related video
-            endObserver?.cancel()
-            endObserver = NotificationCenter.default
-                .publisher(for: AVPlayerItem.didPlayToEndTimeNotification, object: item)
-                .receive(on: RunLoop.main)
-                .sink { [weak self] _ in
-                    Task { @MainActor [weak self] in self?.handlePlaybackEnd() }
+            // Observe end-of-item using NotificationCenter async sequence
+            endObserverTask?.cancel()
+            endObserverTask = Task { [weak self] in
+                let notifications = NotificationCenter.default.notifications(
+                    named: AVPlayerItem.didPlayToEndTimeNotification,
+                    object: item
+                )
+                for await _ in notifications {
+                    guard let self, !Task.isCancelled else { return }
+                    self.handlePlaybackEnd()
                 }
+            }
 
             player.play()
             isPlaying = true
@@ -262,11 +271,14 @@ public final class PlaybackViewModel: ObservableObject {
 
     private func setupTimeObserver() {
         let interval = CMTime(seconds: 0.5, preferredTimescale: 600)
-        timeObserver = player.addPeriodicTimeObserver(forInterval: interval, queue: .main) { [weak self] time in
+        timeObserver = player.addPeriodicTimeObserver(forInterval: interval, queue: nil) { [weak self] time in
             guard let self else { return }
             let seconds = time.seconds
-            self.currentTime = seconds
-            self.checkSponsorSkip(at: seconds)
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                self.currentTime = seconds
+                self.checkSponsorSkip(at: seconds)
+            }
         }
     }
 
@@ -276,12 +288,32 @@ public final class PlaybackViewModel: ObservableObject {
         // Save watch position before stopping (mirrors VideoStateController)
         if let videoId = playerInfo?.video.id, duration > 0 {
             let pos = self.currentTime
-            VideoStateStore.shared.save(videoId: videoId, position: pos, duration: duration)
-            playerLog.notice("Saved position \(Int(pos), privacy: .public)s for \(videoId, privacy: .public)")
+            let dur = self.duration
+            Task {
+                await VideoStateStore.shared.save(videoId: videoId, position: pos, duration: dur)
+                playerLog.notice("Saved position \(Int(pos), privacy: .public)s for \(videoId, privacy: .public)")
+            }
         }
         player.pause()
         player.replaceCurrentItem(with: nil)
         isPlaying = false
         controlsTimer?.cancel()
+    }
+}
+
+// MARK: - AVPlayerItem async helpers
+
+private extension AVPlayerItem {
+    /// An `AsyncStream` that emits the item's `status` on each KVO change.
+    var statusStream: AsyncStream<AVPlayerItem.Status> {
+        AsyncStream { continuation in
+            let observer = observe(\.status, options: [.initial, .new]) { item, _ in
+                continuation.yield(item.status)
+                if item.status == .readyToPlay || item.status == .failed {
+                    continuation.finish()
+                }
+            }
+            continuation.onTermination = { _ in observer.invalidate() }
+        }
     }
 }

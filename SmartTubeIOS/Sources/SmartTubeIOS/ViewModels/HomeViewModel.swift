@@ -1,4 +1,5 @@
 import Foundation
+import Observation
 import os
 import SmartTubeIOSCore
 
@@ -10,7 +11,8 @@ private let homeLog = Logger(subsystem: "com.smarttube.app", category: "Home")
 // to populate the Home tab's multi-section feed.
 
 @MainActor
-public final class HomeViewModel: ObservableObject {
+@Observable
+public final class HomeViewModel {
 
     // MARK: - Section state
 
@@ -22,10 +24,10 @@ public final class HomeViewModel: ObservableObject {
         public var id: String { section.id }
     }
 
-    // MARK: - Published state
+    // MARK: - State
 
-    @Published public private(set) var sections: [SectionState]
-    @Published public private(set) var isRefreshing: Bool = false
+    public private(set) var sections: [SectionState]
+    public private(set) var isRefreshing: Bool = false
 
     // MARK: - Shelf definitions (in display order)
 

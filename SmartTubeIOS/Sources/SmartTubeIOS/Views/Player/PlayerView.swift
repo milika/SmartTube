@@ -10,9 +10,9 @@ import SmartTubeIOSCore
 
 public struct PlayerView: View {
     public let video: Video
-    @StateObject private var vm = PlaybackViewModel()
+    @State private var vm = PlaybackViewModel()
     @Environment(\.dismiss) private var dismiss
-    @EnvironmentObject private var store: SettingsStore
+    @Environment(SettingsStore.self) private var store
     @State private var showSpeedPicker = false
 
     public init(video: Video) {

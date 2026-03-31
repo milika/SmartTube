@@ -8,8 +8,8 @@ import SmartTubeIOSCore
 // Subscriptions, Playlists, History and Channels.
 
 public struct LibraryView: View {
-    @EnvironmentObject private var auth: AuthService
-    @EnvironmentObject private var browseVM: BrowseViewModel
+    @Environment(AuthService.self) private var auth
+    @Environment(BrowseViewModel.self) private var browseVM
     @State private var selectedSection: LibrarySection = .subscriptions
     @State private var selectedVideo: Video?
 

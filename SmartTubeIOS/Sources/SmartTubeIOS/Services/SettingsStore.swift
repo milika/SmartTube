@@ -1,15 +1,17 @@
 import Foundation
+import Observation
 import SmartTubeIOSCore
 
 // MARK: - SettingsStore
 //
 // Persists `AppSettings` in `UserDefaults` and notifies observers via
-// `@Published`.  Used as an `@EnvironmentObject` throughout the app.
+// `@Observable`.  Used as an `@Environment` value throughout the app.
 
 @MainActor
-public final class SettingsStore: ObservableObject {
+@Observable
+public final class SettingsStore {
 
-    @Published public var settings: AppSettings {
+    public var settings: AppSettings {
         didSet { save() }
     }
 

@@ -5,13 +5,13 @@ import Foundation
 // Persists per-video watch position and progress fraction across sessions.
 // Mirrors Android's VideoStateService + VideoStateController.
 //
-// Thread-safe via a serial DispatchQueue; call from any thread.
+// Thread-safe: implemented as a Swift actor.
 
-public final class VideoStateStore {
+public actor VideoStateStore {
 
     // MARK: - State
 
-    public struct State: Codable {
+    public struct State: Codable, Sendable {
         /// Saved playback position in seconds.
         public var position: TimeInterval
         /// Fraction watched: 0.0 – 1.0
@@ -36,50 +36,41 @@ public final class VideoStateStore {
     private static let maxEntries = 1_000
 
     private var states: [String: State] = [:]
-    private let queue = DispatchQueue(label: "com.smarttube.videostate", qos: .utility)
 
     private init() {
-        queue.sync { self.load() }
+        if let data = UserDefaults.standard.data(forKey: Self.udKey),
+           let decoded = try? JSONDecoder().decode([String: State].self, from: data) {
+            states = decoded
+        }
     }
 
     // MARK: - Public API
 
     /// Returns the saved state for `videoId`, or nil if nothing was saved.
     public func state(for videoId: String) -> State? {
-        queue.sync { states[videoId] }
+        states[videoId]
     }
 
     /// Persists watch position. Automatically prunes entries near the start
     /// (< 5 s) or near the end (> 95 %) — mirrors Android's RESTORE_POSITION_PERCENTS.
     public func save(videoId: String, position: TimeInterval, duration: TimeInterval) {
         let fraction = duration > 1 ? min(position / duration, 1.0) : 0.0
-        queue.async {
-            if position > 5, fraction < 0.95 {
-                self.states[videoId] = State(position: position, watchedFraction: fraction)
-                self.prune()
-            } else {
-                self.states.removeValue(forKey: videoId)
-            }
-            self.persist()
+        if position > 5, fraction < 0.95 {
+            states[videoId] = State(position: position, watchedFraction: fraction)
+            prune()
+        } else {
+            states.removeValue(forKey: videoId)
         }
+        persist()
     }
 
     /// Removes any saved position for `videoId` (e.g. when the user finishes watching).
     public func clear(videoId: String) {
-        queue.async {
-            self.states.removeValue(forKey: videoId)
-            self.persist()
-        }
+        states.removeValue(forKey: videoId)
+        persist()
     }
 
     // MARK: - Persistence
-
-    private func load() {
-        guard let data = UserDefaults.standard.data(forKey: Self.udKey),
-              let decoded = try? JSONDecoder().decode([String: State].self, from: data)
-        else { return }
-        states = decoded
-    }
 
     private func persist() {
         guard let data = try? JSONEncoder().encode(states) else { return }
