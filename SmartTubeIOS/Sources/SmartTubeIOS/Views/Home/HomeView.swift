@@ -41,7 +41,9 @@ public struct HomeView: View {
                     PlayerView(video: video)
                 }
         }
+        #if os(iOS)
         .toolbar(.hidden, for: .navigationBar)
+        #endif
         .sheet(isPresented: $showSignIn) { SignInView() }
         .onChange(of: visibleSections) { _, newSections in
             if !newSections.contains(selectedSection), let first = newSections.first {

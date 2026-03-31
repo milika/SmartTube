@@ -9,7 +9,7 @@
 /* Begin PBXBuildFile section */
 		06412259452CCFBF300F2D4B /* SmartTubeIOS in Frameworks */ = {isa = PBXBuildFile; productRef = B8401470D9A590E7F3685830 /* SmartTubeIOS */; };
 		494A17316084B602873D7C05 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = AE55B486AFD7F51FEF1874FF /* Assets.xcassets */; };
-		67ED8E042F7B1C0C00501436 /* Launch Screen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 67ED8E032F7B1C0C00501436 /* Launch Screen.storyboard */; };
+		67ED8E042F7B1C0C00501436 /* Launch Screen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 67ED8E032F7B1C0C00501436 /* Launch Screen.storyboard */; platformFilter = ios; };
 		DD2551477B9F9B6D89AE6FCB /* AppEntry.swift in Sources */ = {isa = PBXBuildFile; fileRef = 29356C9641042E3DA5F16175 /* AppEntry.swift */; };
 /* End PBXBuildFile section */
 

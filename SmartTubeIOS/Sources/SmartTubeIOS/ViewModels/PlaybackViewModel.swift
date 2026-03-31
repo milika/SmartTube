@@ -40,8 +40,6 @@ public final class PlaybackViewModel {
     // MARK: - AVPlayer
 
     public let player = AVPlayer()
-    // nonisolated(unsafe): set once in setupTimeObserver() (from init), read once in deinit.
-    // Safe because no concurrent mutation occurs — init and deinit are always sequential.
     nonisolated(unsafe) private var timeObserver: Any?
     private var itemObserverTask: Task<Void, Never>?
     private var endObserverTask: Task<Void, Never>?

@@ -23,7 +23,9 @@ public struct SettingsView: View {
             deArrowSection
             aboutSection
         }
+        #if os(iOS)
         .toolbar(.hidden, for: .navigationBar)
+        #endif
     }
 
     // MARK: - Account
@@ -218,7 +220,9 @@ struct SectionsSettingsView: View {
             }
         }
         .navigationTitle("Visible Sections")
+        #if os(iOS)
         .toolbar(.visible, for: .navigationBar)
+        #endif
         #if os(iOS)
         .navigationBarTitleDisplayMode(.inline)
         #endif
