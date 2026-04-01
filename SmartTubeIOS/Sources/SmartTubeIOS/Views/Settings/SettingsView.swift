@@ -23,6 +23,9 @@ public struct SettingsView: View {
             deArrowSection
             aboutSection
         }
+        #if os(macOS)
+        .formStyle(.grouped)
+        #endif
         #if os(iOS)
         .toolbar(.hidden, for: .navigationBar)
         #endif

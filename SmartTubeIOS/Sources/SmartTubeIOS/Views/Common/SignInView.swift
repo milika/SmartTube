@@ -11,7 +11,6 @@ public struct SignInView: View {
     @Environment(AuthService.self) private var auth
     @Environment(\.dismiss) private var dismiss
     @State private var showError = false
-    @State private var isLoading = false
 
     public init() {}
 
@@ -21,7 +20,7 @@ public struct SignInView: View {
                 if let info = auth.pendingActivation {
                     activationView(info: info)
                 } else {
-                    startView
+                    loadingView
                 }
             }
             .navigationTitle("Sign In")
@@ -46,66 +45,25 @@ public struct SignInView: View {
                 if hasError == 1 { showError = true }
             }
         }
+        .task {
+            await auth.beginSignIn()
+        }
         .onChange(of: auth.isSignedIn) { _, signedIn in
             if signedIn { dismiss() }
         }
     }
 
-    // MARK: - Start screen
+    // MARK: - Loading screen
 
-    private var startView: some View {
-        VStack(spacing: 32) {
-            Spacer()
-
-            Image(systemName: "play.rectangle.fill")
-                .font(.system(size: 80))
-                .foregroundStyle(.red)
-
-            VStack(spacing: 8) {
-                Text("SmartTube")
-                    .font(.largeTitle).fontWeight(.bold)
-                Text("Sign in with your Google account to access\nyour subscriptions, history and playlists.")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                    .multilineTextAlignment(.center)
-            }
-
-            Spacer()
-
-            Button {
-                guard !isLoading else { return }
-                isLoading = true
-                Task {
-                    await auth.beginSignIn()
-                    isLoading = false
-                }
-            } label: {
-                Group {
-                    if isLoading {
-                        ProgressView()
-                            .frame(maxWidth: .infinity)
-                            .padding()
-                    } else {
-                        Label("Sign in with Google", systemImage: "g.circle.fill")
-                            .fontWeight(.semibold)
-                            .frame(maxWidth: .infinity)
-                            .padding()
-                    }
-                }
-                    .background(.background)
-                    .overlay(RoundedRectangle(cornerRadius: 10).stroke(.separator, lineWidth: 1))
-                    .clipShape(RoundedRectangle(cornerRadius: 10))
-            }
-            .buttonStyle(.plain)
-            .padding(.horizontal, 40)
-
-            Button("Continue without signing in") { dismiss() }
+    private var loadingView: some View {
+        VStack(spacing: 16) {
+            ProgressView()
+                .controlSize(.large)
+            Text("Connecting to Google…")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
-
-            Spacer()
         }
-        .padding()
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     // MARK: - Activation code screen

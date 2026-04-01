@@ -228,27 +228,41 @@ public actor InnerTubeAPI {
     // MARK: - Category sections
 
     public func fetchShorts() async throws -> VideoGroup {
-        var body = makeBody(client: webClientContext)
-        body["browseId"] = "FEshorts"
-        let data = try await post(endpoint: "browse", body: body)
-        return try parseVideoGroup(from: data, title: "Shorts")
+        do {
+            var body = makeBody(client: webClientContext)
+            body["browseId"] = "FEshorts"
+            let data = try await post(endpoint: "browse", body: body)
+            let group = try parseVideoGroup(from: data, title: "Shorts")
+            if !group.videos.isEmpty { return group }
+        } catch {
+            tubeLog.notice("fetchShorts browse failed, falling back to search: \(error, privacy: .public)")
+        }
+        return try await search(query: "shorts")
     }
 
     public func fetchMusic() async throws -> VideoGroup {
-        var body = makeBody(client: webClientContext)
-        body["browseId"] = "FEmusic_home_page"
-        let data = try await post(endpoint: "browse", body: body)
-        let group = try parseVideoGroup(from: data, title: "Music")
-        if !group.videos.isEmpty { return group }
+        do {
+            var body = makeBody(client: webClientContext)
+            body["browseId"] = "FEmusic_home_page"
+            let data = try await post(endpoint: "browse", body: body)
+            let group = try parseVideoGroup(from: data, title: "Music")
+            if !group.videos.isEmpty { return group }
+        } catch {
+            tubeLog.notice("fetchMusic browse failed, falling back to search: \(error, privacy: .public)")
+        }
         return try await search(query: "music")
     }
 
     public func fetchGaming() async throws -> VideoGroup {
-        var body = makeBody(client: webClientContext)
-        body["browseId"] = "FEgaming"
-        let data = try await post(endpoint: "browse", body: body)
-        let group = try parseVideoGroup(from: data, title: "Gaming")
-        if !group.videos.isEmpty { return group }
+        do {
+            var body = makeBody(client: webClientContext)
+            body["browseId"] = "FEgaming"
+            let data = try await post(endpoint: "browse", body: body)
+            let group = try parseVideoGroup(from: data, title: "Gaming")
+            if !group.videos.isEmpty { return group }
+        } catch {
+            tubeLog.notice("fetchGaming browse failed, falling back to search: \(error, privacy: .public)")
+        }
         return try await search(query: "gaming")
     }
 
@@ -527,10 +541,17 @@ public actor InnerTubeAPI {
                     if let v = parseVideoRenderer(renderer) { videos.append(v) }
                 } else if let renderer = dict["gridVideoRenderer"] as? [String: Any] {
                     if let v = parseVideoRenderer(renderer) { videos.append(v) }
+                } else if let renderer = dict["reelItemRenderer"] as? [String: Any] {
+                    if let v = parseReelItemRenderer(renderer) { videos.append(v) }
                 } else if let renderer = dict["richItemRenderer"] as? [String: Any],
-                          let content = renderer["content"] as? [String: Any],
-                          let videoRenderer = content["videoRenderer"] as? [String: Any] {
-                    if let v = parseVideoRenderer(videoRenderer) { videos.append(v) }
+                          let content = renderer["content"] as? [String: Any] {
+                    if let videoRenderer = content["videoRenderer"] as? [String: Any] {
+                        if let v = parseVideoRenderer(videoRenderer) { videos.append(v) }
+                    } else if let reelRenderer = content["reelItemRenderer"] as? [String: Any] {
+                        if let v = parseReelItemRenderer(reelRenderer) { videos.append(v) }
+                    } else {
+                        for value in content.values { walk(value) }
+                    }
                 } else if let renderer = dict["compactVideoRenderer"] as? [String: Any] {
                     if let v = parseVideoRenderer(renderer) { videos.append(v) }
                 } else if let renderer = dict["lockupViewModel"] as? [String: Any] {
@@ -651,6 +672,19 @@ public actor InnerTubeAPI {
             id: videoId, title: title, channelTitle: "", channelId: nil,
             thumbnailURL: thumbURL, duration: nil, viewCount: nil,
             isLive: false, isShort: false, badges: []
+        )
+    }
+
+    // MARK: – Shorts reelItemRenderer parser
+    private func parseReelItemRenderer(_ r: [String: Any]) -> Video? {
+        guard let videoId = r["videoId"] as? String else { return nil }
+        let title = (r["headline"] as? [String: Any]).flatMap { extractText($0) } ?? ""
+        let thumbnails = (r["thumbnail"] as? [String: Any])?["thumbnails"] as? [[String: Any]]
+        let thumbURL = thumbnails?.last.flatMap { $0["url"] as? String }.flatMap { URL(string: $0) }
+        return Video(
+            id: videoId, title: title, channelTitle: "", channelId: nil,
+            thumbnailURL: thumbURL, duration: nil, viewCount: nil,
+            isLive: false, isShort: true, badges: []
         )
     }
 
