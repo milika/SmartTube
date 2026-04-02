@@ -72,6 +72,7 @@ targets:
         SWIFT_VERSION: "5.9"
         PRODUCT_BUNDLE_IDENTIFIER: com.void.smarttube.app.uitests
         TEST_TARGET_NAME: SmartTube
+        GENERATE_INFOPLIST_FILE: YES
     dependencies:
       - target: SmartTube
 
