@@ -320,8 +320,12 @@ public actor InnerTubeAPI {
 
     public func fetchUserPlaylists() async throws -> [PlaylistInfo] {
         var body = makeBody(client: tvClientContext)
-        body["browseId"] = "FEmy_videos"
+        body["browseId"] = "FElibrary"
         let data = try await postTV(endpoint: "browse", body: body)
+        // Log the second-level structure so it's easy to diagnose mismatches
+        // if the live response shape differs from the mock.
+        let contentsKeys = (data["contents"] as? [String: Any])?.keys.map { $0 } ?? []
+        tubeLog.notice("fetchUserPlaylists FElibrary contents keys: \(contentsKeys, privacy: .public)")
         return try parsePlaylists(from: data)
     }
 
@@ -937,12 +941,46 @@ public actor InnerTubeAPI {
             return PlaylistInfo(id: id, title: title, videoCount: count, thumbnailURL: thumbURL)
         }
 
+        // Extracts a PlaylistInfo from a TVHTML5 tileRenderer.
+        // Playlist tiles carry a browseId prefixed with "VL" in onSelectCommand;
+        // video tiles use watchEndpoint instead, so we filter by the "VL" prefix.
+        func extractPlaylistFromTile(_ tile: [String: Any]) -> PlaylistInfo? {
+            func findBrowseId(_ cmd: [String: Any]) -> String? {
+                if let ep = cmd["browseEndpoint"] as? [String: Any],
+                   let bid = ep["browseId"] as? String { return bid }
+                for v in cmd.values {
+                    if let nested = v as? [String: Any], let bid = findBrowseId(nested) { return bid }
+                }
+                return nil
+            }
+            guard let cmd = tile["onSelectCommand"] as? [String: Any],
+                  let rawId = findBrowseId(cmd),
+                  rawId.hasPrefix("VL")
+            else { return nil }
+            let id = String(rawId.dropFirst(2))
+
+            let metadata = (tile["metadata"] as? [String: Any])?["tileMetadataRenderer"] as? [String: Any]
+            guard let titleRaw = metadata?["title"],
+                  let title = (titleRaw as? [String: Any]).flatMap({ extractText($0) }) ?? (titleRaw as? String)
+            else { return nil }
+
+            let thumbSources = ((tile["header"] as? [String: Any])?["tileHeaderRenderer"] as? [String: Any])
+                .flatMap { $0["thumbnail"] as? [String: Any] }
+                .flatMap { $0["thumbnails"] as? [[String: Any]] }
+            let thumbURL = thumbSources?.last.flatMap { $0["url"] as? String }.flatMap { URL(string: $0) }
+
+            return PlaylistInfo(id: id, title: title, videoCount: nil, thumbnailURL: thumbURL)
+        }
+
         func walk(_ obj: Any) {
             if let dict = obj as? [String: Any] {
                 let rendererKeys = ["playlistRenderer", "gridPlaylistRenderer", "compactPlaylistRenderer"]
                 if let key = rendererKeys.first(where: { dict[$0] is [String: Any] }),
                    let renderer = dict[key] as? [String: Any],
                    let info = extractPlaylist(from: renderer) {
+                    playlists.append(info)
+                } else if let tile = dict["tileRenderer"] as? [String: Any],
+                          let info = extractPlaylistFromTile(tile) {
                     playlists.append(info)
                 } else {
                     for value in dict.values { walk(value) }
