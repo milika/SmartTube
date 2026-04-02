@@ -1,26 +1,6 @@
 // swift-tools-version:6.0
 import PackageDescription
 
-// The SmartTubeIOS UI target uses iOS-only APIs (UIKit, fullScreenCover, etc.).
-// Exclude it when resolving/building on macOS so that `swift test` can run
-// against SmartTubeIOSCore without a simulator.
-#if os(iOS)
-let iosProducts: [Product] = [
-    .library(name: "SmartTubeIOS", targets: ["SmartTubeIOS"]),
-]
-let iosTargets: [Target] = [
-    .target(
-        name: "SmartTubeIOS",
-        dependencies: ["SmartTubeIOSCore"],
-        path: "Sources/SmartTubeIOS",
-        swiftSettings: [.swiftLanguageMode(.v6)]
-    ),
-]
-#else
-let iosProducts: [Product] = []
-let iosTargets: [Target] = []
-#endif
-
 let package = Package(
     name: "SmartTubeIOS",
     platforms: [
@@ -33,7 +13,9 @@ let package = Package(
             name: "SmartTubeIOSCore",
             targets: ["SmartTubeIOSCore"]
         ),
-    ] + iosProducts,
+        // SwiftUI UI layer (iOS/iPadOS/macOS).
+        .library(name: "SmartTubeIOS", targets: ["SmartTubeIOS"]),
+    ],
     dependencies: [],
     targets: [
         // MARK: Core – iOS, macOS (Foundation only)
@@ -43,6 +25,13 @@ let package = Package(
             path: "Sources/SmartTubeIOSCore",
             swiftSettings: [.swiftLanguageMode(.v6)]
         ),
+        // MARK: UI – iOS/iPadOS/macOS (SwiftUI)
+        .target(
+            name: "SmartTubeIOS",
+            dependencies: ["SmartTubeIOSCore"],
+            path: "Sources/SmartTubeIOS",
+            swiftSettings: [.swiftLanguageMode(.v6)]
+        ),
         // MARK: Tests
         .testTarget(
             name: "SmartTubeIOSTests",
@@ -50,5 +39,5 @@ let package = Package(
             path: "Tests/SmartTubeIOSTests",
             swiftSettings: [.swiftLanguageMode(.v6)]
         ),
-    ] + iosTargets
+    ]
 )
