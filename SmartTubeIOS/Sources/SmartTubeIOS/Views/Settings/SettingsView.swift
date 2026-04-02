@@ -66,7 +66,7 @@ public struct SettingsView: View {
                 Text("Playback Speed")
                 Spacer()
                 Picker("", selection: $store.settings.playbackSpeed) {
-                    ForEach([0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0], id: \.self) { s in
+                    ForEach(AppSettings.availableSpeeds, id: \.self) { s in
                         Text(s == 1.0 ? "Normal" : "\(s, specifier: "%.2g")×").tag(s)
                     }
                 }

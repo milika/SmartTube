@@ -47,6 +47,9 @@ public struct AppSettings: Codable {
         case q4320 = "4320p (8K)"
     }
 
+    /// Canonical ordered list of selectable playback speeds — single source of truth.
+    public static let availableSpeeds: [Double] = [0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0]
+
     public enum ThemeName: String, Codable, CaseIterable {
         case system = "System"
         case dark   = "Dark"

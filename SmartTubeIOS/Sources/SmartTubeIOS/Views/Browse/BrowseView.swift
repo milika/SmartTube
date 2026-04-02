@@ -5,10 +5,19 @@ import SmartTubeIOSCore
 //
 // Main home feed.  Mirrors the Android `BrowseFragment`.
 
+// MARK: - ShortsPresentation helper
+
+private struct ShortsPresentation: Identifiable {
+    let id = UUID()
+    let videos: [Video]
+    let startIndex: Int
+}
+
 public struct BrowseView: View {
     @Environment(BrowseViewModel.self) private var vm
     @Environment(AuthService.self) private var auth
     @State private var selectedVideo: Video?
+    @State private var shortsPresentation: ShortsPresentation?
     @State private var showSignIn = false
     @State private var showError = false
 
@@ -39,6 +48,9 @@ public struct BrowseView: View {
         .onChange(of: vm.error == nil ? 0 : 1) { _, hasError in
             if hasError == 1 { showError = true }
         }
+        .fullScreenCover(item: $shortsPresentation) { target in
+            ShortsPlayerView(videos: target.videos, startIndex: target.startIndex)
+        }
         .sheet(isPresented: $showSignIn) { SignInView() }
         .onAppear {
             if vm.videoGroups.isEmpty { vm.loadContent() }
@@ -63,9 +75,9 @@ public struct BrowseView: View {
                             .padding(.bottom, 4)
                     }
                     if group.layout == .row {
-                        VideoRowSection(videos: group.videos, onSelect: { selectedVideo = $0 })
+                        VideoRowSection(videos: group.videos, onSelect: { selectVideo($0, from: group.videos) })
                     } else {
-                        VideoGridSection(videos: group.videos, onSelect: { selectedVideo = $0 },
+                        VideoGridSection(videos: group.videos, onSelect: { selectVideo($0, from: group.videos) },
                                          loadMore: { if let last = group.videos.last { vm.loadMoreIfNeeded(lastVideo: last) } })
                     }
                 }
@@ -75,6 +87,18 @@ public struct BrowseView: View {
                         .padding()
                 }
             }
+        }
+    }
+
+    // MARK: - Video selection
+
+    private func selectVideo(_ video: Video, from groupVideos: [Video]) {
+        if video.isShort {
+            let shorts = groupVideos.filter { $0.isShort }
+            let idx = shorts.firstIndex(where: { $0.id == video.id }) ?? 0
+            shortsPresentation = ShortsPresentation(videos: shorts, startIndex: idx)
+        } else {
+            selectedVideo = video
         }
     }
 

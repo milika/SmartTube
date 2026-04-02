@@ -273,7 +273,7 @@ public struct PlayerView: View {
     private var speedPickerSheet: some View {
         NavigationStack {
             List {
-                ForEach([0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0] as [Double], id: \.self) { (speed: Double) in
+                ForEach(AppSettings.availableSpeeds, id: \.self) { (speed: Double) in
                     Button {
                         store.settings.playbackSpeed = speed
                         vm.setPlaybackSpeed(speed)
