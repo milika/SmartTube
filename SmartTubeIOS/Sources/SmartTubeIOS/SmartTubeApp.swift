@@ -5,6 +5,7 @@ struct SmartTubeApp: App {
     @State private var authService = AuthService()
     @State private var browseViewModel = BrowseViewModel()
     @State private var settingsStore = SettingsStore()
+    @Environment(\.scenePhase) private var scenePhase
 
     var body: some Scene {
         WindowGroup {
@@ -18,6 +19,11 @@ struct SmartTubeApp: App {
                 .onChange(of: settingsStore.settings.enabledSections) { _, newSections in
                     browseViewModel.configureSections(newSections)
                 }
+        }
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .active {
+                Task { await authService.refreshIfNeeded() }
+            }
         }
         #if os(macOS)
         .defaultSize(width: 1280, height: 800)

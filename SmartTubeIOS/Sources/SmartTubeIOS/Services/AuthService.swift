@@ -55,6 +55,7 @@ public final class AuthService {
 
     private let credentialsFetcher = YouTubeClientCredentialsFetcher()
     private let scope = "http://gdata.youtube.com https://www.googleapis.com/auth/youtube-paid-content"
+    private var tokenRefreshTask: Task<Void, Never>?
 
     private let tokenKey   = "st_access_token"
     private let refreshKey = "st_refresh_token"
@@ -127,9 +128,49 @@ public final class AuthService {
         pendingActivation = nil
     }
 
+    /// Refreshes the access token now if it has expired or will expire within the next 5 minutes.
+    /// Safe to call on every app-active transition. No-op when not signed in.
+    public func refreshIfNeeded() async {
+        guard isSignedIn, let expiry = tokenExpiry else { return }
+        guard expiry.timeIntervalSinceNow < 5 * 60 else { return }
+        guard let refresh = refreshToken else { return }
+        authLog.notice("refreshIfNeeded() — token expires soon, refreshing")
+        let creds = await credentialsFetcher.credentials()
+        do {
+            try await refreshAccessToken(refreshToken: refresh, creds: creds)
+        } catch {
+            authLog.error("refreshIfNeeded() failed: \(String(describing: error), privacy: .public)")
+        }
+    }
+
+    /// Schedules a background Task that sleeps until 5 minutes before expiry, then refreshes.
+    /// Cancelled and rescheduled automatically on each refresh.
+    private func scheduleProactiveRefresh() {
+        tokenRefreshTask?.cancel()
+        guard let expiry = tokenExpiry, refreshToken != nil else { return }
+        let delay = max(expiry.timeIntervalSinceNow - 5 * 60, 0)
+        authLog.notice("scheduleProactiveRefresh() — refreshing in \(Int(delay), privacy: .public)s")
+        tokenRefreshTask = Task { [weak self] in
+            try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
+            guard !Task.isCancelled, let self else { return }
+            guard await self.isSignedIn, let refresh = await self.refreshToken else { return }
+            let creds = await self.credentialsFetcher.credentials()
+            do {
+                try await self.refreshAccessToken(refreshToken: refresh, creds: creds)
+                authLog.notice("scheduleProactiveRefresh() — token refreshed ✅")
+                // Re-schedule for the next expiry window
+                await self.scheduleProactiveRefresh()
+            } catch {
+                authLog.error("scheduleProactiveRefresh() failed: \(String(describing: error), privacy: .public)")
+            }
+        }
+    }
+
     public func signOut() {
         pollTask?.cancel()
         pollTask = nil
+        tokenRefreshTask?.cancel()
+        tokenRefreshTask = nil
         accessToken      = nil
         refreshToken     = nil
         tokenExpiry      = nil
@@ -263,6 +304,7 @@ public final class AuthService {
         }
         isSignedIn = accessToken != nil
         saveToKeychain()
+        scheduleProactiveRefresh()
     }
 
     // MARK: - Token refresh
@@ -289,6 +331,7 @@ public final class AuthService {
         }
         isSignedIn = accessToken != nil
         saveToKeychain()
+        scheduleProactiveRefresh()
     }
 
     // MARK: - User info
@@ -395,6 +438,7 @@ public final class AuthService {
         accountName      = keychainGet(key: accountKey)
         accountAvatarURL = keychainGet(key: avatarKey).flatMap { URL(string: $0) }
         isSignedIn       = accessToken != nil
+        if isSignedIn { scheduleProactiveRefresh() }
     }
 
     private func clearKeychain() {
