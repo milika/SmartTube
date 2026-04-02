@@ -51,9 +51,11 @@ public struct LibraryView: View {
             Picker("Library Section", selection: $selectedSection) {
                 ForEach(LibrarySection.allCases) { sec in
                     Text(sec.rawValue).tag(sec)
+                        .accessibilityIdentifier("library.picker.\(sec.rawValue.lowercased())")
                 }
             }
             .pickerStyle(.segmented)
+            .accessibilityIdentifier("library.sectionPicker")
             .padding()
 
             Group {

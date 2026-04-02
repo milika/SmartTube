@@ -68,6 +68,7 @@ struct MainTabView: View {
             ForEach(AppSection.allCases) { section in
                 NavigationStack { section.destination }
                     .tabItem { Label(section.rawValue, systemImage: section.icon) }
+                    .accessibilityIdentifier("tab.\(section.rawValue.lowercased())")
             }
         }
         .environment(searchVM)

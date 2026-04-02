@@ -57,3 +57,21 @@ targets:
       - package: SmartTubeIOS
         product: SmartTubeIOS
 
+  SmartTubeUITests:
+    type: bundle.ui-testing
+    supportedDestinations:
+      - iOS
+      - iPad
+    deploymentTarget:
+      iOS: "17.0"
+      iPadOS: "17.0"
+    sources:
+      - path: UITests
+    settings:
+      base:
+        SWIFT_VERSION: "5.9"
+        PRODUCT_BUNDLE_IDENTIFIER: com.smarttube.app.uitests
+        TEST_TARGET_NAME: SmartTube
+    dependencies:
+      - target: SmartTube
+

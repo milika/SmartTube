@@ -512,6 +512,11 @@ public actor InnerTubeAPI {
         try parseVideoGroup(from: json, title: title)
     }
 
+    /// Internal accessor so unit tests can exercise the playlist parser without a live network.
+    func parsePlaylistsForTesting(_ json: [String: Any]) throws -> [PlaylistInfo] {
+        try parsePlaylists(from: json)
+    }
+
     // MARK: - Multi-shelf home row parser
 
     /// Walks the JSON looking for `richShelfRenderer` sections (YouTube home feed).
