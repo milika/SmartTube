@@ -964,9 +964,15 @@ public actor InnerTubeAPI {
                   let title = (titleRaw as? [String: Any]).flatMap({ extractText($0) }) ?? (titleRaw as? String)
             else { return nil }
 
-            let thumbSources = ((tile["header"] as? [String: Any])?["tileHeaderRenderer"] as? [String: Any])
-                .flatMap { $0["thumbnail"] as? [String: Any] }
-                .flatMap { $0["thumbnails"] as? [[String: Any]] }
+            let thumbSources =
+                // tileHeaderRenderer.thumbnail.thumbnails
+                ((tile["header"] as? [String: Any])?["tileHeaderRenderer"] as? [String: Any])
+                    .flatMap { $0["thumbnail"] as? [String: Any] }
+                    .flatMap { $0["thumbnails"] as? [[String: Any]] }
+                // direct tile.thumbnail.thumbnails
+                ?? (tile["thumbnail"] as? [String: Any]).flatMap { $0["thumbnails"] as? [[String: Any]] }
+                // tile.thumbnails[0].thumbnails (WEB-style)
+                ?? (tile["thumbnails"] as? [[String: Any]])?.first.flatMap { $0["thumbnails"] as? [[String: Any]] }
             let thumbURL = thumbSources?.last.flatMap { $0["url"] as? String }.flatMap { URL(string: $0) }
 
             return PlaylistInfo(id: id, title: title, videoCount: nil, thumbnailURL: thumbURL)

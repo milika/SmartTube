@@ -12,6 +12,7 @@ public struct LibraryView: View {
     @Environment(BrowseViewModel.self) private var browseVM
     @State private var selectedSection: LibrarySection = .subscriptions
     @State private var selectedVideo: Video?
+    @State private var selectedPlaylist: Video?
 
     enum LibrarySection: String, CaseIterable, Identifiable {
         case subscriptions = "Subscriptions"
@@ -44,6 +45,9 @@ public struct LibraryView: View {
         .navigationDestination(item: $selectedVideo) { video in
             PlayerView(video: video)
         }
+        .navigationDestination(item: $selectedPlaylist) { stub in
+            PlaylistView(playlistId: stub.id, playlistTitle: stub.title)
+        }
     }
 
     private var authenticatedContent: some View {
@@ -71,7 +75,13 @@ public struct LibraryView: View {
                                 VideoCardView(video: video, compact: true)
                                     .padding(.horizontal)
                                     .padding(.vertical, 6)
-                                    .onTapGesture { selectedVideo = video }
+                                    .onTapGesture {
+                                        if video.playlistId == video.id {
+                                            selectedPlaylist = video
+                                        } else {
+                                            selectedVideo = video
+                                        }
+                                    }
                                 Divider().padding(.horizontal)
                             }
                             if browseVM.isLoading {
