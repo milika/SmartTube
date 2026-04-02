@@ -11,6 +11,7 @@ import SmartTubeIOSCore
 public final class SearchViewModel {
 
     public var query: String = ""
+    public var filter: SearchFilter = .default
     public private(set) var results: [Video] = []
     public private(set) var suggestions: [String] = []
     public private(set) var isLoading: Bool = false
@@ -42,19 +43,29 @@ public final class SearchViewModel {
         nextPageToken = nil
         suggestions = []
         searchTask?.cancel()
-        searchTask = Task { await performSearch(query: query) }
+        searchTask = Task { await performSearch(query: query, filter: filter) }
+    }
+
+    /// Apply a new filter and re-run the current search immediately.
+    public func applyFilter(_ newFilter: SearchFilter) {
+        filter = newFilter
+        guard !query.trimmingCharacters(in: .whitespaces).isEmpty else { return }
+        results = []
+        nextPageToken = nil
+        searchTask?.cancel()
+        searchTask = Task { await performSearch(query: query, filter: filter) }
     }
 
     public func loadMore() {
         guard let token = nextPageToken, !isLoading else { return }
-        searchTask = Task { await performSearch(query: query, continuationToken: token) }
+        searchTask = Task { await performSearch(query: query, continuationToken: token, filter: filter) }
     }
 
-    private func performSearch(query: String, continuationToken: String? = nil) async {
+    private func performSearch(query: String, continuationToken: String? = nil, filter: SearchFilter = .default) async {
         isLoading = true
         defer { isLoading = false }
         do {
-            let group = try await api.search(query: query, continuationToken: continuationToken)
+            let group = try await api.search(query: query, continuationToken: continuationToken, filter: filter)
             if continuationToken == nil {
                 results = group.videos
             } else {

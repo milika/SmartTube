@@ -104,6 +104,7 @@ The early bug where `URLSession.default.httpAdditionalHeaders` leaked WEB client
 ### Phase 1 — Core feature parity (complete)
 - ✅ **Watch position tracking** (`VideoStateStore`) — persists per-video position in UserDefaults; restores on next play; prunes to 1,000 entries; mirrors Android's `VideoStateService` behavior (ignores < 5 s, > 95%)
 - ✅ **Multi-row home feed** — `fetchHomeRows()` parses `richShelfRenderer` groups into `VideoGroup(layout: .row)`; `BrowseView` renders horizontal `LazyHStack` rows for home, grid for other sections; continuation token support
+- ✅ **Search filters** — `SearchFilter` model with sort order / upload date / type / duration axes; manual protobuf encoding for InnerTube `params`; filter sheet in `SearchView` with active chip row
 
 ### Auth quality-of-life fixes (complete)
 - ✅ Fallback `client_id` typo fixed (`vc68` → `oc68`)

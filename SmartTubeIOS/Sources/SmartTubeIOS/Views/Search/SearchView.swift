@@ -9,6 +9,7 @@ import SmartTubeIOSCore
 public struct SearchView: View {
     @Environment(SearchViewModel.self) private var vm
     @State private var selectedVideo: Video?
+    @State private var showFilterSheet = false
     @FocusState private var isSearchFocused: Bool
 
     public init() {}
@@ -17,6 +18,9 @@ public struct SearchView: View {
         VStack(spacing: 0) {
             searchBar
             Divider()
+            if !vm.query.isEmpty {
+                filterChipsRow
+            }
             Group {
                 if vm.results.isEmpty && !vm.isLoading && vm.query.isEmpty {
                     placeholderView
@@ -32,6 +36,11 @@ public struct SearchView: View {
         #endif
         .navigationDestination(item: $selectedVideo) { video in
             PlayerView(video: video)
+        }
+        .sheet(isPresented: $showFilterSheet) {
+            SearchFilterSheet(current: vm.filter) { newFilter in
+                vm.applyFilter(newFilter)
+            }
         }
         .task(id: vm.query) { await vm.updateSuggestions(for: vm.query) }
     }
@@ -60,11 +69,53 @@ public struct SearchView: View {
                 }
                 .buttonStyle(.plain)
             }
+            Button {
+                showFilterSheet = true
+            } label: {
+                Image(systemName: vm.filter.isDefault ? "line.3.horizontal.decrease.circle" : "line.3.horizontal.decrease.circle.fill")
+                    .foregroundStyle(vm.filter.isDefault ? .secondary : Color.accentColor)
+            }
+            .buttonStyle(.plain)
         }
         .padding(10)
         .background(Color.secondary.opacity(0.12), in: RoundedRectangle(cornerRadius: 10))
         .padding(.horizontal)
         .padding(.vertical, 8)
+    }
+
+    // MARK: - Active filter chips
+
+    @ViewBuilder
+    private var filterChipsRow: some View {
+        if !vm.filter.isDefault {
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
+                    if vm.filter.sortOrder != .relevance {
+                        FilterChip(label: vm.filter.sortOrder.label) {
+                            var f = vm.filter; f.sortOrder = .relevance; vm.applyFilter(f)
+                        }
+                    }
+                    if vm.filter.uploadDate != .anytime {
+                        FilterChip(label: vm.filter.uploadDate.label) {
+                            var f = vm.filter; f.uploadDate = .anytime; vm.applyFilter(f)
+                        }
+                    }
+                    if vm.filter.type != .any {
+                        FilterChip(label: vm.filter.type.label) {
+                            var f = vm.filter; f.type = .any; vm.applyFilter(f)
+                        }
+                    }
+                    if vm.filter.duration != .any {
+                        FilterChip(label: vm.filter.duration.label) {
+                            var f = vm.filter; f.duration = .any; vm.applyFilter(f)
+                        }
+                    }
+                }
+                .padding(.horizontal)
+                .padding(.vertical, 6)
+            }
+            Divider()
+        }
     }
 
     // MARK: - Results
@@ -117,5 +168,107 @@ public struct SearchView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .padding()
+    }
+}
+
+// MARK: - FilterChip
+
+private struct FilterChip: View {
+    let label: String
+    let onRemove: () -> Void
+
+    var body: some View {
+        HStack(spacing: 4) {
+            Text(label)
+                .font(.caption)
+            Button(action: onRemove) {
+                Image(systemName: "xmark")
+                    .font(.caption2)
+            }
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 5)
+        .background(.tint.opacity(0.15), in: Capsule())
+        .foregroundStyle(.tint)
+    }
+}
+
+// MARK: - SearchFilterSheet
+
+struct SearchFilterSheet: View {
+    let current: SearchFilter
+    let onApply: (SearchFilter) -> Void
+
+    @State private var draft: SearchFilter
+    @Environment(\.dismiss) private var dismiss
+
+    init(current: SearchFilter, onApply: @escaping (SearchFilter) -> Void) {
+        self.current = current
+        self.onApply = onApply
+        _draft = State(initialValue: current)
+    }
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section("Sort by") {
+                    Picker("Sort", selection: $draft.sortOrder) {
+                        ForEach(SearchFilter.SortOrder.allCases, id: \.self) { order in
+                            Text(order.label).tag(order)
+                        }
+                    }
+                    .pickerStyle(.inline)
+                    .labelsHidden()
+                }
+
+                Section("Upload date") {
+                    Picker("Upload date", selection: $draft.uploadDate) {
+                        ForEach(SearchFilter.UploadDate.allCases, id: \.self) { date in
+                            Text(date.label).tag(date)
+                        }
+                    }
+                    .pickerStyle(.inline)
+                    .labelsHidden()
+                }
+
+                Section("Type") {
+                    Picker("Type", selection: $draft.type) {
+                        ForEach(SearchFilter.VideoType.allCases, id: \.self) { type in
+                            Text(type.label).tag(type)
+                        }
+                    }
+                    .pickerStyle(.inline)
+                    .labelsHidden()
+                }
+
+                Section("Duration") {
+                    Picker("Duration", selection: $draft.duration) {
+                        ForEach(SearchFilter.Duration.allCases, id: \.self) { dur in
+                            Text(dur.label).tag(dur)
+                        }
+                    }
+                    .pickerStyle(.inline)
+                    .labelsHidden()
+                }
+            }
+            .navigationTitle("Search filters")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { dismiss() }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Apply") {
+                        onApply(draft)
+                        dismiss()
+                    }
+                }
+                ToolbarItem(placement: .bottomBar) {
+                    Button("Reset") { draft = .default }
+                        .disabled(draft.isDefault)
+                }
+            }
+        }
+        .presentationDetents([.medium, .large])
     }
 }

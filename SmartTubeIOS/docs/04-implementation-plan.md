@@ -111,12 +111,28 @@ Added `VideoGroup.Layout` enum (`.grid`, `.row`) and a `layout` property (defaul
 **How it was done:**
 Added `fetchNextInfo(videoId:) async throws -> [Video]` to `InnerTubeAPI`. Posts to the WEB `/next` endpoint with the `videoId`. Parses `compactVideoRenderer` objects anywhere in the response tree via a recursive `parseRelatedVideos(from:)` walker; returns up to all found (caller trims to 25). `PlaybackViewModel.loadAsync()` now calls `fetchNextInfo` first; falls back to `search(query: info.video.title)` if the result is empty (e.g. network restriction). Self-video is filtered out of results.
 
-### 1.4 Search filters 🔲
-**Not yet implemented.** See original plan text below.
-
+### 1.4 Search filters ✅
 **Android:** `SearchPresenter` supports `uploadDate | duration | type | features | sorting` as bitwise OR options passed to `getSearchObserve()`.
 
-**Files:** `InnerTubeAPI.swift`, `SearchViewModel.swift`, `SearchView.swift`, new `SearchOptions` model
+**Files:** `InnerTubeAPI.swift`, `SearchViewModel.swift`, `SearchView.swift`, new `SearchFilter` model
+
+**How it was done:**
+Added `SearchFilter` struct to `SmartTubeIOSCore` with four filter axes:
+- `SortOrder` (relevance / rating / upload date / view count)
+- `UploadDate` (anytime / last hour / today / this week / this month / this year)
+- `VideoType` (any / video / channel / playlist / movie)
+- `Duration` (any / short <4min / medium 4-20min / long >20min)
+
+`SearchFilter.encodedParams()` manually encodes the active filters into the base64 protobuf string consumed by InnerTube's `params` field (no external proto library required).
+
+`InnerTubeAPI.search()` gains an optional `filter: SearchFilter = .default` parameter; the encoded param is injected into the request body when active.
+
+`SearchViewModel` gains a `filter: SearchFilter` property and `applyFilter(_:)` — applies a new filter and immediately re-runs the search.
+
+`SearchView` gains:
+- A filter button (funnel icon, highlighted when non-default) in the search bar that opens `SearchFilterSheet`.
+- A horizontal chip row below the search bar showing each active filter with an inline ×-remove tap target.
+- `SearchFilterSheet` — a `.sheet` with inline Pickers for each filter axis, plus Apply / Cancel / Reset toolbar buttons.
 
 ### 1.5 Video context menu (long-press) ✅
 **Android:** `VideoMenuPresenter` shows a rich context menu on long-press with options like Play, Add to Queue, Open Channel, Share, Block Channel.

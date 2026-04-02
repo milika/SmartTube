@@ -129,10 +129,17 @@ public actor InnerTubeAPI {
 
     // MARK: - Search
 
-    public func search(query: String, continuationToken: String? = nil) async throws -> VideoGroup {
+    public func search(
+        query: String,
+        continuationToken: String? = nil,
+        filter: SearchFilter = .default
+    ) async throws -> VideoGroup {
         var body = makeBody(client: webClientContext, continuationToken: continuationToken)
         if continuationToken == nil {
             body["query"] = query
+            if let params = filter.encodedParams() {
+                body["params"] = params
+            }
         }
         let data = try await post(endpoint: "search", body: body)
         return try parseVideoGroup(from: data, title: "Search: \(query)")
