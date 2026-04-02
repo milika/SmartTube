@@ -2,7 +2,9 @@ import Foundation
 import AVFoundation
 import Observation
 import os
+#if canImport(UIKit)
 import UIKit
+#endif
 import SmartTubeIOSCore
 
 private let playerLog = Logger(subsystem: appSubsystem, category: "Player")
@@ -181,7 +183,9 @@ public final class PlaybackViewModel {
 
             player.play()
             isPlaying = true
+            #if canImport(UIKit)
             UIApplication.shared.isIdleTimerDisabled = true
+            #endif
             scheduleControlsHide()
         } catch {
             playerLog.error("❌ loadAsync error: \(String(describing: error), privacy: .public)")
@@ -394,7 +398,9 @@ public final class PlaybackViewModel {
         player.pause()
         player.replaceCurrentItem(with: nil)
         isPlaying = false
+        #if canImport(UIKit)
         UIApplication.shared.isIdleTimerDisabled = false
+        #endif
         controlsTimer?.cancel()
     }
 }
