@@ -6,10 +6,19 @@ import SmartTubeIOSCore
 // Displays channel info, subscriber count and a grid of recent uploads.
 // Mirrors the Android `ChannelFragment`.
 
+// MARK: - ChannelFilter
+
+private enum ChannelFilter: String, CaseIterable {
+    case all    = "All"
+    case shorts = "Shorts"
+}
+
 public struct ChannelView: View {
     public let channelId: String
     @State private var vm = ChannelViewModel()
     @State private var selectedVideo: Video?
+    @State private var shortsPresentation: (videos: [Video], startIndex: Int)?
+    @State private var filter: ChannelFilter = .all
 
     public init(channelId: String) {
         self.channelId = channelId
@@ -29,6 +38,12 @@ public struct ChannelView: View {
         .navigationDestination(item: $selectedVideo) { video in
             PlayerView(video: video)
         }
+        .fullScreenCover(item: Binding(
+            get: { shortsPresentation.map { IdentifiableShortsTarget(videos: $0.videos, startIndex: $0.startIndex) } },
+            set: { if $0 == nil { shortsPresentation = nil } }
+        )) { target in
+            ShortsPlayerView(videos: target.videos, startIndex: target.startIndex)
+        }
         .alert("Error", isPresented: .constant(vm.error != nil), presenting: vm.error) { _ in
             Button("Retry") { vm.load(channelId: channelId) }
             Button("Dismiss", role: .cancel) {}
@@ -45,18 +60,22 @@ public struct ChannelView: View {
                     channelHeader(channel)
                 }
 
-                // Videos
-                let columns = [GridItem(.adaptive(minimum: 300, maximum: 400), spacing: 12)]
-                LazyVGrid(columns: columns, spacing: 12) {
-                    ForEach(vm.videos) { video in
-                        VideoCardView(video: video)
-                            .onTapGesture { selectedVideo = video }
-                            .onAppear {
-                                if video.id == vm.videos.last?.id { vm.loadMore() }
-                            }
+                // All / Shorts filter
+                Picker("Filter", selection: $filter) {
+                    ForEach(ChannelFilter.allCases, id: \.self) { tab in
+                        Text(tab.rawValue).tag(tab)
                     }
                 }
-                .padding()
+                .pickerStyle(.segmented)
+                .padding(.horizontal)
+                .padding(.vertical, 10)
+
+                let filtered = filteredVideos
+                if filter == .shorts {
+                    shortsGrid(filtered)
+                } else {
+                    videosGrid(filtered)
+                }
 
                 if vm.isLoading {
                     ProgressView().frame(maxWidth: .infinity).padding()
@@ -64,6 +83,53 @@ public struct ChannelView: View {
             }
         }
         .refreshable { vm.load(channelId: channelId) }
+    }
+
+    // MARK: - Filtered data
+
+    private var filteredVideos: [Video] {
+        switch filter {
+        case .all:    return vm.videos
+        case .shorts: return vm.videos.filter { $0.isShort }
+        }
+    }
+
+    // MARK: - Grid layouts
+
+    private func videosGrid(_ videos: [Video]) -> some View {
+        let columns = [GridItem(.adaptive(minimum: 300, maximum: 400), spacing: 12)]
+        return LazyVGrid(columns: columns, spacing: 12) {
+            ForEach(videos) { video in
+                VideoCardView(video: video)
+                    .onTapGesture { selectedVideo = video }
+                    .onAppear {
+                        if video.id == vm.videos.last?.id { vm.loadMore() }
+                    }
+            }
+        }
+        .padding()
+    }
+
+    private func shortsGrid(_ videos: [Video]) -> some View {
+        let columns = [GridItem(.flexible(), spacing: 8), GridItem(.flexible(), spacing: 8)]
+        return LazyVGrid(columns: columns, spacing: 8) {
+            ForEach(videos) { video in
+                VideoCardView(video: video)
+                    .aspectRatio(9/16, contentMode: .fit)
+                    .onTapGesture { selectShort(video, from: videos) }
+                    .onAppear {
+                        if video.id == vm.videos.last?.id { vm.loadMore() }
+                    }
+            }
+        }
+        .padding(.horizontal)
+    }
+
+    // MARK: - Selection
+
+    private func selectShort(_ video: Video, from videos: [Video]) {
+        let idx = videos.firstIndex(where: { $0.id == video.id }) ?? 0
+        shortsPresentation = (videos: videos, startIndex: idx)
     }
 
     private func channelHeader(_ channel: Channel) -> some View {
@@ -97,4 +163,12 @@ public struct ChannelView: View {
         .padding()
         .background(.background)
     }
+}
+
+// MARK: - IdentifiableShortsTarget
+
+private struct IdentifiableShortsTarget: Identifiable {
+    let id = UUID()
+    let videos: [Video]
+    let startIndex: Int
 }

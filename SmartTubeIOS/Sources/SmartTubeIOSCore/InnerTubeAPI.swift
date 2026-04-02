@@ -236,9 +236,10 @@ public actor InnerTubeAPI {
 
     public func fetchShorts() async throws -> VideoGroup {
         do {
-            var body = makeBody(client: webClientContext)
+            // FEshorts requires TVHTML5 context on www.youtube.com (not googleapis.com).
+            var body = makeBody(client: tvClientContext)
             body["browseId"] = "FEshorts"
-            let data = try await post(endpoint: "browse", body: body)
+            let data = try await postTVCategory(endpoint: "browse", body: body)
             let group = try parseVideoGroup(from: data, title: "Shorts")
             if !group.videos.isEmpty { return group }
         } catch {
@@ -249,9 +250,10 @@ public actor InnerTubeAPI {
 
     public func fetchMusic() async throws -> VideoGroup {
         do {
-            var body = makeBody(client: webClientContext)
-            body["browseId"] = "FEmusic_home_page"
-            let data = try await post(endpoint: "browse", body: body)
+            // FEmusic_home is the TVHTML5 browse ID for the music category page.
+            var body = makeBody(client: tvClientContext)
+            body["browseId"] = "FEmusic_home"
+            let data = try await postTVCategory(endpoint: "browse", body: body)
             let group = try parseVideoGroup(from: data, title: "Music")
             if !group.videos.isEmpty { return group }
         } catch {
@@ -262,9 +264,10 @@ public actor InnerTubeAPI {
 
     public func fetchGaming() async throws -> VideoGroup {
         do {
-            var body = makeBody(client: webClientContext)
+            // FEgaming requires TVHTML5 context on www.youtube.com (not googleapis.com).
+            var body = makeBody(client: tvClientContext)
             body["browseId"] = "FEgaming"
-            let data = try await post(endpoint: "browse", body: body)
+            let data = try await postTVCategory(endpoint: "browse", body: body)
             let group = try parseVideoGroup(from: data, title: "Gaming")
             if !group.videos.isEmpty { return group }
         } catch {
@@ -274,14 +277,42 @@ public actor InnerTubeAPI {
     }
 
     public func fetchNews() async throws -> VideoGroup {
+        do {
+            var body = makeBody(client: tvClientContext)
+            body["browseId"] = "FEnews"
+            let data = try await postTVCategory(endpoint: "browse", body: body)
+            let group = try parseVideoGroup(from: data, title: "News")
+            if !group.videos.isEmpty { return group }
+        } catch {
+            tubeLog.notice("fetchNews browse failed, falling back to search: \(error, privacy: .public)")
+        }
         return try await search(query: "news today")
     }
 
     public func fetchLive() async throws -> VideoGroup {
+        do {
+            var body = makeBody(client: tvClientContext)
+            body["browseId"] = "FElive_home"
+            let data = try await postTVCategory(endpoint: "browse", body: body)
+            let group = try parseVideoGroup(from: data, title: "Live")
+            if !group.videos.isEmpty { return group }
+        } catch {
+            tubeLog.notice("fetchLive browse failed, falling back to search: \(error, privacy: .public)")
+        }
         return try await search(query: "live stream")
     }
 
     public func fetchSports() async throws -> VideoGroup {
+        do {
+            // FEsportsau is the known TVHTML5 browse ID for the sports category.
+            var body = makeBody(client: tvClientContext)
+            body["browseId"] = "FEsportsau"
+            let data = try await postTVCategory(endpoint: "browse", body: body)
+            let group = try parseVideoGroup(from: data, title: "Sports")
+            if !group.videos.isEmpty { return group }
+        } catch {
+            tubeLog.notice("fetchSports browse failed, falling back to search: \(error, privacy: .public)")
+        }
         return try await search(query: "sports")
     }
 
@@ -373,6 +404,44 @@ public actor InnerTubeAPI {
             tubeLog.error("❌ API error in /\(endpoint, privacy: .public): \(String(describing: error["message"] ?? error), privacy: .public)")
         } else {
             tubeLog.notice("✅ /\(endpoint, privacy: .public) HTTP \(statusCode, privacy: .public) keys: \(topKeys, privacy: .public)")
+        }
+        return json
+    }
+
+    /// Unauthenticated TVHTML5 browse on www.youtube.com.
+    /// FE* category browse IDs (FEgaming, FEshorts, FEmusic, …) require the TVHTML5
+    /// client format but return 400 on youtubei.googleapis.com without a valid auth token.
+    /// Posting to www.youtube.com with TV client headers resolves this.
+    private func postTVCategory(endpoint: String, body: [String: Any]) async throws -> [String: Any] {
+        guard var comps = URLComponents(url: baseURL.appendingPathComponent(endpoint),
+                                        resolvingAgainstBaseURL: false) else {
+            throw APIError.invalidURL(endpoint)
+        }
+        comps.queryItems = [URLQueryItem(name: "key", value: apiKey)]
+        guard let url = comps.url else { throw APIError.invalidURL(endpoint) }
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("https://www.youtube.com", forHTTPHeaderField: "Origin")
+        request.setValue("7", forHTTPHeaderField: "X-YouTube-Client-Name")
+        request.setValue("7.20230405.08.01", forHTTPHeaderField: "X-YouTube-Client-Version")
+        request.httpBody = try JSONSerialization.data(withJSONObject: body)
+        tubeLog.notice("POST /\(endpoint, privacy: .public) [TV-category]")
+        let (data, response) = try await session.data(for: request)
+        let statusCode = (response as? HTTPURLResponse)?.statusCode ?? 0
+        guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
+            tubeLog.error("❌ HTTP \(statusCode, privacy: .public) for /\(endpoint, privacy: .public) [TV-category]")
+            throw APIError.httpError(statusCode)
+        }
+        guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            tubeLog.error("❌ Non-dictionary JSON root for /\(endpoint, privacy: .public) [TV-category]")
+            throw APIError.decodingError("Root JSON is not a dictionary")
+        }
+        if let error = json["error"] as? [String: Any] {
+            tubeLog.error("❌ API error in /\(endpoint, privacy: .public) [TV-category]: \(String(describing: error["message"] ?? error), privacy: .public)")
+        } else {
+            let topKeys = Array(json.keys.prefix(6))
+            tubeLog.notice("✅ /\(endpoint, privacy: .public) [TV-category] HTTP \(statusCode, privacy: .public) keys: \(topKeys, privacy: .public)")
         }
         return json
     }

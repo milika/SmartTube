@@ -14,6 +14,7 @@ public struct PlayerView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(SettingsStore.self) private var store
     @State private var showSpeedPicker = false
+    @State private var showQualityPicker = false
 
     public init(video: Video) {
         self.video = video
@@ -63,6 +64,9 @@ public struct PlayerView: View {
         .sheet(isPresented: $showSpeedPicker) {
             speedPickerSheet
         }
+        .sheet(isPresented: $showQualityPicker) {
+            qualityPickerSheet
+        }
     }
 
     // MARK: - Controls overlay
@@ -103,6 +107,21 @@ public struct PlayerView: View {
                         .background(.black.opacity(0.4))
                         .clipShape(Capsule())
                 }
+                // Quality picker button (only shown when direct format URLs are available)
+                if !vm.availableFormats.isEmpty {
+                    Button {
+                        showQualityPicker = true
+                    } label: {
+                        Text(vm.selectedFormat?.qualityLabel ?? "Auto")
+                            .font(.callout.weight(.semibold))
+                            .foregroundStyle(.white.opacity(vm.isLoading ? 0.3 : 1))
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 6)
+                            .background(.black.opacity(0.4))
+                            .clipShape(Capsule())
+                    }
+                    .disabled(vm.isLoading)
+                }
             }
             .padding(.horizontal, 20)
             .padding(.top, max(safeAreaInsets.top, 20))
@@ -117,6 +136,8 @@ public struct PlayerView: View {
                 seekButton(symbol: "goforward.\(store.settings.seekForwardSeconds)",
                            seconds: Double(store.settings.seekForwardSeconds))
             }
+            .disabled(vm.isLoading)
+            .opacity(vm.isLoading ? 0.3 : 1)
 
             Spacer()
 
@@ -130,10 +151,10 @@ public struct PlayerView: View {
                     } label: {
                         Image(systemName: "backward.end.fill")
                             .font(.system(size: 18))
-                            .foregroundStyle(vm.hasPrevious ? .white : .white.opacity(0.3))
+                            .foregroundStyle(vm.hasPrevious && !vm.isLoading ? .white : .white.opacity(0.3))
                     }
                     .buttonStyle(.plain)
-                    .disabled(!vm.hasPrevious)
+                    .disabled(!vm.hasPrevious || vm.isLoading)
 
                     Text(formatTime(vm.currentTime))
                         .padding(.leading, 6)
@@ -147,10 +168,10 @@ public struct PlayerView: View {
                     } label: {
                         Image(systemName: "forward.end.fill")
                             .font(.system(size: 18))
-                            .foregroundStyle(vm.hasNext ? .white : .white.opacity(0.3))
+                            .foregroundStyle(vm.hasNext && !vm.isLoading ? .white : .white.opacity(0.3))
                     }
                     .buttonStyle(.plain)
-                    .disabled(!vm.hasNext)
+                    .disabled(!vm.hasNext || vm.isLoading)
                 }
                 .font(.caption)
                 .foregroundStyle(.white.opacity(0.8))
@@ -265,6 +286,56 @@ public struct PlayerView: View {
         let s = total % 60
         if h > 0 { return String(format: "%d:%02d:%02d", h, m, s) }
         return String(format: "%d:%02d", m, s)
+    }
+
+    // MARK: - Quality picker sheet
+
+    @ViewBuilder
+    private var qualityPickerSheet: some View {
+        NavigationStack {
+            List {
+                Button {
+                    vm.selectFormat(nil)
+                    showQualityPicker = false
+                } label: {
+                    HStack {
+                        Text("Auto")
+                            .foregroundStyle(.primary)
+                        Spacer()
+                        if vm.selectedFormat == nil {
+                            Image(systemName: "checkmark")
+                                .foregroundStyle(Color.accentColor)
+                        }
+                    }
+                }
+                ForEach(vm.availableFormats) { fmt in
+                    Button {
+                        vm.selectFormat(fmt)
+                        showQualityPicker = false
+                    } label: {
+                        HStack {
+                            Text(fmt.qualityLabel)
+                                .foregroundStyle(.primary)
+                            Spacer()
+                            if vm.selectedFormat?.id == fmt.id {
+                                Image(systemName: "checkmark")
+                                    .foregroundStyle(Color.accentColor)
+                            }
+                        }
+                    }
+                }
+            }
+            .navigationTitle("Quality")
+            #if os(iOS)
+            .navigationBarTitleDisplayMode(.inline)
+            #endif
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { showQualityPicker = false }
+                }
+            }
+        }
+        .presentationDetents([.medium])
     }
 
     // MARK: - Speed picker sheet

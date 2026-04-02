@@ -5,7 +5,6 @@ import Foundation
 /// Persisted app-wide preferences (mirrors Android `PlayerData`, `MainUIData`, `GeneralData`, etc.).
 public struct AppSettings: Codable {
     // MARK: Player
-    public var preferredQuality: VideoQuality
     public var playbackSpeed: Double
     public var autoplayEnabled: Bool
     public var subtitlesEnabled: Bool
@@ -34,19 +33,6 @@ public struct AppSettings: Codable {
 
     // MARK: Types
 
-    public enum VideoQuality: String, Codable, CaseIterable {
-        case auto  = "Auto"
-        case q144  = "144p"
-        case q240  = "240p"
-        case q360  = "360p"
-        case q480  = "480p"
-        case q720  = "720p"
-        case q1080 = "1080p"
-        case q1440 = "1440p"
-        case q2160 = "2160p"
-        case q4320 = "4320p (8K)"
-    }
-
     /// Canonical ordered list of selectable playback speeds — single source of truth.
     public static let availableSpeeds: [Double] = [0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0]
 
@@ -59,7 +45,6 @@ public struct AppSettings: Codable {
     // MARK: Defaults
 
     public init() {
-        preferredQuality     = .auto
         playbackSpeed        = 1.0
         autoplayEnabled      = true
         subtitlesEnabled     = false

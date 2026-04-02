@@ -24,6 +24,7 @@ public final class PlaybackViewModel {
     public private(set) var currentTime: TimeInterval = 0
     public private(set) var duration: TimeInterval = 0
     public private(set) var availableFormats: [VideoFormat] = []
+    public private(set) var selectedFormat: VideoFormat? = nil
     public private(set) var sponsorSegments: [SponsorSegment] = []
     public private(set) var relatedVideos: [Video] = []
     public private(set) var hasPrevious: Bool = false
@@ -91,6 +92,8 @@ public final class PlaybackViewModel {
         do {
             let info = try await api.fetchPlayerInfo(videoId: video.id)
             playerInfo = info
+            availableFormats = Self.deduplicatedVideoFormats(info.formats)
+            selectedFormat = nil
 
             playerLog.notice("playerInfo: formats=\(info.formats.count, privacy: .public) hlsURL=\(info.hlsURL?.absoluteString ?? "nil", privacy: .public) dashURL=\(info.dashURL?.absoluteString ?? "nil", privacy: .public)")
             for (i, fmt) in info.formats.enumerated() {
@@ -188,6 +191,71 @@ public final class PlaybackViewModel {
 
     public func updateSettings(_ newSettings: AppSettings) {
         settings = newSettings
+    }
+
+    /// Switch to a specific quality format. Pass `nil` to return to Auto (HLS / preferred stream).
+    public func selectFormat(_ format: VideoFormat?) {
+        selectedFormat = format
+        let url: URL
+        if let format {
+            guard let fmtURL = format.url else { return }
+            url = fmtURL
+        } else {
+            guard let autoURL = playerInfo?.preferredStreamURL else { return }
+            url = autoURL
+        }
+        let resumePosition = currentTime
+        savedPositionToRestore = resumePosition > 0 ? resumePosition : nil
+        let item = AVPlayerItem(url: url)
+        itemObserverTask?.cancel()
+        itemObserverTask = Task { [weak self] in
+            for await status in item.statusStream {
+                guard let self, !Task.isCancelled else { return }
+                switch status {
+                case .readyToPlay:
+                    if let pos = self.savedPositionToRestore, pos > 0 {
+                        self.savedPositionToRestore = nil
+                        self.seek(to: pos)
+                    }
+                case .failed:
+                    self.error = item.error
+                case .unknown: break
+                @unknown default: break
+                }
+            }
+        }
+        endObserverTask?.cancel()
+        endObserverTask = Task { [weak self] in
+            let notifications = NotificationCenter.default.notifications(
+                named: AVPlayerItem.didPlayToEndTimeNotification, object: item
+            )
+            for await _ in notifications {
+                guard let self, !Task.isCancelled else { return }
+                self.handlePlaybackEnd()
+            }
+        }
+        player.replaceCurrentItem(with: item)
+        player.play()
+        isPlaying = true
+        playerLog.notice("Quality → \(format?.qualityLabel ?? "Auto", privacy: .public)")
+    }
+
+    private static func deduplicatedVideoFormats(_ formats: [VideoFormat]) -> [VideoFormat] {
+        let candidates = formats.filter { $0.url != nil && $0.height > 0 }
+        var seen = Set<String>()
+        var result: [VideoFormat] = []
+        for fmt in candidates.sorted(by: {
+            if $0.height != $1.height { return $0.height > $1.height }
+            if $0.fps != $1.fps { return $0.fps > $1.fps }
+            return ($0.bitrate ?? 0) > ($1.bitrate ?? 0)
+        }) {
+            let key = "\(fmt.height):\(fmt.fps)"
+            if !seen.contains(key) {
+                seen.insert(key)
+                result.append(fmt)
+            }
+        }
+        return result
     }
 
     /// Play the next related video (first in the suggestions list).

@@ -56,12 +56,6 @@ public struct SettingsView: View {
     private var playerSection: some View {
         @Bindable var store = store
         return Section("Player") {
-            Picker("Preferred Quality", selection: $store.settings.preferredQuality) {
-                ForEach(AppSettings.VideoQuality.allCases, id: \.self) { q in
-                    Text(q.rawValue).tag(q)
-                }
-            }
-
             HStack {
                 Text("Playback Speed")
                 Spacer()
