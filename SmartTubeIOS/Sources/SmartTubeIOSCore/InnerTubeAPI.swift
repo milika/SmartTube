@@ -639,6 +639,9 @@ public actor InnerTubeAPI {
                     }
                 } else if let renderer = dict["compactVideoRenderer"] as? [String: Any] {
                     if let v = parseVideoRenderer(renderer) { videos.append(v) }
+                } else if let renderer = dict["playlistVideoRenderer"] as? [String: Any] {
+                    // WEB browse response for VL<playlistId> — playlist video items
+                    if let v = parseVideoRenderer(renderer) { videos.append(v) }
                 } else if let renderer = dict["lockupViewModel"] as? [String: Any] {
                     // WEB home v2 (LockupItem in Android) — lockupViewModel
                     if let v = parseLockupViewModel(renderer) { videos.append(v) }

@@ -121,7 +121,10 @@ public struct VideoCardView: View {
     // MARK: Shared
 
     private var thumbnailView: some View {
-        AsyncImage(url: video.highQualityThumbnailURL ?? video.thumbnailURL) { phase in
+        // Prefer the explicit thumbnailURL (set for playlist stubs and API-provided thumbs).
+        // Fall back to highQualityThumbnailURL only when no explicit URL was provided.
+        let url = video.thumbnailURL ?? video.highQualityThumbnailURL
+        return AsyncImage(url: url) { phase in
             switch phase {
             case .success(let img):
                 img.resizable().scaledToFill()

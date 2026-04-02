@@ -10,6 +10,7 @@ public struct PlaylistView: View {
     public let playlistId: String
     public let playlistTitle: String
 
+    @Environment(AuthService.self) private var auth
     @State private var vm = PlaylistViewModel()
     @State private var selectedVideo: Video?
 
@@ -30,7 +31,12 @@ public struct PlaylistView: View {
             }
         }
         .navigationTitle(playlistTitle)
-        .onAppear { vm.load(playlistId: playlistId) }
+        .onAppear {
+            Task {
+                await vm.setAuthToken(auth.accessToken)
+                vm.load(playlistId: playlistId)
+            }
+        }
         .navigationDestination(item: $selectedVideo) { video in
             PlayerView(video: video)
         }

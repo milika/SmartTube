@@ -26,6 +26,10 @@ public final class PlaylistViewModel {
         self.api = api
     }
 
+    public func setAuthToken(_ token: String?) async {
+        await api.setAuthToken(token)
+    }
+
     public func load(playlistId: String, refresh: Bool = false) {
         if refresh || self.playlistId != playlistId {
             self.playlistId = playlistId
