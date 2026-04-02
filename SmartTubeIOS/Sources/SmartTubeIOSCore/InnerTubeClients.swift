@@ -23,7 +23,7 @@ package enum InnerTubeClients {
     package enum TV {
         package static let name    = "TVHTML5"
         package static let nameID  = "7"
-        package static let version = "7.20230405.08.01"
+        package static let version = "7.20260311.12.00"
     }
 
     /// Maximum number of videos fetched per shelf/related-videos request.

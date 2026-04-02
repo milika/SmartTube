@@ -910,15 +910,35 @@ public actor InnerTubeAPI {
     private func parsePlaylists(from json: [String: Any]) throws -> [PlaylistInfo] {
         var playlists: [PlaylistInfo] = []
 
+        // Extracts a PlaylistInfo from a renderer dict, handling both
+        // `playlistRenderer` (WEB search results) and
+        // `gridPlaylistRenderer` / `compactPlaylistRenderer` (TVHTML5 library).
+        func extractPlaylist(from renderer: [String: Any]) -> PlaylistInfo? {
+            guard let id = renderer["playlistId"] as? String,
+                  let title = (renderer["title"] as? [String: Any]).flatMap({ extractText($0) })
+                           ?? (renderer["title"] as? String)
+            else { return nil }
+            // Thumbnails may be at renderer["thumbnails"][0]["thumbnails"] (WEB)
+            // or renderer["thumbnail"]["thumbnails"] (TV grid).
+            let thumbSources: [[String: Any]]? =
+                ((renderer["thumbnails"] as? [[String: Any]])?.first?["thumbnails"] as? [[String: Any]])
+                ?? (renderer["thumbnail"] as? [String: Any]).flatMap { $0["thumbnails"] as? [[String: Any]] }
+            let thumbURL = thumbSources?.last.flatMap { $0["url"] as? String }.flatMap { URL(string: $0) }
+            // Video count may be a plain string or in a text object.
+            let count: Int? =
+                (renderer["videoCount"] as? String).flatMap { Int($0) }
+                ?? (renderer["videoCountText"] as? [String: Any]).flatMap { extractText($0) }.flatMap { extractNumber($0) }
+                ?? (renderer["videoCountShortText"] as? [String: Any]).flatMap { extractText($0) }.flatMap { extractNumber($0) }
+            return PlaylistInfo(id: id, title: title, videoCount: count, thumbnailURL: thumbURL)
+        }
+
         func walk(_ obj: Any) {
             if let dict = obj as? [String: Any] {
-                if let renderer = dict["playlistRenderer"] as? [String: Any],
-                   let id = renderer["playlistId"] as? String,
-                   let title = (renderer["title"] as? [String: Any]).flatMap({ extractText($0) }) {
-                    let thumbURL = ((renderer["thumbnails"] as? [[String: Any]])?.first?["thumbnails"] as? [[String: Any]])?
-                        .last.flatMap { $0["url"] as? String }.flatMap { URL(string: $0) }
-                    let count = (renderer["videoCount"] as? String).flatMap { Int($0) }
-                    playlists.append(PlaylistInfo(id: id, title: title, videoCount: count, thumbnailURL: thumbURL))
+                let rendererKeys = ["playlistRenderer", "gridPlaylistRenderer", "compactPlaylistRenderer"]
+                if let key = rendererKeys.first(where: { dict[$0] is [String: Any] }),
+                   let renderer = dict[key] as? [String: Any],
+                   let info = extractPlaylist(from: renderer) {
+                    playlists.append(info)
                 } else {
                     for value in dict.values { walk(value) }
                 }
@@ -928,6 +948,7 @@ public actor InnerTubeAPI {
         }
 
         walk(json)
+        tubeLog.notice("parsePlaylists → \(playlists.count, privacy: .public) playlists")
         return playlists
     }
 
