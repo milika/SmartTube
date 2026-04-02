@@ -21,4 +21,19 @@ extension SponsorSegment.Category {
         case .poiHighlight:  return Color(red: 1.00, green: 0.09, blue: 0.52) // #ff1684
         }
     }
+
+    /// Human-readable label shown in the skip toast and settings UI.
+    var displayName: String {
+        switch self {
+        case .sponsor:       return "Sponsor"
+        case .selfPromo:     return "Self-Promotion"
+        case .interaction:   return "Interaction Reminder"
+        case .intro:         return "Intro/Recap"
+        case .outro:         return "Outro/Credits"
+        case .preview:       return "Preview/Hook"
+        case .filler:        return "Filler Tangent"
+        case .musicOfftopic: return "Music (Off-Topic)"
+        case .poiHighlight:  return "Highlight"
+        }
+    }
 }

@@ -114,22 +114,26 @@ public struct SettingsView: View {
 
             if store.settings.sponsorBlockEnabled {
                 ForEach(SponsorSegment.Category.allCases, id: \.self) { cat in
-                    Toggle(cat.displayName, isOn: Binding(
-                        get: { store.settings.sponsorBlockCategories.contains(cat) },
-                        set: { enabled in
-                            if enabled {
-                                store.settings.sponsorBlockCategories.insert(cat)
-                            } else {
-                                store.settings.sponsorBlockCategories.remove(cat)
-                            }
+                    HStack {
+                        Circle()
+                            .fill(cat.color)
+                            .frame(width: 10, height: 10)
+                        Picker(cat.displayName, selection: Binding(
+                            get: { store.settings.sponsorBlockActions[cat] ?? .nothing },
+                            set: { store.settings.sponsorBlockActions[cat] = $0 }
+                        )) {
+                            Text("Skip").tag(AppSettings.SponsorBlockAction.skip)
+                            Text("Show Toast").tag(AppSettings.SponsorBlockAction.showToast)
+                            Text("Nothing").tag(AppSettings.SponsorBlockAction.nothing)
                         }
-                    ))
+                        .pickerStyle(.menu)
+                    }
                 }
             }
         } header: {
             Text("SponsorBlock")
         } footer: {
-            Text("Automatically skip non-content segments contributed by the community.")
+            Text("Skip \u{2014} auto-skips. Show Toast \u{2014} shows a skip button. Nothing \u{2014} plays through.")
         }
     }
 
@@ -161,24 +165,6 @@ public struct SettingsView: View {
         let v = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "1.0"
         let b = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "1"
         return "\(v) (\(b))"
-    }
-}
-
-// MARK: - SponsorSegment.Category display names
-
-private extension SponsorSegment.Category {
-    var displayName: String {
-        switch self {
-        case .sponsor:       return "Sponsor"
-        case .selfPromo:     return "Self-Promotion"
-        case .interaction:   return "Interaction Reminder"
-        case .intro:         return "Intro/Recap"
-        case .outro:         return "Outro/Credits"
-        case .preview:       return "Preview/Hook"
-        case .filler:        return "Filler Tangent"
-        case .musicOfftopic: return "Music (Off-Topic)"
-        case .poiHighlight:  return "Highlight (Point of Interest)"
-        }
     }
 }
 

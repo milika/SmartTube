@@ -26,6 +26,8 @@ public final class PlaybackViewModel {
     public private(set) var availableFormats: [VideoFormat] = []
     public private(set) var selectedFormat: VideoFormat? = nil
     public private(set) var sponsorSegments: [SponsorSegment] = []
+    /// The segment currently under the playhead whose action is `.showToast` (nil otherwise).
+    public private(set) var currentToastSegment: SponsorSegment? = nil
     public private(set) var relatedVideos: [Video] = []
     public private(set) var hasPrevious: Bool = false
     public private(set) var hasNext: Bool = false
@@ -107,7 +109,7 @@ public final class PlaybackViewModel {
             if settings.sponsorBlockEnabled {
                 sponsorSegments = await sponsorBlock.fetchSegments(
                     videoId: video.id,
-                    categories: settings.sponsorBlockCategories
+                    categories: settings.activeSponsorCategories
                 )
             }
 
@@ -324,15 +326,42 @@ public final class PlaybackViewModel {
 
     // MARK: - SponsorBlock skip
 
-    /// Call this from the time observer; returns true if a seek was triggered.
+    /// Call this from the time observer. Handles per-category actions:
+    ///   `.skip`      → seeks past the segment automatically.
+    ///   `.showToast` → surfaces `currentToastSegment` so the view can show a skip button.
+    ///   `.nothing`   → no-op.
+    /// Returns true if an auto-seek was triggered.
     @discardableResult
     public func checkSponsorSkip(at time: TimeInterval) -> Bool {
-        guard settings.sponsorBlockEnabled else { return false }
-        for seg in sponsorSegments where time >= seg.start && time < seg.end {
-            seek(to: seg.end)
-            return true
+        guard settings.sponsorBlockEnabled else {
+            currentToastSegment = nil
+            return false
+        }
+        // Check whether the playhead is inside any active segment.
+        if let seg = sponsorSegments.first(where: { time >= $0.start && time < $0.end }) {
+            switch settings.sponsorAction(for: seg.category) {
+            case .skip:
+                currentToastSegment = nil
+                seek(to: seg.end)
+                return true
+            case .showToast:
+                currentToastSegment = seg
+                return false
+            case .nothing:
+                currentToastSegment = nil
+                return false
+            }
+        } else {
+            currentToastSegment = nil
         }
         return false
+    }
+
+    /// Manually skip the segment shown in `currentToastSegment` (called by the view's skip button).
+    public func skipToastSegment() {
+        guard let seg = currentToastSegment else { return }
+        seek(to: seg.end)
+        currentToastSegment = nil
     }
 
     // MARK: - Time observer

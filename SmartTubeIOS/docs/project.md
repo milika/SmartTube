@@ -122,16 +122,21 @@ The early bug where `URLSession.default.httpAdditionalHeaders` leaked WEB client
 ### Security (before any public release)
 - 🔲 **Keychain migration** — move `accessToken`, `refreshToken`, `expiresAt`, `userId` from `UserDefaults` to `SecItem*` Keychain APIs (CWE-312 / OWASP M2) — see `05-migration-new-code-rules.md` §1.1
 
-### `@Observable` migration (Phase 2 of `05-`)
-- 🔲 `SettingsStore` — drop `ObservableObject` / `@Published`
-- 🔲 `AuthService` — already `@Observable` ✅ (done during auth fixes)
-- 🔲 `HomeViewModel` — drop `ObservableObject` / `@Published`
-- 🔲 `BrowseViewModel` — drop `ObservableObject` / `@Published`
-- 🔲 `SearchViewModel` + `ChannelViewModel` — replace Combine debounce with `.task(id:)` + `Task.sleep`
-- 🔲 `PlaybackViewModel` — drop `ObservableObject` / `@Published`
+### Phase 3 — Playback enhancements (in progress)
+- ✅ **Quality selection dialog** — format list parsed from PlayerInfo; picker sheet in player controls overlay
+- ✅ **In-player speed control** — speed picker sheet; persisted in `AppSettings.playbackSpeed`
+- ✅ **SponsorBlock per-category actions** — `SponsorBlockAction` enum (skip / showToast / nothing); per-category settings dict in `AppSettings`; `checkSponsorSkip` respects actions; toast tinted with category colour
+- 🔲 **Chapters support** — parse from `/next` response; chapter markers on progress bar; title shown during seek
+- 🔲 **Like/Dislike buttons** — `/like` / `/dislike` InnerTube endpoints; buttons in player controls
 
-### Missing browse sections
-- 🔲 Shorts (`FEshorts`), Music, Sports, Gaming, News, Live, Kids — all present in Android but unimplemented
+### `@Observable` migration (Phase 2 of `05-`) — ✅ complete
+All view models and services already use `@Observable` + structured concurrency. (Completed incrementally; docs were not updated at the time.)
+
+### Missing browse sections — ✅ complete
+Shorts, Music, Gaming, News, Live, Sports are implemented in `InnerTubeAPI` (`fetchShorts`, `fetchMusic`, …) with TVHTML5 browse+search fallback; `BrowseViewModel.fetchSection` handles all `SectionType` cases; sections are listed in `BrowseSection.allSections`.
+
+### Security (before any public release) — ✅ complete
+- ✅ **Keychain migration** — `accessToken`, `refreshToken`, `expiresAt`, `accountName`, `accountAvatarURL` stored via `SecItemAdd` / `SecItemCopyMatching` / `SecItemDelete` in `AuthService` (keys `st_*`, service `com.smarttube.auth`)
 
 ---
 

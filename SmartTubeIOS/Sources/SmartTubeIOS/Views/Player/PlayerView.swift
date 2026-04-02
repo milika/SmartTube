@@ -240,25 +240,18 @@ public struct PlayerView: View {
             Spacer()
             HStack {
                 Spacer()
-                // Visible only while in a sponsor segment
-                if vm.sponsorSegments.contains(where: {
-                    vm.currentTime >= $0.start && vm.currentTime < $0.end
-                }) {
-                    Button("Skip Sponsor") {
-                        if let seg = vm.sponsorSegments.first(where: {
-                            vm.currentTime >= $0.start && vm.currentTime < $0.end
-                        }) {
-                            vm.seek(to: seg.end)
-                        }
+                if let seg = vm.currentToastSegment {
+                    Button("Skip \(seg.category.displayName)") {
+                        vm.skipToastSegment()
                     }
                     .buttonStyle(.borderedProminent)
-                    .tint(.green)
+                    .tint(seg.category.color)
                     .padding()
                     .transition(.move(edge: .trailing))
                 }
             }
         }
-        .animation(.easeInOut, value: vm.currentTime)
+        .animation(.easeInOut, value: vm.currentToastSegment?.id)
     }
 
     private func errorBanner(_ err: Error) -> some View {

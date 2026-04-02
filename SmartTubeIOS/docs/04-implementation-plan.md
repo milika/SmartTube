@@ -210,7 +210,7 @@ Add support for these sections matching Android's `initRowAndGridMapping()`:
 
 **Files:** `PlayerView.swift`, `PlaybackViewModel.swift`
 
-### 3.3 SponsorBlock — color-coded markers + per-category actions
+### 3.3 SponsorBlock — color-coded markers + per-category actions ✅
 **Android:** Each SB category has its own color and action (skip/toast/dialog/nothing).
 
 **Implementation:**
@@ -220,6 +220,22 @@ Add support for these sections matching Android's `initRowAndGridMapping()`:
 - Add "Don't skip this again" option
 
 **Files:** `AppSettings.swift`, `PlayerView.swift`, `PlaybackViewModel.swift`, `SettingsView.swift`
+
+**How it was done:**
+Added `SponsorBlockAction` enum (`.skip`, `.showToast`, `.nothing`) to `AppSettings` and replaced the old `sponsorBlockCategories: Set<SponsorSegment.Category>` with `sponsorBlockActions: [SponsorSegment.Category: SponsorBlockAction]` (defaults mirror Android's `SponsorBlockData`: sponsor/selfPromo → auto-skip; interaction/intro/preview/musicOfftopic → show toast; others → nothing). Computed `activeSponsorCategories` drives which categories are fetched from the API.
+
+`PlaybackViewModel.checkSponsorSkip(at:)` now respects the per-category action:
+- `.skip` → auto-seeks past the segment (previous behaviour)
+- `.showToast` → sets `currentToastSegment` (new observable property) so the view can render a skip button; segment is cleared when the playhead exits
+- `.nothing` → no action
+
+`skipToastSegment()` added for the view to call when the user taps the skip button.
+
+`PlayerView.sponsorSkipToast` now drives from `vm.currentToastSegment` instead of scanning `vm.sponsorSegments` itself; the button label reads "Skip {category}" and is tinted with the category's canonical color.
+
+`SponsorBlockColors.swift` gained `displayName` (moved from a private `SettingsView` extension) so it's accessible across all views in the module.
+
+`SettingsView.sponsorBlockSection` replaced category Toggles with a three-option `Picker` (Skip / Show Toast / Nothing) per category, each prefixed with a colour dot.
 
 ### 3.4 Chapters support
 **Android:** Chapters parsed from video metadata, shown as markers on progress bar.

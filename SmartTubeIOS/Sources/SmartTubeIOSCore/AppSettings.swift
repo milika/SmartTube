@@ -25,8 +25,32 @@ public struct AppSettings: Codable {
     public var enabledSections: [BrowseSection.SectionType]
 
     // MARK: SponsorBlock
+
+    /// Per-segment action that controls how each SponsorBlock category is handled.
+    /// Mirrors Android's per-category action setting in `SponsorBlockData`.
+    public enum SponsorBlockAction: String, Codable, CaseIterable, Sendable {
+        /// Automatically skip the segment without user interaction.
+        case skip      = "skip"
+        /// Show a dismissible toast and let the user manually skip.
+        case showToast = "showToast"
+        /// Take no action — segment plays through normally.
+        case nothing   = "nothing"
+    }
+
     public var sponsorBlockEnabled: Bool
-    public var sponsorBlockCategories: Set<SponsorSegment.Category>
+    /// Per-category action. Categories absent from this dict are treated as `.nothing`.
+    public var sponsorBlockActions: [SponsorSegment.Category: SponsorBlockAction]
+
+    /// Convenience: the set of categories whose action is not `.nothing`.
+    /// Passed to `SponsorBlockService.fetchSegments` so we only fetch relevant segments.
+    public var activeSponsorCategories: Set<SponsorSegment.Category> {
+        Set(sponsorBlockActions.compactMap { $0.value != .nothing ? $0.key : nil })
+    }
+
+    /// Returns the action for a given category (`.nothing` if not configured).
+    public func sponsorAction(for category: SponsorSegment.Category) -> SponsorBlockAction {
+        sponsorBlockActions[category] ?? .nothing
+    }
 
     // MARK: DeArrow
     public var deArrowEnabled: Bool
@@ -58,7 +82,19 @@ public struct AppSettings: Codable {
         themeName            = .system
         enabledSections      = [.home, .subscriptions, .history, .playlists, .channels]
         sponsorBlockEnabled  = true
-        sponsorBlockCategories = [.sponsor, .selfPromo, .interaction]
+        // Default actions mirror Android's SponsorBlockData defaults:
+        //   sponsor / selfPromo → auto-skip; interaction / intro / preview / musicOfftopic → show toast; others → nothing
+        sponsorBlockActions = [
+            .sponsor:       .skip,
+            .selfPromo:     .skip,
+            .interaction:   .showToast,
+            .intro:         .showToast,
+            .outro:         .nothing,
+            .preview:       .showToast,
+            .filler:        .nothing,
+            .musicOfftopic: .showToast,
+            .poiHighlight:  .nothing,
+        ]
         deArrowEnabled       = false
     }
 }
