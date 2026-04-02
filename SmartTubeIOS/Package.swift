@@ -1,6 +1,26 @@
 // swift-tools-version:6.0
 import PackageDescription
 
+// The SmartTubeIOS UI target uses iOS-only APIs (UIKit, fullScreenCover, etc.).
+// Exclude it when resolving/building on macOS so that `swift test` can run
+// against SmartTubeIOSCore without a simulator.
+#if os(iOS)
+let iosProducts: [Product] = [
+    .library(name: "SmartTubeIOS", targets: ["SmartTubeIOS"]),
+]
+let iosTargets: [Target] = [
+    .target(
+        name: "SmartTubeIOS",
+        dependencies: ["SmartTubeIOSCore"],
+        path: "Sources/SmartTubeIOS",
+        swiftSettings: [.swiftLanguageMode(.v6)]
+    ),
+]
+#else
+let iosProducts: [Product] = []
+let iosTargets: [Target] = []
+#endif
+
 let package = Package(
     name: "SmartTubeIOS",
     platforms: [
@@ -13,12 +33,7 @@ let package = Package(
             name: "SmartTubeIOSCore",
             targets: ["SmartTubeIOSCore"]
         ),
-        // Apple-platform UI: SwiftUI views, AVKit player, AuthenticationServices.
-        .library(
-            name: "SmartTubeIOS",
-            targets: ["SmartTubeIOS"]
-        ),
-    ],
+    ] + iosProducts,
     dependencies: [],
     targets: [
         // MARK: Core – iOS, macOS (Foundation only)
@@ -26,21 +41,14 @@ let package = Package(
             name: "SmartTubeIOSCore",
             dependencies: [],
             path: "Sources/SmartTubeIOSCore",
-            swiftSettings: [.swiftLanguageVersion(.v6)]
-        ),
-        // MARK: UI – Apple platforms only (SwiftUI, AVKit, AuthenticationServices)
-        .target(
-            name: "SmartTubeIOS",
-            dependencies: ["SmartTubeIOSCore"],
-            path: "Sources/SmartTubeIOS",
-            swiftSettings: [.swiftLanguageVersion(.v6)]
+            swiftSettings: [.swiftLanguageMode(.v6)]
         ),
         // MARK: Tests
         .testTarget(
             name: "SmartTubeIOSTests",
             dependencies: ["SmartTubeIOSCore"],
             path: "Tests/SmartTubeIOSTests",
-            swiftSettings: [.swiftLanguageVersion(.v6)]
+            swiftSettings: [.swiftLanguageMode(.v6)]
         ),
-    ]
+    ] + iosTargets
 )
