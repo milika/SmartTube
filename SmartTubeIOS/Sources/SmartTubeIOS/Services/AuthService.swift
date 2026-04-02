@@ -3,7 +3,8 @@ import Observation
 import os
 import SmartTubeIOSCore
 
-private let authLog = Logger(subsystem: "com.smarttube.app", category: "Auth")
+private let authLog = Logger(subsystem: appSubsystem, category: "Auth")
+private let keychainService = "com.smarttube.auth"
 
 // MARK: - AuthService
 //
@@ -354,8 +355,8 @@ public final class AuthService {
                 "client": [
                     "hl": "en",
                     "gl": "US",
-                    "clientName": "TVHTML5",
-                    "clientVersion": "7.20230405.08.01",
+                    "clientName": InnerTubeClients.TV.name,
+                    "clientVersion": InnerTubeClients.TV.version,
                 ]
             ],
             // Android AuthApiHelper.getAccountsListQuery():
@@ -451,14 +452,14 @@ public final class AuthService {
         // Always delete the existing item first to avoid errSecDuplicateItem
         let deleteQuery: [CFString: Any] = [
             kSecClass:       kSecClassGenericPassword,
-            kSecAttrService: "com.smarttube.auth",
+            kSecAttrService: keychainService,
             kSecAttrAccount: key,
         ]
         SecItemDelete(deleteQuery as CFDictionary)
         guard let value, let valueData = value.data(using: .utf8) else { return }
         let addQuery: [CFString: Any] = [
             kSecClass:          kSecClassGenericPassword,
-            kSecAttrService:    "com.smarttube.auth",
+            kSecAttrService:    keychainService,
             kSecAttrAccount:    key,
             kSecValueData:      valueData,
             kSecAttrAccessible: kSecAttrAccessibleAfterFirstUnlock,
@@ -472,7 +473,7 @@ public final class AuthService {
     private func keychainGet(key: String) -> String? {
         let query: [CFString: Any] = [
             kSecClass:        kSecClassGenericPassword,
-            kSecAttrService:  "com.smarttube.auth",
+            kSecAttrService:  keychainService,
             kSecAttrAccount:  key,
             kSecReturnData:   true,
             kSecMatchLimit:   kSecMatchLimitOne,
@@ -486,7 +487,7 @@ public final class AuthService {
     private func keychainDelete(key: String) {
         let query: [CFString: Any] = [
             kSecClass:       kSecClassGenericPassword,
-            kSecAttrService: "com.smarttube.auth",
+            kSecAttrService: keychainService,
             kSecAttrAccount: key,
         ]
         SecItemDelete(query as CFDictionary)

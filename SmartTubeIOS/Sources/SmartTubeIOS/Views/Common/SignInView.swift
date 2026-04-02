@@ -84,7 +84,7 @@ public struct SignInView: View {
             VStack(spacing: 28) {
                 Spacer(minLength: 20)
 
-                Image(systemName: "tv.and.mediabox")
+                Image(systemName: AppSymbol.tvMediabox)
                     .font(.system(size: 64))
                     .foregroundStyle(.red)
 
@@ -132,7 +132,7 @@ public struct SignInView: View {
                     NSPasteboard.general.setString(info.userCode, forType: .string)
                     #endif
                 } label: {
-                    Label("Copy Code", systemImage: "doc.on.doc")
+                    Label("Copy Code", systemImage: AppSymbol.copyDoc)
                 }
                 .buttonStyle(.bordered)
 
@@ -180,7 +180,7 @@ private struct QRCodeView: View {
                     .frame(width: geo.size.width, height: geo.size.height)
             }
         } else {
-            Image(systemName: "qrcode")
+            Image(systemName: AppSymbol.qrcode)
                 .resizable()
                 .scaledToFit()
                 .foregroundStyle(.secondary)
@@ -223,7 +223,7 @@ private struct CountdownView: View {
     var body: some View {
         Group {
             if remaining > 0 {
-                Label(timeString, systemImage: "clock")
+                Label(timeString, systemImage: AppSymbol.clock)
                     .font(.caption)
                     .foregroundStyle(.secondary)
             } else {

@@ -1,0 +1,64 @@
+import SwiftUI
+import SmartTubeIOSCore
+
+// MARK: - ShortsPresentation
+//
+// Shared Identifiable wrapper used by BrowseView and ChannelView to present
+// ShortsPlayerView via .fullScreenCover(item:).
+
+struct ShortsPresentation: Identifiable {
+    let id = UUID()
+    let videos: [Video]
+    let startIndex: Int
+}
+
+// MARK: - Shared layout constants
+
+/// Adaptive grid columns used for video grids across Browse and Channel views.
+let videoGridColumns = [GridItem(.adaptive(minimum: 300, maximum: 400), spacing: 12)]
+
+// MARK: - AppSymbol
+//
+// Single source of truth for SF Symbol names used across the app.
+// Use these constants instead of raw strings in Image(systemName:) and Label(..., systemImage:).
+
+enum AppSymbol {
+    // MARK: - Navigation tabs
+    static let home     = "house.fill"
+    static let search   = "magnifyingglass"
+    static let library  = "square.stack.fill"
+    static let settings = "gearshape.fill"
+
+    // MARK: - Navigation / chevrons
+    static let chevronLeft  = "chevron.left"
+    static let chevronUp    = "chevron.up"
+    static let chevronDown  = "chevron.down"
+
+    // MARK: - Playback controls
+    static let previousTrack = "backward.end.fill"
+    static let nextTrack     = "forward.end.fill"
+
+    // MARK: - Actions
+    static let checkmark       = "checkmark"
+    static let xmark           = "xmark"
+    static let xmarkCircle     = "xmark.circle.fill"
+    static let share           = "square.and.arrow.up"
+    static let copyDoc         = "doc.on.doc"
+
+    // MARK: - Status / info
+    static let warning         = "exclamationmark.triangle.fill"
+    static let clock           = "clock"
+    static let questionCircle  = "questionmark.circle"
+    static let qrcode          = "qrcode"
+
+    // MARK: - People / account
+    static let personCircle            = "person.crop.circle"
+    static let personRectangle         = "person.crop.rectangle"
+    static let personCircleQuestion    = "person.crop.circle.badge.questionmark"
+    static let personCircleWarning     = "person.crop.circle.badge.exclamationmark"
+
+    // MARK: - Content
+    static let stackLayers    = "square.stack"
+    static let tvMediabox     = "tv.and.mediabox"
+    static let tvPlay         = "play.tv"
+}

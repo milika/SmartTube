@@ -39,4 +39,11 @@
 - No force-unwraps except in clearly impossible cases (document why)
 - `@MainActor` on all `ObservableObject` view-models
 - Prefer `async/await` over Combine or callback chains for new network code
-- Log with `os.Logger` (subsystem `com.smarttube.app`) — use `.notice` for milestones, `.error` for failures, `.debug` for polling loops
+- Log with `os.Logger` (subsystem `Bundle.main.bundleIdentifier ?? "com.void.smarttube.app"`) — use `.notice` for milestones, `.error` for failures, `.debug` for polling loops
+
+## No duplicate definitions
+- Every constant, identifier, magic number, or type must have **one definition** — never hardcode the same value in two or more places
+- Shared string/numeric constants belong in `SmartTubeIOSCore` (e.g. `InnerTubeClients`, `AppSubsystem`, `TimeFormatting`)
+- Shared SwiftUI helpers (view types, layout constants) belong in `SmartTubeIOS/Views/ViewHelpers.swift`
+- When adding a new constant or type, search the codebase first; if it already exists, reuse it; if it doesn't, create it in the appropriate shared location before using it
+- SF Symbol name strings must always be defined as `static let` constants in `AppSymbol` (`SmartTubeIOS/Views/ViewHelpers.swift`) — never use raw `"symbol.name"` strings directly in `Image(systemName:)` or `Label(..., systemImage:)` calls

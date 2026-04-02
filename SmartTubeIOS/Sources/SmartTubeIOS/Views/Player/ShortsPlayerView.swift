@@ -83,7 +83,7 @@ public struct ShortsPlayerView: View {
             // Top bar: back + index indicator
             HStack {
                 Button { dismiss() } label: {
-                    Image(systemName: "chevron.left")
+                    Image(systemName: AppSymbol.chevronLeft)
                         .font(.title2)
                         .foregroundStyle(.white)
                         .padding(12)
@@ -107,7 +107,7 @@ public struct ShortsPlayerView: View {
             // Bottom section: navigation hints + title + play-pause
             VStack(spacing: 8) {
                 if currentIndex > 0 {
-                    Image(systemName: "chevron.up")
+                    Image(systemName: AppSymbol.chevronUp)
                         .foregroundStyle(.white.opacity(0.5))
                         .font(.caption)
                 }
@@ -136,7 +136,7 @@ public struct ShortsPlayerView: View {
                 .padding(.horizontal, 20)
 
                 if currentIndex < videos.count - 1 {
-                    Image(systemName: "chevron.down")
+                    Image(systemName: AppSymbol.chevronDown)
                         .foregroundStyle(.white.opacity(0.5))
                         .font(.caption)
                 }

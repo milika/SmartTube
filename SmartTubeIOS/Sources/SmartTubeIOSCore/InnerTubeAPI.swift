@@ -4,7 +4,7 @@ import os
 import FoundationNetworking
 #endif
 
-private let tubeLog = Logger(subsystem: "com.smarttube.app", category: "InnerTube")
+private let tubeLog = Logger(subsystem: appSubsystem, category: "InnerTube")
 
 // MARK: - InnerTubeAPI
 //
@@ -29,8 +29,8 @@ public actor InnerTubeAPI {
         "client": [
             "hl": "en",
             "gl": "US",
-            "clientName": "WEB",
-            "clientVersion": "2.20260206.01.00",
+            "clientName": InnerTubeClients.Web.name,
+            "clientVersion": InnerTubeClients.Web.version,
         ]
     ]
 
@@ -40,8 +40,8 @@ public actor InnerTubeAPI {
         "client": [
             "hl": "en",
             "gl": "US",
-            "clientName": "iOS",
-            "clientVersion": "20.11.6",
+            "clientName": InnerTubeClients.iOS.name,
+            "clientVersion": InnerTubeClients.iOS.version,
             "deviceMake": "Apple",
             "deviceModel": "iPhone10,4",
             "osName": "iOS",
@@ -49,7 +49,7 @@ public actor InnerTubeAPI {
             "clientScreen": "WATCH",
         ]
     ]
-    private let iosUserAgent = "com.google.ios.youtube/20.11.6 (iPhone10,4; U; CPU iOS 16_7_7 like Mac OS X)"
+    private let iosUserAgent = InnerTubeClients.iOS.userAgent
 
     /// The TVHTML5 client context required for all authenticated InnerTube requests
     /// (subscriptions, history, playlists, personalised home).
@@ -59,8 +59,8 @@ public actor InnerTubeAPI {
         "client": [
             "hl": "en",
             "gl": "US",
-            "clientName": "TVHTML5",
-            "clientVersion": "7.20230405.08.01",
+            "clientName": InnerTubeClients.TV.name,
+            "clientVersion": InnerTubeClients.TV.version,
         ]
     ]
 
@@ -101,7 +101,7 @@ public actor InnerTubeAPI {
         let data = isAuth
             ? try await postTV(endpoint: "browse", body: body)
             : try await post(endpoint: "browse", body: body)
-        return try parseVideoGroup(from: data, title: "Home")
+        return try parseVideoGroup(from: data, title: BrowseSection.SectionType.home.defaultTitle)
     }
 
     /// Fetches subscriptions feed (requires auth).
@@ -351,8 +351,8 @@ public actor InnerTubeAPI {
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue(iosUserAgent, forHTTPHeaderField: "User-Agent")
-        request.setValue("5", forHTTPHeaderField: "X-YouTube-Client-Name")
-        request.setValue("20.11.6", forHTTPHeaderField: "X-YouTube-Client-Version")
+        request.setValue(InnerTubeClients.iOS.nameID, forHTTPHeaderField: "X-YouTube-Client-Name")
+        request.setValue(InnerTubeClients.iOS.version, forHTTPHeaderField: "X-YouTube-Client-Version")
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
         let playerVideoId = body["videoId"] as? String ?? ""
         tubeLog.notice("POST /player (iOS) videoId=\(playerVideoId, privacy: .public)")
@@ -385,8 +385,8 @@ public actor InnerTubeAPI {
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue("https://www.youtube.com", forHTTPHeaderField: "Origin")
-        request.setValue("1", forHTTPHeaderField: "X-YouTube-Client-Name")
-        request.setValue("2.20260206.01.00", forHTTPHeaderField: "X-YouTube-Client-Version")
+        request.setValue(InnerTubeClients.Web.nameID, forHTTPHeaderField: "X-YouTube-Client-Name")
+        request.setValue(InnerTubeClients.Web.version, forHTTPHeaderField: "X-YouTube-Client-Version")
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
         tubeLog.notice("POST /\(endpoint, privacy: .public) [WEB]")
         let (data, response) = try await session.data(for: request)
@@ -423,8 +423,8 @@ public actor InnerTubeAPI {
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue("https://www.youtube.com", forHTTPHeaderField: "Origin")
-        request.setValue("7", forHTTPHeaderField: "X-YouTube-Client-Name")
-        request.setValue("7.20230405.08.01", forHTTPHeaderField: "X-YouTube-Client-Version")
+        request.setValue(InnerTubeClients.TV.nameID, forHTTPHeaderField: "X-YouTube-Client-Name")
+        request.setValue(InnerTubeClients.TV.version, forHTTPHeaderField: "X-YouTube-Client-Version")
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
         tubeLog.notice("POST /\(endpoint, privacy: .public) [TV-category]")
         let (data, response) = try await session.data(for: request)
@@ -468,8 +468,8 @@ public actor InnerTubeAPI {
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.setValue("7", forHTTPHeaderField: "X-YouTube-Client-Name")
-        request.setValue("7.20230405.08.01", forHTTPHeaderField: "X-YouTube-Client-Version")
+        request.setValue(InnerTubeClients.TV.nameID, forHTTPHeaderField: "X-YouTube-Client-Name")
+        request.setValue(InnerTubeClients.TV.version, forHTTPHeaderField: "X-YouTube-Client-Version")
         if shouldAuthenticate, let token = authToken {
             request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         }
@@ -567,7 +567,7 @@ public actor InnerTubeAPI {
 
         if rows.isEmpty {
             // No shelves found — fall back to flat parse
-            if let flat = try? parseVideoGroup(from: json, title: "Home") {
+            if let flat = try? parseVideoGroup(from: json, title: BrowseSection.SectionType.home.defaultTitle) {
                 return [flat]
             }
         } else if let token = continuationToken {

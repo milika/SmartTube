@@ -3,7 +3,7 @@ import Observation
 import os
 import SmartTubeIOSCore
 
-private let homeLog = Logger(subsystem: "com.smarttube.app", category: "Home")
+private let homeLog = Logger(subsystem: appSubsystem, category: "Home")
 
 // MARK: - HomeViewModel
 //
@@ -32,8 +32,8 @@ public final class HomeViewModel {
     // MARK: - Shelf definitions (in display order)
 
     public static let shelfSections: [BrowseSection] = [
-        BrowseSection(id: "home",          title: "Recommended",   type: .home),
-        BrowseSection(id: "subscriptions", title: "Subscriptions", type: .subscriptions),
+        BrowseSection(id: BrowseSection.SectionType.home.rawValue,          title: "Recommended",   type: .home),
+        BrowseSection(id: BrowseSection.SectionType.subscriptions.rawValue, title: "Subscriptions", type: .subscriptions),
     ]
 
     // MARK: - Dependencies
@@ -92,10 +92,10 @@ public final class HomeViewModel {
             switch type {
             case .subscriptions:
                 let group = try await api.fetchSubscriptions()
-                return Array(group.videos.prefix(20))
+                return Array(group.videos.prefix(InnerTubeClients.maxVideoResults))
             case .home:
                 let rows = try await api.fetchHomeRows()
-                return Array(rows.flatMap(\.videos).prefix(20))
+                return Array(rows.flatMap(\.videos).prefix(InnerTubeClients.maxVideoResults))
             default:
                 return []
             }

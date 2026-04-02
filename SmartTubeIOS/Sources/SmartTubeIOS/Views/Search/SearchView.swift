@@ -50,7 +50,7 @@ public struct SearchView: View {
     private var searchBar: some View {
         @Bindable var vm = vm
         return HStack(spacing: 8) {
-            Image(systemName: "magnifyingglass")
+            Image(systemName: AppSymbol.search)
                 .foregroundStyle(.secondary)
             TextField("Search YouTube", text: $vm.query)
                 .focused($isSearchFocused)
@@ -64,7 +64,7 @@ public struct SearchView: View {
                 Button {
                     vm.query = ""
                 } label: {
-                    Image(systemName: "xmark.circle.fill")
+                    Image(systemName: AppSymbol.xmarkCircle)
                         .foregroundStyle(.secondary)
                 }
                 .buttonStyle(.plain)
@@ -145,7 +145,7 @@ public struct SearchView: View {
 
     private var placeholderView: some View {
         VStack(spacing: 16) {
-            Image(systemName: "magnifyingglass")
+            Image(systemName: AppSymbol.search)
                 .font(.system(size: 60))
                 .foregroundStyle(.secondary)
             Text("Search for videos, channels & playlists")
@@ -159,7 +159,7 @@ public struct SearchView: View {
 
     private var noResultsView: some View {
         VStack(spacing: 16) {
-            Image(systemName: "questionmark.circle")
+            Image(systemName: AppSymbol.questionCircle)
                 .font(.system(size: 60))
                 .foregroundStyle(.secondary)
             Text("No results for \"\(vm.query)\"")
@@ -182,7 +182,7 @@ private struct FilterChip: View {
             Text(label)
                 .font(.caption)
             Button(action: onRemove) {
-                Image(systemName: "xmark")
+                Image(systemName: AppSymbol.xmark)
                     .font(.caption2)
             }
         }

@@ -4,7 +4,7 @@ import os
 import FoundationNetworking
 #endif
 
-private let credLog = Logger(subsystem: "com.smarttube.app", category: "Credentials")
+private let credLog = Logger(subsystem: appSubsystem, category: "Credentials")
 
 // MARK: - YouTubeClientCredentials
 //

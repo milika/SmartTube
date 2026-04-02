@@ -5,14 +5,6 @@ import SmartTubeIOSCore
 //
 // Main home feed.  Mirrors the Android `BrowseFragment`.
 
-// MARK: - ShortsPresentation helper
-
-private struct ShortsPresentation: Identifiable {
-    let id = UUID()
-    let videos: [Video]
-    let startIndex: Int
-}
-
 public struct BrowseView: View {
     @Environment(BrowseViewModel.self) private var vm
     @Environment(AuthService.self) private var auth
@@ -104,7 +96,7 @@ public struct BrowseView: View {
 
     private var guestBanner: some View {
         HStack(spacing: 12) {
-            Image(systemName: "person.crop.circle")
+            Image(systemName: AppSymbol.personCircle)
                 .font(.title2)
                 .foregroundStyle(.secondary)
             VStack(alignment: .leading, spacing: 2) {
@@ -126,7 +118,7 @@ public struct BrowseView: View {
 
     private var emptyState: some View {
         VStack(spacing: 16) {
-            Image(systemName: vm.isAuthRequired ? "person.crop.circle.badge.exclamationmark" : "play.tv")
+            Image(systemName: vm.isAuthRequired ? AppSymbol.personCircleWarning : AppSymbol.tvPlay)
                 .font(.system(size: 60))
                 .foregroundStyle(.secondary)
             if vm.isAuthRequired && !auth.isSignedIn {
@@ -173,10 +165,8 @@ struct VideoGridSection: View {
     let onSelect: (Video) -> Void
     var loadMore: (() -> Void)? = nil
 
-    private let columns = [GridItem(.adaptive(minimum: 300, maximum: 400), spacing: 12)]
-
     var body: some View {
-        LazyVGrid(columns: columns, spacing: 12) {
+        LazyVGrid(columns: videoGridColumns, spacing: 12) {
             ForEach(videos) { video in
                 VideoCardView(video: video)
                     .onTapGesture { onSelect(video) }

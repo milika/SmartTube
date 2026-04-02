@@ -34,7 +34,7 @@ public struct VideoCardView: View {
         .contextMenu {
             if let shareURL = URL(string: "https://www.youtube.com/watch?v=\(video.id)") {
                 ShareLink(item: shareURL) {
-                    Label("Share", systemImage: "square.and.arrow.up")
+                    Label("Share", systemImage: AppSymbol.share)
                 }
             }
             if let channelId = video.channelId, !channelId.isEmpty {
@@ -45,7 +45,7 @@ public struct VideoCardView: View {
                         userInfo: ["channelId": channelId, "channelTitle": video.channelTitle]
                     )
                 } label: {
-                    Label("Open Channel", systemImage: "person.crop.rectangle")
+                    Label("Open Channel", systemImage: AppSymbol.personRectangle)
                 }
             }
         }

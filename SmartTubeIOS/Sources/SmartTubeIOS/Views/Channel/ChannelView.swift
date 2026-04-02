@@ -17,7 +17,7 @@ public struct ChannelView: View {
     public let channelId: String
     @State private var vm = ChannelViewModel()
     @State private var selectedVideo: Video?
-    @State private var shortsPresentation: (videos: [Video], startIndex: Int)?
+    @State private var shortsPresentation: ShortsPresentation?
     @State private var filter: ChannelFilter = .all
 
     public init(channelId: String) {
@@ -38,10 +38,7 @@ public struct ChannelView: View {
         .navigationDestination(item: $selectedVideo) { video in
             PlayerView(video: video)
         }
-        .fullScreenCover(item: Binding(
-            get: { shortsPresentation.map { IdentifiableShortsTarget(videos: $0.videos, startIndex: $0.startIndex) } },
-            set: { if $0 == nil { shortsPresentation = nil } }
-        )) { target in
+        .fullScreenCover(item: $shortsPresentation) { target in
             ShortsPlayerView(videos: target.videos, startIndex: target.startIndex)
         }
         .alert("Error", isPresented: .constant(vm.error != nil), presenting: vm.error) { _ in
@@ -97,8 +94,7 @@ public struct ChannelView: View {
     // MARK: - Grid layouts
 
     private func videosGrid(_ videos: [Video]) -> some View {
-        let columns = [GridItem(.adaptive(minimum: 300, maximum: 400), spacing: 12)]
-        return LazyVGrid(columns: columns, spacing: 12) {
+        LazyVGrid(columns: videoGridColumns, spacing: 12) {
             ForEach(videos) { video in
                 VideoCardView(video: video)
                     .onTapGesture { selectedVideo = video }
@@ -129,7 +125,7 @@ public struct ChannelView: View {
 
     private func selectShort(_ video: Video, from videos: [Video]) {
         let idx = videos.firstIndex(where: { $0.id == video.id }) ?? 0
-        shortsPresentation = (videos: videos, startIndex: idx)
+        shortsPresentation = ShortsPresentation(videos: videos, startIndex: idx)
     }
 
     private func channelHeader(_ channel: Channel) -> some View {
@@ -165,10 +161,4 @@ public struct ChannelView: View {
     }
 }
 
-// MARK: - IdentifiableShortsTarget
 
-private struct IdentifiableShortsTarget: Identifiable {
-    let id = UUID()
-    let videos: [Video]
-    let startIndex: Int
-}

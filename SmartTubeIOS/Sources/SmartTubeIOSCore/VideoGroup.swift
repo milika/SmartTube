@@ -64,6 +64,25 @@ public struct BrowseSection: Identifiable, Hashable, Sendable {
         case live          = "live"
         case sports        = "sports"
         case settings      = "settings"
+
+        /// Canonical display title — single source of truth used by defaultSections,
+        /// allSections, and any code that needs a localised label for a section type.
+        public var defaultTitle: String {
+            switch self {
+            case .home:          return "Home"
+            case .subscriptions: return "Subscriptions"
+            case .history:       return "History"
+            case .playlists:     return "Playlists"
+            case .channels:      return "Channels"
+            case .shorts:        return "Shorts"
+            case .music:         return "Music"
+            case .news:          return "News"
+            case .gaming:        return "Gaming"
+            case .live:          return "Live"
+            case .sports:        return "Sports"
+            case .settings:      return "Settings"
+            }
+        }
     }
 
     public init(id: String, title: String, type: SectionType) {
@@ -72,22 +91,29 @@ public struct BrowseSection: Identifiable, Hashable, Sendable {
         self.type = type
     }
 
+    /// Convenience: creates a section whose id and title are derived from the type.
+    public init(type: SectionType) {
+        self.id    = type.rawValue
+        self.title = type.defaultTitle
+        self.type  = type
+    }
+
     public static let defaultSections: [BrowseSection] = [
-        BrowseSection(id: "home",          title: "Home",          type: .home),
-        BrowseSection(id: "subscriptions", title: "Subscriptions", type: .subscriptions),
-        BrowseSection(id: "history",       title: "History",       type: .history),
-        BrowseSection(id: "playlists",     title: "Playlists",     type: .playlists),
-        BrowseSection(id: "channels",      title: "Channels",      type: .channels),
+        BrowseSection(type: .home),
+        BrowseSection(type: .subscriptions),
+        BrowseSection(type: .history),
+        BrowseSection(type: .playlists),
+        BrowseSection(type: .channels),
     ]
 
     /// All known sections including extended categories (music, gaming, etc.).
     public static let allSections: [BrowseSection] = defaultSections + [
-        BrowseSection(id: "shorts",  title: "Shorts",  type: .shorts),
-        BrowseSection(id: "music",   title: "Music",   type: .music),
-        BrowseSection(id: "gaming",  title: "Gaming",  type: .gaming),
-        BrowseSection(id: "news",    title: "News",    type: .news),
-        BrowseSection(id: "live",    title: "Live",    type: .live),
-        BrowseSection(id: "sports",  title: "Sports",  type: .sports),
+        BrowseSection(type: .shorts),
+        BrowseSection(type: .music),
+        BrowseSection(type: .gaming),
+        BrowseSection(type: .news),
+        BrowseSection(type: .live),
+        BrowseSection(type: .sports),
     ]
 }
 

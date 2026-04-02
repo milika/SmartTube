@@ -76,7 +76,7 @@ public struct PlayerView: View {
             // Top bar: back + title
             HStack {
                 Button { dismiss() } label: {
-                    Image(systemName: "chevron.left")
+                    Image(systemName: AppSymbol.chevronLeft)
                         .font(.title2)
                         .foregroundStyle(.white)
                         .padding(12)
@@ -149,24 +149,24 @@ public struct PlayerView: View {
                     Button {
                         vm.playPrevious()
                     } label: {
-                        Image(systemName: "backward.end.fill")
+                        Image(systemName: AppSymbol.previousTrack)
                             .font(.system(size: 18))
                             .foregroundStyle(vm.hasPrevious && !vm.isLoading ? .white : .white.opacity(0.3))
                     }
                     .buttonStyle(.plain)
                     .disabled(!vm.hasPrevious || vm.isLoading)
 
-                    Text(formatTime(vm.currentTime))
+                    Text(formatDuration(vm.currentTime))
                         .padding(.leading, 6)
                     Spacer()
-                    Text(formatTime(vm.duration))
+                    Text(formatDuration(vm.duration))
                         .padding(.trailing, 6)
 
                     // Next video button
                     Button {
                         vm.playNext()
                     } label: {
-                        Image(systemName: "forward.end.fill")
+                        Image(systemName: AppSymbol.nextTrack)
                             .font(.system(size: 18))
                             .foregroundStyle(vm.hasNext && !vm.isLoading ? .white : .white.opacity(0.3))
                     }
@@ -257,7 +257,7 @@ public struct PlayerView: View {
     private func errorBanner(_ err: Error) -> some View {
         VStack {
             HStack {
-                Image(systemName: "exclamationmark.triangle.fill")
+                Image(systemName: AppSymbol.warning)
                     .foregroundStyle(.yellow)
                 Text(err.localizedDescription)
                     .font(.callout)
@@ -268,17 +268,6 @@ public struct PlayerView: View {
             .clipShape(RoundedRectangle(cornerRadius: 10))
         }
         .padding()
-    }
-
-    // MARK: - Helpers
-
-    private func formatTime(_ t: TimeInterval) -> String {
-        let total = Int(max(t, 0))
-        let h = total / 3600
-        let m = (total % 3600) / 60
-        let s = total % 60
-        if h > 0 { return String(format: "%d:%02d:%02d", h, m, s) }
-        return String(format: "%d:%02d", m, s)
     }
 
     // MARK: - Quality picker sheet
@@ -296,7 +285,7 @@ public struct PlayerView: View {
                             .foregroundStyle(.primary)
                         Spacer()
                         if vm.selectedFormat == nil {
-                            Image(systemName: "checkmark")
+                            Image(systemName: AppSymbol.checkmark)
                                 .foregroundStyle(Color.accentColor)
                         }
                     }
@@ -311,7 +300,7 @@ public struct PlayerView: View {
                                 .foregroundStyle(.primary)
                             Spacer()
                             if vm.selectedFormat?.id == fmt.id {
-                                Image(systemName: "checkmark")
+                                Image(systemName: AppSymbol.checkmark)
                                     .foregroundStyle(Color.accentColor)
                             }
                         }
@@ -348,7 +337,7 @@ public struct PlayerView: View {
                                 .foregroundStyle(.primary)
                             Spacer()
                             if abs(store.settings.playbackSpeed - speed) < 0.01 {
-                                Image(systemName: "checkmark")
+                                Image(systemName: AppSymbol.checkmark)
                                     .foregroundStyle(Color.accentColor)
                             }
                         }

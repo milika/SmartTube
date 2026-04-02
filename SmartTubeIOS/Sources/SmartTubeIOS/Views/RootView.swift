@@ -28,35 +28,47 @@ public struct RootView: View {
     private var requiresAuth: Bool { false }   // guest browsing is allowed
 }
 
+// MARK: - AppSection
+
+enum AppSection: String, CaseIterable, Identifiable {
+    case home      = "Home"
+    case search    = "Search"
+    case library   = "Library"
+    case settings  = "Settings"
+
+    var id: String { rawValue }
+
+    var icon: String {
+        switch self {
+        case .home:     return AppSymbol.home
+        case .search:   return AppSymbol.search
+        case .library:  return AppSymbol.library
+        case .settings: return AppSymbol.settings
+        }
+    }
+
+    @MainActor @ViewBuilder
+    var destination: some View {
+        switch self {
+        case .home:     HomeView()
+        case .search:   SearchView()
+        case .library:  LibraryView()
+        case .settings: SettingsView()
+        }
+    }
+}
+
 // MARK: - MainTabView  (iOS / iPadOS)
 
 struct MainTabView: View {
-    @Environment(AuthService.self) private var auth
-    @Environment(BrowseViewModel.self) private var browseVM
-    @Environment(SettingsStore.self) private var settingsStore
     @State private var searchVM = SearchViewModel()
 
     var body: some View {
         TabView {
-            NavigationStack {
-                HomeView()
+            ForEach(AppSection.allCases) { section in
+                NavigationStack { section.destination }
+                    .tabItem { Label(section.rawValue, systemImage: section.icon) }
             }
-            .tabItem { Label("Home", systemImage: "house.fill") }
-
-            NavigationStack {
-                SearchView()
-            }
-            .tabItem { Label("Search", systemImage: "magnifyingglass") }
-
-            NavigationStack {
-                LibraryView()
-            }
-            .tabItem { Label("Library", systemImage: "square.stack.fill") }
-
-            NavigationStack {
-                SettingsView()
-            }
-            .tabItem { Label("Settings", systemImage: "gearshape.fill") }
         }
         .environment(searchVM)
     }
@@ -66,29 +78,9 @@ struct MainTabView: View {
 
 struct MainSidebarView: View {
     @Environment(AuthService.self) private var auth
-    @Environment(BrowseViewModel.self) private var browseVM
-    @Environment(SettingsStore.self) private var settingsStore
     @State private var searchVM = SearchViewModel()
 
     @State private var selectedSection: AppSection? = .home
-
-    enum AppSection: String, CaseIterable, Identifiable {
-        case home      = "Home"
-        case search    = "Search"
-        case library   = "Library"
-        case settings  = "Settings"
-
-        var id: String { rawValue }
-
-        var icon: String {
-            switch self {
-            case .home:     return "house.fill"
-            case .search:   return "magnifyingglass"
-            case .library:  return "square.stack.fill"
-            case .settings: return "gearshape.fill"
-            }
-        }
-    }
 
     var body: some View {
         NavigationSplitView {
@@ -110,12 +102,7 @@ struct MainSidebarView: View {
                 .padding(.bottom, 8)
             }
         } detail: {
-            switch selectedSection ?? .home {
-            case .home:     NavigationStack { HomeView() }
-            case .search:   NavigationStack { SearchView() }
-            case .library:  NavigationStack { LibraryView() }
-            case .settings: NavigationStack { SettingsView() }
-            }
+            NavigationStack { (selectedSection ?? .home).destination }
         }
         .environment(searchVM)
     }

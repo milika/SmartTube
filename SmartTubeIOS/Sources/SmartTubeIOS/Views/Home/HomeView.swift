@@ -101,7 +101,7 @@ public struct HomeView: View {
 
     @ViewBuilder
     private var contentArea: some View {
-        if selectedSection.id == "home" {
+        if selectedSection.type == .home {
             homeShelves
         } else {
             sectionFeed

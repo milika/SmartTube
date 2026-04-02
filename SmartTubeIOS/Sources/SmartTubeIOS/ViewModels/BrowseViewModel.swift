@@ -3,7 +3,7 @@ import Observation
 import os
 import SmartTubeIOSCore
 
-private let browseLog = Logger(subsystem: "com.smarttube.app", category: "Browse")
+private let browseLog = Logger(subsystem: appSubsystem, category: "Browse")
 
 // MARK: - BrowseViewModel
 //

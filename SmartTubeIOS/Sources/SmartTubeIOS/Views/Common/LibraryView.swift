@@ -108,7 +108,7 @@ public struct LibraryView: View {
 
     private var emptyLibraryView: some View {
         VStack(spacing: 16) {
-            Image(systemName: "square.stack")
+            Image(systemName: AppSymbol.stackLayers)
                 .font(.system(size: 60))
                 .foregroundStyle(.secondary)
             Text("Nothing here yet")
@@ -120,7 +120,7 @@ public struct LibraryView: View {
 
     private var signedOutPrompt: some View {
         VStack(spacing: 16) {
-            Image(systemName: "person.crop.circle.badge.questionmark")
+            Image(systemName: AppSymbol.personCircleQuestion)
                 .font(.system(size: 60))
                 .foregroundStyle(.secondary)
             Text("Sign in to see your library")

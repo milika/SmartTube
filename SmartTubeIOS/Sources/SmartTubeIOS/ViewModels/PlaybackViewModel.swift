@@ -5,7 +5,7 @@ import os
 import UIKit
 import SmartTubeIOSCore
 
-private let playerLog = Logger(subsystem: "com.smarttube.app", category: "Player")
+private let playerLog = Logger(subsystem: appSubsystem, category: "Player")
 
 // MARK: - PlaybackViewModel
 //
@@ -121,7 +121,7 @@ public final class PlaybackViewModel {
             } else {
                 // Fallback to search if /next returns nothing
                 let searched = try? await api.search(query: info.video.title)
-                relatedVideos = searched?.videos.filter { $0.id != video.id }.prefix(20).map { $0 } ?? []
+                relatedVideos = searched?.videos.filter { $0.id != video.id }.prefix(InnerTubeClients.maxVideoResults).map { $0 } ?? []
                 hasNext = !relatedVideos.isEmpty
             }
 

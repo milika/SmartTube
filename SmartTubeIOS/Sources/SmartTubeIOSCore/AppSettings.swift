@@ -76,11 +76,11 @@ public struct AppSettings: Codable {
         backgroundPlaybackEnabled = false
         seekBackSeconds      = 10
         seekForwardSeconds   = 30
-        defaultSection       = "home"
+        defaultSection       = BrowseSection.SectionType.home.rawValue
         compactThumbnails    = false
         hideShorts           = false
         themeName            = .system
-        enabledSections      = [.home, .subscriptions, .history, .playlists, .channels]
+        enabledSections      = BrowseSection.defaultSections.map(\.type)
         sponsorBlockEnabled  = true
         // Default actions mirror Android's SponsorBlockData defaults:
         //   sponsor / selfPromo → auto-skip; interaction / intro / preview / musicOfftopic → show toast; others → nothing
