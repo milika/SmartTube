@@ -7,6 +7,7 @@ import SwiftUI
 
 public struct RootView: View {
     @Environment(AuthService.self) private var auth
+    @Environment(SettingsStore.self) private var store
 
     public init() {}
 
@@ -18,6 +19,7 @@ public struct RootView: View {
             MainTabView()
             #endif
         }
+        .preferredColorScheme(store.settings.themeName.colorScheme)
         .sheet(isPresented: .constant(!auth.isSignedIn && requiresAuth)) {
             // Sign-in prompt is shown as a dismissible sheet so users
             // can still browse without being signed in.

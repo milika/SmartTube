@@ -290,6 +290,7 @@ public struct PlayerView: View {
                         }
                     }
                 }
+                .buttonStyle(.plain)
                 ForEach(vm.availableFormats) { fmt in
                     Button {
                         vm.selectFormat(fmt)
@@ -305,6 +306,7 @@ public struct PlayerView: View {
                             }
                         }
                     }
+                    .buttonStyle(.plain)
                 }
             }
             .navigationTitle("Quality")
@@ -342,6 +344,7 @@ public struct PlayerView: View {
                             }
                         }
                     }
+                    .buttonStyle(.plain)
                 }
             }
             .navigationTitle("Playback Speed")

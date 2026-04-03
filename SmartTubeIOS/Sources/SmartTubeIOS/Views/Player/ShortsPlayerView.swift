@@ -36,17 +36,16 @@ public struct ShortsPlayerView: View {
                 .ignoresSafeArea()
                 .contentShape(Rectangle())
                 .onTapGesture { vm.showControls() }
-                .gesture(
+                .simultaneousGesture(
                     DragGesture(minimumDistance: 40, coordinateSpace: .global)
                         .onEnded { value in
-                            let vertical = value.translation.height
-                            let horizontal = abs(value.translation.width)
-                            // Only trigger for predominantly vertical swipes
-                            guard abs(vertical) > horizontal else { return }
-                            if vertical < -40 {
-                                goTo(currentIndex + 1)
-                            } else if vertical > 40 {
-                                goTo(currentIndex - 1)
+                            if let next = ShortsNavigation.targetIndex(
+                                vertical: Double(value.translation.height),
+                                horizontal: Double(abs(value.translation.width)),
+                                current: currentIndex,
+                                count: videos.count
+                            ) {
+                                goTo(next)
                             }
                         }
                 )

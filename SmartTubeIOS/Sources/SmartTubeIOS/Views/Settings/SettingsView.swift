@@ -56,15 +56,10 @@ public struct SettingsView: View {
     private var playerSection: some View {
         @Bindable var store = store
         return Section("Player") {
-            HStack {
-                Text("Playback Speed")
-                Spacer()
-                Picker("", selection: $store.settings.playbackSpeed) {
-                    ForEach(AppSettings.availableSpeeds, id: \.self) { s in
-                        Text(s == 1.0 ? "Normal" : "\(s, specifier: "%.2g")×").tag(s)
-                    }
+            Picker("Playback Speed", selection: $store.settings.playbackSpeed) {
+                ForEach(AppSettings.availableSpeeds, id: \.self) { s in
+                    Text(s == 1.0 ? "Normal" : "\(s, specifier: "%.2g")×").tag(s)
                 }
-                .pickerStyle(.menu)
             }
 
             Stepper(
@@ -126,7 +121,7 @@ public struct SettingsView: View {
                             Text("Show Toast").tag(AppSettings.SponsorBlockAction.showToast)
                             Text("Nothing").tag(AppSettings.SponsorBlockAction.nothing)
                         }
-                        .pickerStyle(.menu)
+
                     }
                 }
             }

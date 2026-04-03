@@ -34,7 +34,7 @@ public final class PlaybackViewModel {
     public private(set) var hasPrevious: Bool = false
     public private(set) var hasNext: Bool = false
     public var error: Error?
-    public var controlsVisible: Bool = true
+    public var controlsVisible: Bool = false
 
     // MARK: - History
 
