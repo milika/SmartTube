@@ -38,6 +38,8 @@ enum AppSymbol {
     // MARK: - Playback controls
     static let previousTrack = "backward.end.fill"
     static let nextTrack     = "forward.end.fill"
+    static let thumbsUp      = "hand.thumbsup"
+    static let thumbsDown    = "hand.thumbsdown"
 
     // MARK: - Actions
     static let checkmark       = "checkmark"

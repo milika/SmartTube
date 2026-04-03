@@ -22,15 +22,31 @@ public final class SearchViewModel {
     private var searchTask: Task<Void, Never>?
     private var suggestTask: Task<Void, Never>?
 
+    private static let recommendedTerms: [String] = [
+        "trending videos", "music 2025", "cooking recipes", "travel vlog",
+        "programming tutorial", "workout", "movie trailer", "lofi hip hop",
+        "documentary", "gaming highlights"
+    ]
+
     public init(api: InnerTubeAPI = InnerTubeAPI()) {
         self.api = api
+        suggestions = Self.recommendedTerms
     }
 
     /// Call from `.task(id: query)` in the view to debounce live suggestions.
-    /// When `q` is empty, fetches trending/recommended terms so the list is never blank.
+    /// When `q` is empty, restores the recommended terms immediately.
     public func updateSuggestions(for q: String) async {
+        print("[Suggestions] updateSuggestions called, q='\(q)'")
+        if q.isEmpty {
+            print("[Suggestions] Empty query — restoring recommendedTerms")
+            suggestions = Self.recommendedTerms
+            return
+        }
         try? await Task.sleep(for: .milliseconds(300))
-        guard !Task.isCancelled else { return }
+        guard !Task.isCancelled else {
+            print("[Suggestions] Task cancelled before fetch")
+            return
+        }
         fetchSuggestions(for: q)
     }
 
@@ -38,7 +54,6 @@ public final class SearchViewModel {
         guard !query.trimmingCharacters(in: .whitespaces).isEmpty else { return }
         results = []
         nextPageToken = nil
-        suggestions = []
         searchTask?.cancel()
         searchTask = Task { await performSearch(query: query, filter: filter) }
     }
@@ -75,10 +90,22 @@ public final class SearchViewModel {
     }
 
     private func fetchSuggestions(for query: String) {
+        print("[Suggestions] fetchSuggestions spawning task for q='\(query)'")
         suggestTask?.cancel()
         suggestTask = Task {
-            let s = try? await api.fetchSearchSuggestions(query: query)
-            if !Task.isCancelled { suggestions = s ?? [] }
+            do {
+                let s = try await api.fetchSearchSuggestions(query: query)
+                guard !Task.isCancelled else {
+                    print("[Suggestions] Task cancelled after fetch")
+                    return
+                }
+                let result = s.isEmpty ? Self.recommendedTerms : s
+                print("[Suggestions] Setting \(result.count) suggestions")
+                suggestions = result
+            } catch {
+                print("[Suggestions] fetchSearchSuggestions threw: \(error)")
+                if !Task.isCancelled { suggestions = Self.recommendedTerms }
+            }
         }
     }
 }

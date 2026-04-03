@@ -23,16 +23,14 @@ public struct SearchView: View {
                 filterChipsRow
             }
             Group {
-                if !vm.results.isEmpty || (vm.isLoading && !vm.suggestions.isEmpty) {
-                    resultsView
-                } else if !vm.suggestions.isEmpty && vm.results.isEmpty && !vm.isLoading {
+                if isSearchFocused {
                     suggestionsListView
-                } else if vm.results.isEmpty && !vm.isLoading && !vm.query.isEmpty {
-                    noResultsView
-                } else if vm.results.isEmpty && !vm.isLoading && vm.query.isEmpty {
-                    placeholderView
-                } else {
+                } else if vm.isLoading || !vm.results.isEmpty {
                     resultsView
+                } else if !vm.query.isEmpty {
+                    noResultsView
+                } else {
+                    suggestionsListView
                 }
             }
         }
@@ -48,6 +46,9 @@ public struct SearchView: View {
             }
         }
         .task(id: vm.query) { await vm.updateSuggestions(for: vm.query) }
+        .onChange(of: isSearchFocused) { _, focused in
+            if focused { Task { await vm.updateSuggestions(for: vm.query) } }
+        }
     }
 
     // MARK: - Search bar
@@ -64,7 +65,7 @@ public struct SearchView: View {
                 #if os(iOS)
                 .textInputAutocapitalization(.never)
                 #endif
-                .onSubmit { vm.search() }
+                .onSubmit { vm.search(); isSearchFocused = false }
             if !vm.query.isEmpty {
                 Button {
                     vm.query = ""
@@ -150,16 +151,15 @@ public struct SearchView: View {
 
     // MARK: - Suggestions list (recommended or live)
 
-    @ViewBuilder
     private var suggestionsListView: some View {
-        @Bindable var vm = vm
         let header = vm.query.isEmpty ? "Recommended" : "Suggestions"
-        List {
+        return List {
             Section(header: Text(header).font(.caption).foregroundStyle(.secondary)) {
                 ForEach(vm.suggestions, id: \.self) { suggestion in
                     Button {
                         vm.query = suggestion
                         vm.search()
+                        isSearchFocused = false
                     } label: {
                         HStack(spacing: 12) {
                             Image(systemName: AppSymbol.search)

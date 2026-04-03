@@ -16,6 +16,7 @@ public struct PlayerView: View {
     @State private var vm = PlaybackViewModel()
     @Environment(\.dismiss) private var dismiss
     @Environment(SettingsStore.self) private var store
+    @Environment(AuthService.self) private var authService
     @State private var showSpeedPicker = false
     @State private var showQualityPicker = false
     @State private var slideOffset: CGFloat = 0
@@ -112,8 +113,9 @@ public struct PlayerView: View {
                 .padding(.leading, 20)
                 .allowsHitTesting(false)
         }
-        .onAppear  { vm.load(video: video); vm.setPlaybackSpeed(store.settings.playbackSpeed); vm.updateSettings(store.settings) }
+        .onAppear  { vm.load(video: video); vm.setPlaybackSpeed(store.settings.playbackSpeed); vm.updateSettings(store.settings); vm.updateAuthToken(authService.accessToken) }
         .onDisappear { vm.stop() }
+        .onChange(of: authService.accessToken) { _, newToken in vm.updateAuthToken(newToken) }
         .sheet(isPresented: $showSpeedPicker) {
             speedPickerSheet
         }
@@ -197,6 +199,31 @@ public struct PlayerView: View {
                             .clipShape(Capsule())
                     }
                     .disabled(vm.isLoading)
+                }
+                // Like / Dislike buttons (requires sign-in)
+                if authService.isSignedIn {
+                    Button { vm.like() } label: {
+                        Image(systemName: vm.likeStatus == .like
+                              ? "\(AppSymbol.thumbsUp).fill"
+                              : AppSymbol.thumbsUp)
+                            .font(.system(size: 18))
+                            .foregroundStyle(vm.likeStatus == .like ? .yellow : .white)
+                            .padding(8)
+                            .background(.black.opacity(0.4))
+                            .clipShape(Circle())
+                    }
+                    .buttonStyle(.plain)
+                    Button { vm.dislike() } label: {
+                        Image(systemName: vm.likeStatus == .dislike
+                              ? "\(AppSymbol.thumbsDown).fill"
+                              : AppSymbol.thumbsDown)
+                            .font(.system(size: 18))
+                            .foregroundStyle(vm.likeStatus == .dislike ? .yellow : .white)
+                            .padding(8)
+                            .background(.black.opacity(0.4))
+                            .clipShape(Circle())
+                    }
+                    .buttonStyle(.plain)
                 }
             }
             .padding(.horizontal, 20)

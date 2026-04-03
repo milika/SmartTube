@@ -6,6 +6,15 @@ import FoundationNetworking
 
 private let tubeLog = Logger(subsystem: appSubsystem, category: "InnerTube")
 
+// MARK: - LikeStatus
+
+/// The user's current like state for a video.
+public enum LikeStatus: Sendable {
+    case like
+    case dislike
+    case none
+}
+
 // MARK: - InnerTubeAPI
 //
 // Implements a subset of the unofficial YouTube InnerTube API used by
@@ -156,19 +165,37 @@ public actor InnerTubeAPI {
             URLQueryItem(name: "callback", value: ""),
         ]
         guard let url = components.url else { return [] }
-        let (data, _) = try await session.data(from: url)
+        print("[Suggestions] Fetching URL: \(url)")
+        let (data, response) = try await session.data(from: url)
+        let statusCode = (response as? HTTPURLResponse)?.statusCode ?? -1
+        print("[Suggestions] HTTP status: \(statusCode), bytes: \(data.count)")
         // Response format: [query, [[suggestion, 0, []], ...], ...]
-        guard let raw = String(data: data, encoding: .utf8) else { return [] }
-        // Strip callback wrapper
-        let jsonString = raw
-            .trimmingCharacters(in: .whitespaces)
-            .replacingOccurrences(of: "^\\w+\\(", with: "", options: .regularExpression)
-            .replacingOccurrences(of: "\\)$", with: "", options: .regularExpression)
+        guard let raw = String(data: data, encoding: .utf8) else {
+            print("[Suggestions] Failed to decode response as UTF-8")
+            return []
+        }
+        print("[Suggestions] Raw prefix: \(raw.prefix(120))")
+        // Extract the outermost JSON array — works regardless of callback wrapper name
+        guard let arrayStart = raw.firstIndex(of: "["),
+              let arrayEnd = raw.lastIndex(of: "]") else {
+            print("[Suggestions] Could not find JSON array bounds")
+            return []
+        }
+        let jsonString = String(raw[arrayStart...arrayEnd])
+        print("[Suggestions] JSON prefix after strip: \(jsonString.prefix(120))")
         guard let jsonData = jsonString.data(using: .utf8),
-              let json = try? JSONSerialization.jsonObject(with: jsonData) as? [Any],
-              let suggestions = json[safe: 1] as? [[Any]]
-        else { return [] }
-        return suggestions.compactMap { $0[safe: 0] as? String }
+              let json = try? JSONSerialization.jsonObject(with: jsonData) as? [Any]
+        else {
+            print("[Suggestions] JSON parse failed")
+            return []
+        }
+        guard let suggestions = json[safe: 1] as? [[Any]] else {
+            print("[Suggestions] Unexpected JSON shape: \(json.prefix(2))")
+            return []
+        }
+        let results = suggestions.compactMap { $0[safe: 0] as? String }
+        print("[Suggestions] Parsed \(results.count) suggestions: \(results.prefix(5))")
+        return results
     }
 
     // MARK: - Channel
@@ -203,13 +230,47 @@ public actor InnerTubeAPI {
 
     // MARK: - Next (related videos / SuggestionsController equivalent)
 
-    /// Fetches related / suggested videos for a given video ID.
-    /// Mirrors Android's SuggestionsController which calls the `/next` endpoint.
-    public func fetchNextInfo(videoId: String) async throws -> [Video] {
-        var body = makeBody(client: webClientContext)
+    /// Fetches related/suggested videos and the current like status for a video.
+    /// When authenticated, uses TVHTML5 on youtubei.googleapis.com so the Bearer
+    /// token is accepted and the response includes the user's current like state.
+    /// Without auth, falls back to the WEB client (like status will be .none).
+    /// Mirrors Android's SuggestionsController + LikeDislikePresenter.
+    public func fetchNextInfo(videoId: String) async throws -> NextInfo {
+        let isAuth = authToken != nil
+        var body = makeBody(client: isAuth ? tvClientContext : webClientContext)
         body["videoId"] = videoId
-        let data = try await post(endpoint: "next", body: body)
-        return parseRelatedVideos(from: data)
+        let data = isAuth
+            ? try await postTV(endpoint: "next", body: body)
+            : try await post(endpoint: "next", body: body)
+        let videos = parseRelatedVideos(from: data)
+        let status = isAuth ? parseLikeStatus(from: data) : .none
+        return NextInfo(relatedVideos: videos, likeStatus: status)
+    }
+
+    // MARK: - Like / Dislike
+
+    /// Sends a like for the given video (requires authentication).
+    /// Mirrors Android's `LikeDislikePresenter` → `PostVideoAction.LIKE`.
+    public func like(videoId: String) async throws {
+        var body = makeBody(client: tvClientContext)
+        body["target"] = ["videoId": videoId]
+        _ = try await postTV(endpoint: "like/like", body: body)
+    }
+
+    /// Sends a dislike for the given video (requires authentication).
+    /// Mirrors Android's `LikeDislikePresenter` → `PostVideoAction.DISLIKE`.
+    public func dislike(videoId: String) async throws {
+        var body = makeBody(client: tvClientContext)
+        body["target"] = ["videoId": videoId]
+        _ = try await postTV(endpoint: "like/dislike", body: body)
+    }
+
+    /// Removes any existing like or dislike for the given video (requires authentication).
+    /// Mirrors Android's `LikeDislikePresenter` → `PostVideoAction.REMOVE_LIKE`.
+    public func removeLike(videoId: String) async throws {
+        var body = makeBody(client: tvClientContext)
+        body["target"] = ["videoId": videoId]
+        _ = try await postTV(endpoint: "like/removelike", body: body)
     }
 
     // MARK: - Home rows (TYPE_ROW layout)
@@ -277,15 +338,7 @@ public actor InnerTubeAPI {
     }
 
     public func fetchNews() async throws -> VideoGroup {
-        do {
-            var body = makeBody(client: tvClientContext)
-            body["browseId"] = "FEnews"
-            let data = try await postTVCategory(endpoint: "browse", body: body)
-            let group = try parseVideoGroup(from: data, title: "News")
-            if !group.videos.isEmpty { return group }
-        } catch {
-            tubeLog.notice("fetchNews browse failed, falling back to search: \(error, privacy: .public)")
-        }
+        // FEnews is not a valid InnerTube browse ID — use search directly.
         return try await search(query: "news today")
     }
 
@@ -588,6 +641,46 @@ public actor InnerTubeAPI {
     }
 
     // MARK: - Related videos parser (/next endpoint)
+
+    /// Parses the user's current like/dislike state from a `/next` response.
+    ///
+    /// Handles two layouts:
+    /// - WEB client: `videoPrimaryInfoRenderer.likeStatus` → string "LIKE" / "DISLIKE" / "INDIFFERENT"
+    /// - TV/WEB client: `segmentedLikeDislikeButtonRenderer.{like,dislike}Button.toggleButtonRenderer.isToggled`
+    private func parseLikeStatus(from json: [String: Any]) -> LikeStatus {
+        var found: LikeStatus? = nil
+        func walk(_ obj: Any) {
+            guard found == nil else { return }
+            if let dict = obj as? [String: Any] {
+                // Strategy 1: direct likeStatus string (videoPrimaryInfoRenderer on WEB)
+                if let statusStr = dict["likeStatus"] as? String {
+                    switch statusStr {
+                    case "LIKE":    found = .like
+                    case "DISLIKE": found = .dislike
+                    default:        found = .none
+                    }
+                    return
+                }
+                // Strategy 2: segmentedLikeDislikeButtonRenderer (WEB + TV clients)
+                if let seg = dict["segmentedLikeDislikeButtonRenderer"] as? [String: Any] {
+                    let liked = (seg["likeButton"] as? [String: Any])
+                        .flatMap { $0["toggleButtonRenderer"] as? [String: Any] }
+                        .flatMap { $0["isToggled"] as? Bool } ?? false
+                    let disliked = (seg["dislikeButton"] as? [String: Any])
+                        .flatMap { $0["toggleButtonRenderer"] as? [String: Any] }
+                        .flatMap { $0["isToggled"] as? Bool } ?? false
+                    found = liked ? .like : disliked ? .dislike : .none
+                    return
+                }
+                for value in dict.values { walk(value) }
+            } else if let arr = obj as? [Any] {
+                for item in arr { walk(item) }
+            }
+        }
+        walk(json)
+        tubeLog.notice("parseLikeStatus → \(String(describing: found ?? .none), privacy: .public)")
+        return found ?? .none
+    }
 
     /// Parses related / suggested videos from a `/next` response.
     /// Related videos appear as `compactVideoRenderer` in `secondaryResults`.
@@ -1027,6 +1120,14 @@ public actor InnerTubeAPI {
         let digits = text.components(separatedBy: CharacterSet.decimalDigits.inverted).joined()
         return Int(digits)
     }
+}
+
+// MARK: - NextInfo
+
+/// Combined result from the `/next` InnerTube endpoint.
+public struct NextInfo: Sendable {
+    public let relatedVideos: [Video]
+    public let likeStatus: LikeStatus
 }
 
 // MARK: - PlayerInfo

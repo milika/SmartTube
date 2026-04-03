@@ -35,6 +35,7 @@ public final class PlaybackViewModel {
     public private(set) var hasNext: Bool = false
     public var error: Error?
     public var controlsVisible: Bool = false
+    public private(set) var likeStatus: LikeStatus = .none
 
     // MARK: - History
 
@@ -89,6 +90,7 @@ public final class PlaybackViewModel {
         duration = 0
         controlsVisible = false
         controlsTimer?.cancel()
+        likeStatus = .none
 
         // Push the currently playing video onto the history stack before switching
         if let prev = currentVideo {
@@ -125,10 +127,10 @@ public final class PlaybackViewModel {
                 )
             }
 
-            // Related videos — use /next endpoint (mirrors SuggestionsController)
-            let related = try? await api.fetchNextInfo(videoId: video.id)
-            if let related, !related.isEmpty {
-                relatedVideos = related.filter { $0.id != video.id }
+            // Related videos + like status — use /next endpoint (mirrors SuggestionsController)
+            let nextInfo = try? await api.fetchNextInfo(videoId: video.id)
+            if let nextInfo, !nextInfo.relatedVideos.isEmpty {
+                relatedVideos = nextInfo.relatedVideos.filter { $0.id != video.id }
                 hasNext = !relatedVideos.isEmpty
             } else {
                 // Fallback to search if /next returns nothing
@@ -136,6 +138,8 @@ public final class PlaybackViewModel {
                 relatedVideos = searched?.videos.filter { $0.id != video.id }.prefix(InnerTubeClients.maxVideoResults).map { $0 } ?? []
                 hasNext = !relatedVideos.isEmpty
             }
+            // Apply like status returned from the authenticated /next call
+            if let status = nextInfo?.likeStatus { likeStatus = status }
 
             // Restore saved watch position (mirrors VideoStateController)
             let savedState = await VideoStateStore.shared.state(for: video.id)
@@ -207,6 +211,53 @@ public final class PlaybackViewModel {
 
     public func updateSettings(_ newSettings: AppSettings) {
         settings = newSettings
+    }
+
+    // MARK: - Auth
+
+    /// Forwards the current access token to the InnerTubeAPI actor (mirrors BrowseViewModel).
+    public func updateAuthToken(_ token: String?) {
+        Task { await api.setAuthToken(token) }
+    }
+
+    // MARK: - Like / Dislike
+
+    /// Toggles the like state for the current video (optimistic update; rolls back on failure).
+    public func like() {
+        guard let videoId = currentVideo?.id else { return }
+        let prev = likeStatus
+        likeStatus = prev == .like ? .none : .like
+        Task {
+            do {
+                if prev == .like {
+                    try await api.removeLike(videoId: videoId)
+                } else {
+                    try await api.like(videoId: videoId)
+                }
+            } catch {
+                self.likeStatus = prev
+                playerLog.error("like failed: \(String(describing: error), privacy: .public)")
+            }
+        }
+    }
+
+    /// Toggles the dislike state for the current video (optimistic update; rolls back on failure).
+    public func dislike() {
+        guard let videoId = currentVideo?.id else { return }
+        let prev = likeStatus
+        likeStatus = prev == .dislike ? .none : .dislike
+        Task {
+            do {
+                if prev == .dislike {
+                    try await api.removeLike(videoId: videoId)
+                } else {
+                    try await api.dislike(videoId: videoId)
+                }
+            } catch {
+                self.likeStatus = prev
+                playerLog.error("dislike failed: \(String(describing: error), privacy: .public)")
+            }
+        }
     }
 
     /// Switch to a specific quality format. Pass `nil` to return to Auto (HLS / preferred stream).
