@@ -606,6 +606,13 @@ public actor InnerTubeAPI {
             "movingThumbnailRenderer",
         ]
 
+        func dumpJSON(_ obj: Any) -> String {
+            guard let data = try? JSONSerialization.data(withJSONObject: obj, options: [.prettyPrinted, .sortedKeys]),
+                  let str = String(data: data, encoding: .utf8) else { return "<unserializable>" }
+            // Truncate to avoid flooding the log
+            return str.count > 2000 ? String(str.prefix(2000)) + "\n...(truncated)" : str
+        }
+
         func walkShelfContents(_ obj: Any) -> [Video] {
             var videos: [Video] = []
             if let dict = obj as? [String: Any] {
@@ -622,7 +629,7 @@ public actor InnerTubeAPI {
                         if isAd {
                             tubeLog.debug("walkShelfContents: skipping ad richItemRenderer keys=\(contentKeys, privacy: .public)")
                         } else {
-                            tubeLog.notice("walkShelfContents: unrecognised richItemRenderer content keys=\(contentKeys, privacy: .public)")
+                            tubeLog.notice("walkShelfContents: unrecognised richItemRenderer — add key to adRendererKeys if it is an ad\nkeys=\(contentKeys, privacy: .public)\nJSON=\(dumpJSON(content), privacy: .public)")
                             for value in content.values { videos += walkShelfContents(value) }
                         }
                     }
@@ -656,6 +663,22 @@ public actor InnerTubeAPI {
                    let contCmd = contEndpoint["continuationCommand"] as? [String: Any],
                    let ct = contCmd["token"] as? String {
                     continuationToken = ct
+                    return
+                }
+                // Log any richSectionRenderer whose inner content is not a richShelfRenderer
+                // (ads and promos often appear as richSectionRenderer wrapping a non-shelf renderer)
+                if let section = dict["richSectionRenderer"] as? [String: Any],
+                   let content = section["content"] as? [String: Any] {
+                    let contentKeys = content.keys.sorted()
+                    let isAd = contentKeys.contains(where: { adRendererKeys.contains($0) })
+                    if isAd {
+                        tubeLog.debug("walk: skipping ad richSectionRenderer content keys=\(contentKeys, privacy: .public)")
+                    } else if !contentKeys.contains("richShelfRenderer") {
+                        tubeLog.notice("walk: unrecognised richSectionRenderer — add key to adRendererKeys if it is an ad\nkeys=\(contentKeys, privacy: .public)\nJSON=\(dumpJSON(content), privacy: .public)")
+                        for value in dict.values { walk(value) }
+                    } else {
+                        for value in dict.values { walk(value) }
+                    }
                     return
                 }
                 for value in dict.values { walk(value) }
@@ -852,11 +875,11 @@ public actor InnerTubeAPI {
     // MARK: – TVHTML5 tileRenderer parser (Android TileItem methodology)
     // Mirrors: TileItem.getVideoId(), getTitle(), getThumbnails(), getBadgeText(), getChannelId()
     private func parseTileRenderer(_ tile: [String: Any]) -> Video? {
-        // Only parse video tiles (skip channel/playlist tiles) — Android: TILE_CONTENT_TYPE_VIDEO
-        let contentType = tile["contentType"] as? String
-        if let ct = contentType, ct != "TILE_CONTENT_TYPE_VIDEO" { return nil }
+        // Only parse video tiles — require the content type to be explicitly set.
+        // Tiles with nil or non-video contentType (e.g. ads with customData/onFirstVisibleCommand)
+        // are silently dropped. Android: TILE_CONTENT_TYPE_VIDEO
+        guard (tile["contentType"] as? String) == "TILE_CONTENT_TYPE_VIDEO" else { return nil }
 
-        // videoId: Android TileItem.getVideoId() uses onSelectCommand.watchEndpoint.videoId.
         // Newer TVHTML5 history/subs responses sometimes nest it under innertubeCommand, or use
         // navigationEndpoint instead of onSelectCommand — try all three paths so regular history
         // videos are not silently dropped (leaving only reelItemRenderer Shorts visible).
@@ -985,8 +1008,6 @@ public actor InnerTubeAPI {
     // MARK: – WEB videoRenderer parser
     private func parseVideoRenderer(_ r: [String: Any]) -> Video? {
         guard let videoId = r["videoId"] as? String else { return nil }
-
-        // "title" is the WEB key; "headline" is used in some TVHTML5 renderers
         let title = (r["title"] as? [String: Any]).flatMap { extractText($0) }
             ?? (r["headline"] as? [String: Any]).flatMap { extractText($0) }
             ?? ""
