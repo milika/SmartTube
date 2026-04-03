@@ -115,6 +115,25 @@ The early bug where `URLSession.default.httpAdditionalHeaders` leaked WEB client
 - ✅ QR code sign-in screen added (`QRCodeView` using `CoreImage`)
 - ✅ macOS support — UIKit APIs guarded with `#if os(iOS)`, `NSPasteboard` provided
 
+### UI Test suite (complete — 26 tests)
+
+All tests live in `SmartTubeApp/UITests/` and run against the `SmartTubeUITests` target.
+
+| Class | Count | Type | What it covers |
+|-------|-------|------|----------------|
+| `PlaylistsNavigationUITests` | 5 | Navigation (no network) | Library tab → Playlists segment reachable |
+| `ShortsNavigationUITests` | 5 | Navigation (no network) | Home tab → Shorts chip reachable |
+| `ShortsSwipeUITests` | 9 | Stub (`--uitesting-shorts`) | Swipe up/down, boundary clamping, controls-visible swipe |
+| `ShortsLiveSwipeUITests` | 2 | Live (real network) | Open real Short, swipe up/down, boundary |
+| `PlayerLiveSwipeUITests` | 5 | Live (real network) | Open real video, swipe left/right, controls-visible swipe |
+
+**Key patterns:**
+- `SwipeGestureOverlay` is a UIViewRepresentable (`UIPanGestureRecognizer`) — XCUITest delivers swipes via coordinate-based `press(forDuration:thenDragTo:)`, not `swipeUp()`/`swipeLeft()`
+- `shorts.indexLabel` (always-visible badge outside ZStack) is the assertion target for Shorts tests
+- `player.titleLabel` (0.01 opacity overlay outside ZStack) is the assertion target for Player tests
+- `player.nextBtn` (accessibility identifier on next-track button) is used to poll until `hasNext = true` before performing controls-visible swipe tests
+- Live tests use `XCTNSPredicateExpectation` on `video.card.*` descendants with a 20 s timeout; skip with `XCTSkip` if no network
+
 ---
 
 ## Work remaining (open tasks)
@@ -126,6 +145,12 @@ The early bug where `URLSession.default.httpAdditionalHeaders` leaked WEB client
 - ✅ **Quality selection dialog** — format list parsed from PlayerInfo; picker sheet in player controls overlay
 - ✅ **In-player speed control** — speed picker sheet; persisted in `AppSettings.playbackSpeed`
 - ✅ **SponsorBlock per-category actions** — `SponsorBlockAction` enum (skip / showToast / nothing); per-category settings dict in `AppSettings`; `checkSponsorSkip` respects actions; toast tinted with category colour
+- ✅ **Swipe navigation — Shorts** — `ShortsPlayerView` uses a `SwipeGestureOverlay` UIViewRepresentable (`UIPanGestureRecognizer`, `cancelsTouchesInView = true`) so gestures fire above `AVPlayerLayerView`; swipe up → next short, swipe down → previous; works when controls are also visible via `.simultaneousGesture(DragGesture)` on the controls overlay
+- ✅ **Swipe navigation — Player** — `PlayerView` uses the same `SwipeGestureOverlay` pattern for horizontal left/right swipe; left → `vm.playNext()`, right → `vm.playPrevious()`; `.simultaneousGesture(DragGesture)` on controls overlay ensures it works when controls are shown
+- ✅ **AVPlayerLayerView** — both players replaced `VideoPlayer`/`AVPlayerViewController` with a bare `AVPlayerLayer` via `layerClass` override; eliminates UIKit accessibility tree interference that was hiding SwiftUI overlays from XCUITest
+- ✅ **Loading spinner** — `ProgressView(.circular, tint: .white, scaleEffect: 1.5)` shown in both players whenever `vm.isLoading` is true; fades in/out with 0.2 s opacity animation
+- ✅ **Clean video transition** — `PlaybackViewModel.load(video:)` immediately calls `player.pause()`, `player.replaceCurrentItem(with: nil)`, and resets `isPlaying / currentTime / duration / controlsVisible` before starting the async fetch; old frame is never visible during load; spinner shows over black background
+- ✅ **Controls hidden on video start** — `controlsVisible` is reset to `false` and `controlsTimer` is cancelled in `load(video:)` so controls from a previous tap never carry over to the new video
 - 🔲 **Chapters support** — parse from `/next` response; chapter markers on progress bar; title shown during seek
 - 🔲 **Like/Dislike buttons** — `/like` / `/dislike` InnerTube endpoints; buttons in player controls
 

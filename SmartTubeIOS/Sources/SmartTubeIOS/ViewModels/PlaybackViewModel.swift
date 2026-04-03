@@ -87,6 +87,8 @@ public final class PlaybackViewModel {
         isPlaying = false
         currentTime = 0
         duration = 0
+        controlsVisible = false
+        controlsTimer?.cancel()
 
         // Push the currently playing video onto the history stack before switching
         if let prev = currentVideo {
