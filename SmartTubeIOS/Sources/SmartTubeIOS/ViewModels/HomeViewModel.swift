@@ -20,7 +20,9 @@ public final class HomeViewModel {
         public let section: BrowseSection
         public var videos: [Video] = []
         public var isLoading: Bool = true
+        public var isLoadingMore: Bool = false
         public var hasFailed: Bool = false
+        public var nextPageToken: String? = nil
         public var id: String { section.id }
     }
 
@@ -54,23 +56,26 @@ public final class HomeViewModel {
         for i in sections.indices {
             sections[i].videos = []
             sections[i].isLoading = true
+            sections[i].isLoadingMore = false
             sections[i].hasFailed = false
+            sections[i].nextPageToken = nil
         }
         loadTask = Task {
-            await withTaskGroup(of: (String, [Video]).self) { group in
+            await withTaskGroup(of: (String, [Video], String?).self) { group in
                 for state in sections {
                     let sectionId = state.id
                     let type = state.section.type
                     let api = self.api
                     group.addTask {
-                        let videos = await HomeViewModel.fetchVideos(type: type, api: api)
-                        return (sectionId, videos)
+                        let (videos, token) = await HomeViewModel.fetchVideos(type: type, api: api)
+                        return (sectionId, videos, token)
                     }
                 }
-                for await (sectionId, videos) in group {
+                for await (sectionId, videos, token) in group {
                     guard !Task.isCancelled else { break }
                     if let idx = sections.firstIndex(where: { $0.id == sectionId }) {
                         sections[idx].videos = videos
+                        sections[idx].nextPageToken = token
                         sections[idx].isLoading = false
                         sections[idx].hasFailed = videos.isEmpty
                     }
@@ -85,23 +90,68 @@ public final class HomeViewModel {
         load()
     }
 
+    // MARK: - Pagination
+
+    public func loadMore(sectionId: String) {
+        guard let idx = sections.firstIndex(where: { $0.id == sectionId }),
+              let token = sections[idx].nextPageToken,
+              !sections[idx].isLoadingMore,
+              !sections[idx].isLoading else { return }
+        sections[idx].isLoadingMore = true
+        let type = sections[idx].section.type
+        Task {
+            let (newVideos, nextToken) = await HomeViewModel.fetchMoreVideos(type: type, token: token, api: api)
+            if let idx = sections.firstIndex(where: { $0.id == sectionId }) {
+                let existingIds = Set(sections[idx].videos.map(\.id))
+                let deduplicated = newVideos.filter { !existingIds.contains($0.id) }
+                sections[idx].videos.append(contentsOf: deduplicated)
+                sections[idx].nextPageToken = nextToken
+                sections[idx].isLoadingMore = false
+            }
+        }
+    }
+
+    // MARK: - Private fetch helpers
+
     /// Non-isolated so child tasks run on the global executor and network
     /// calls can overlap.
-    private static func fetchVideos(type: BrowseSection.SectionType, api: InnerTubeAPI) async -> [Video] {
+    private static func fetchVideos(type: BrowseSection.SectionType, api: InnerTubeAPI) async -> ([Video], String?) {
         do {
             switch type {
             case .subscriptions:
                 let group = try await api.fetchSubscriptions()
-                return Array(group.videos.prefix(InnerTubeClients.maxVideoResults))
+                return (Array(group.videos.prefix(InnerTubeClients.maxVideoResults)), group.nextPageToken)
             case .home:
                 let rows = try await api.fetchHomeRows()
-                return Array(rows.flatMap(\.videos).prefix(InnerTubeClients.maxVideoResults))
+                let token = rows.last(where: { $0.nextPageToken != nil })?.nextPageToken
+                var seen = Set<String>()
+                let deduped = rows.flatMap(\.videos).filter { seen.insert($0.id).inserted }
+                return (Array(deduped.prefix(InnerTubeClients.maxVideoResults)), token)
             default:
-                return []
+                return ([], nil)
             }
         } catch {
             homeLog.error("HomeViewModel fetch \(String(describing: type)): \(error.localizedDescription, privacy: .public)")
-            return []
+            return ([], nil)
+        }
+    }
+
+    private static func fetchMoreVideos(type: BrowseSection.SectionType, token: String, api: InnerTubeAPI) async -> ([Video], String?) {
+        do {
+            switch type {
+            case .subscriptions:
+                let group = try await api.fetchSubscriptions(continuationToken: token)
+                return (group.videos, group.nextPageToken)
+            case .home:
+                let rows = try await api.fetchHomeRows(continuationToken: token)
+                let nextToken = rows.last(where: { $0.nextPageToken != nil })?.nextPageToken
+                return (rows.flatMap(\.videos), nextToken)
+            default:
+                return ([], nil)
+            }
+        } catch {
+            homeLog.error("HomeViewModel loadMore \(String(describing: type)): \(error.localizedDescription, privacy: .public)")
+            return ([], nil)
         }
     }
 }

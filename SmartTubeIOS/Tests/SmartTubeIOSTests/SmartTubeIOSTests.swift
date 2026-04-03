@@ -241,3 +241,204 @@ struct SubscriptionParsingTests {
         #expect(video.duration == 600)  // 10:00 = 600s
     }
 }
+
+// MARK: - HistoryParsingTests
+// Reproduces the "history shows only shorts" bug:
+// TVHTML5 FEhistory tileRenderers can use either
+//   onSelectCommand.watchEndpoint.videoId  (classic path)
+//   onSelectCommand.innertubeCommand.watchEndpoint.videoId  (newer TV variant)
+//   navigationEndpoint.watchEndpoint.videoId  (another TVHTML5 variant)
+// Previously only the classic path was tried, causing all regular-video tiles
+// to be silently dropped — leaving only reelItemRenderer (Shorts) visible.
+
+@Suite("History Parsing")
+struct HistoryParsingTests {
+
+    // Mock that mirrors the classic TVHTML5 tileRenderer path
+    // (onSelectCommand → watchEndpoint → videoId).
+    @Test func tileRendererClassicPath() async throws {
+        let mockResponse = makeTileResponse(videoId: "classic1", useInnertubeWrapper: false, useNavigation: false)
+        let api = InnerTubeAPI()
+        let group = try await api.parseVideoGroupForTesting(mockResponse, title: "History")
+        #expect(group.videos.count == 1, "Classic onSelectCommand.watchEndpoint path should parse")
+        let video = try #require(group.videos.first)
+        #expect(video.id == "classic1")
+        #expect(!video.isShort)
+    }
+
+    // Mock that mirrors the newer TVHTML5 variant where watchEndpoint is nested
+    // under onSelectCommand → innertubeCommand → watchEndpoint → videoId.
+    @Test func tileRendererInnertubeCommandPath() async throws {
+        let mockResponse = makeTileResponse(videoId: "inner1", useInnertubeWrapper: true, useNavigation: false)
+        let api = InnerTubeAPI()
+        let group = try await api.parseVideoGroupForTesting(mockResponse, title: "History")
+        #expect(group.videos.count == 1, "innertubeCommand-wrapped watchEndpoint path should parse")
+        let video = try #require(group.videos.first)
+        #expect(video.id == "inner1")
+        #expect(!video.isShort)
+    }
+
+    // Mock that mirrors the TVHTML5 variant using navigationEndpoint instead of onSelectCommand.
+    @Test func tileRendererNavigationEndpointPath() async throws {
+        let mockResponse = makeTileResponse(videoId: "nav1", useInnertubeWrapper: false, useNavigation: true)
+        let api = InnerTubeAPI()
+        let group = try await api.parseVideoGroupForTesting(mockResponse, title: "History")
+        #expect(group.videos.count == 1, "navigationEndpoint.watchEndpoint path should parse")
+        let video = try #require(group.videos.first)
+        #expect(video.id == "nav1")
+        #expect(!video.isShort)
+    }
+
+    // Shorts in TVHTML5 history come back as reelItemRenderer — verify they still parse
+    // and are correctly tagged isShort = true.
+    @Test func reelItemRendererParsedAsShort() async throws {
+        let mockResponse: [String: Any] = [
+            "contents": [
+                "reelShelfRenderer": [
+                    "items": [
+                        [
+                            "reelItemRenderer": [
+                                "videoId": "reel1",
+                                "headline": ["simpleText": "My Short"]
+                            ]
+                        ]
+                    ]
+                ]
+            ]
+        ]
+        let api = InnerTubeAPI()
+        let group = try await api.parseVideoGroupForTesting(mockResponse, title: "History")
+        #expect(group.videos.count == 1)
+        let video = try #require(group.videos.first)
+        #expect(video.id == "reel1")
+        #expect(video.isShort)
+    }
+
+    // Mixed response: one regular tileRenderer (via innertubeCommand path) + one reelItemRenderer.
+    // Before the fix history would only return 1 video (the Short); after the fix it returns 2.
+    @Test func mixedHistoryBothRegularAndShort() async throws {
+        let reelItem: [String: Any] = [
+            "reelItemRenderer": [
+                "videoId": "short1",
+                "headline": ["simpleText": "A Short"]
+            ]
+        ]
+        let tileItem: [String: Any] = [
+            "tileRenderer": [
+                "contentType": "TILE_CONTENT_TYPE_VIDEO",
+                "onSelectCommand": [
+                    "innertubeCommand": [
+                        "watchEndpoint": ["videoId": "regular1"]
+                    ]
+                ],
+                "metadata": [
+                    "tileMetadataRenderer": [
+                        "title": ["simpleText": "A Regular Video"]
+                    ]
+                ]
+            ]
+        ]
+        let mockResponse: [String: Any] = [
+            "contents": [
+                "sectionListRenderer": [
+                    "contents": [
+                        ["itemSectionRenderer": ["contents": [tileItem]]],
+                        ["itemSectionRenderer": ["contents": [reelItem]]]
+                    ]
+                ]
+            ]
+        ]
+        let api = InnerTubeAPI()
+        let group = try await api.parseVideoGroupForTesting(mockResponse, title: "History")
+        #expect(group.videos.count == 2, "Both regular tile and Short should appear in history")
+        let ids = Set(group.videos.map { $0.id })
+        #expect(ids.contains("regular1"))
+        #expect(ids.contains("short1"))
+        let regular = group.videos.first { $0.id == "regular1" }
+        let short   = group.videos.first { $0.id == "short1" }
+        #expect(regular?.isShort == false)
+        #expect(short?.isShort == true)
+    }
+
+    // Reproduces the confirmed live-API path: tileRenderer carries videoId in tile.contentId
+    // and onSelectCommand uses commandExecutorCommand (no watchEndpoint anywhere).
+    // Shape confirmed by live fetchHistory log on 2026-04-03.
+    @Test func tileRendererContentIdPath() async throws {
+        let tileRenderer: [String: Any] = [
+            "contentId": "RoLKhzJG3nc",
+            "style": "TILE_STYLE_YTLR_DEFAULT",
+            "onSelectCommand": [
+                "clickTrackingParams": "abc",
+                "commandExecutorCommand": ["commands": []]   // no watchEndpoint
+            ],
+            "metadata": [
+                "tileMetadataRenderer": [
+                    "title": ["simpleText": "Test via contentId"]
+                ]
+            ]
+        ]
+        let mockResponse: [String: Any] = [
+            "contents": [
+                "tvBrowseRenderer": [
+                    "content": [
+                        "tvSurfaceContentRenderer": [
+                            "content": [
+                                "gridRenderer": [
+                                    "items": [["tileRenderer": tileRenderer]]
+                                ]
+                            ]
+                        ]
+                    ]
+                ]
+            ]
+        ]
+        let api = InnerTubeAPI()
+        let group = try await api.parseVideoGroupForTesting(mockResponse, title: "History")
+        #expect(group.videos.count == 1, "tileRenderer.contentId path should parse")
+        let video = try #require(group.videos.first)
+        #expect(video.id == "RoLKhzJG3nc")
+        #expect(!video.isShort)
+    }
+}
+
+// MARK: - Helpers
+
+private func makeTileResponse(
+    videoId: String,
+    useInnertubeWrapper: Bool,
+    useNavigation: Bool
+) -> [String: Any] {
+    let onSelectCommand: [String: Any]
+    if useInnertubeWrapper {
+        onSelectCommand = ["innertubeCommand": ["watchEndpoint": ["videoId": videoId]]]
+    } else if !useNavigation {
+        onSelectCommand = ["watchEndpoint": ["videoId": videoId]]
+    } else {
+        onSelectCommand = [:]
+    }
+
+    var tileRenderer: [String: Any] = [
+        "contentType": "TILE_CONTENT_TYPE_VIDEO",
+        "onSelectCommand": onSelectCommand,
+        "metadata": ["tileMetadataRenderer": ["title": ["simpleText": "Test Video"]]]
+    ]
+    if useNavigation {
+        tileRenderer["navigationEndpoint"] = ["watchEndpoint": ["videoId": videoId]]
+    }
+
+    return [
+        "contents": [
+            "sectionListRenderer": [
+                "contents": [
+                    [
+                        "itemSectionRenderer": [
+                            "contents": [
+                                ["tileRenderer": tileRenderer]
+                            ]
+                        ]
+                    ]
+                ]
+            ]
+        ]
+    ]
+}

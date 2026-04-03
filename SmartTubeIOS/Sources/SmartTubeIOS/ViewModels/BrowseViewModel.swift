@@ -212,15 +212,47 @@ public final class BrowseViewModel {
                 if !Task.isCancelled { videoGroups.append(contentsOf: newRows) }
             case .subscriptions:
                 let group = try await api.fetchSubscriptions(continuationToken: token)
-                if !Task.isCancelled { videoGroups.append(group) }
+                if !Task.isCancelled { mergeIntoFirstGroup(group) }
             case .history:
                 let group = try await api.fetchHistory(continuationToken: token)
-                if !Task.isCancelled { videoGroups.append(group) }
+                if !Task.isCancelled { mergeIntoFirstGroup(group) }
+            case .channels:
+                let group = try await api.fetchSubscriptions(continuationToken: token)
+                if !Task.isCancelled { mergeIntoFirstGroup(group) }
+            case .shorts:
+                let group = try await api.fetchShorts()
+                if !Task.isCancelled { mergeIntoFirstGroup(group) }
+            case .music:
+                let group = try await api.fetchMusic()
+                if !Task.isCancelled { mergeIntoFirstGroup(group) }
+            case .gaming:
+                let group = try await api.fetchGaming()
+                if !Task.isCancelled { mergeIntoFirstGroup(group) }
+            case .news:
+                let group = try await api.fetchNews()
+                if !Task.isCancelled { mergeIntoFirstGroup(group) }
+            case .live:
+                let group = try await api.fetchLive()
+                if !Task.isCancelled { mergeIntoFirstGroup(group) }
+            case .sports:
+                let group = try await api.fetchSports()
+                if !Task.isCancelled { mergeIntoFirstGroup(group) }
             default:
                 break
             }
         } catch {
             if !Task.isCancelled { self.error = error }
+        }
+    }
+
+    /// Appends `group.videos` into `videoGroups[0]` and updates its pagination token.
+    /// Falls back to inserting `group` as a new group if none exist yet.
+    private func mergeIntoFirstGroup(_ group: VideoGroup) {
+        if videoGroups.isEmpty {
+            videoGroups.append(group)
+        } else {
+            videoGroups[0].videos.append(contentsOf: group.videos)
+            videoGroups[0].nextPageToken = group.nextPageToken
         }
     }
 }

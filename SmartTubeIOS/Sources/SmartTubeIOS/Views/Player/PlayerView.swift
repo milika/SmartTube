@@ -246,6 +246,16 @@ public struct PlayerView: View {
 
             // Bottom: progress bar + prev/next
             VStack(spacing: 8) {
+                // Current chapter title — shown whenever chapters are available
+                if let chapter = vm.currentChapter {
+                    Text(chapter.title)
+                        .font(.caption.weight(.medium))
+                        .foregroundStyle(.white.opacity(0.9))
+                        .padding(.horizontal, 20)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .transition(.opacity)
+                        .animation(.easeInOut(duration: 0.2), value: chapter.title)
+                }
                 progressBar
                 HStack {
                     // Previous video button
@@ -341,6 +351,29 @@ public struct PlayerView: View {
         .tint(.red)
         .padding(.horizontal, 20)
         .overlay(sponsorBlockMarkers)
+        .overlay(chapterMarkers)
+    }
+
+    // Chapter tick marks on the progress bar — small white notches at each chapter boundary.
+    // Each tick has a 24×44 pt transparent tap area so the user can tap to jump to it.
+    private var chapterMarkers: some View {
+        GeometryReader { geo in
+            ForEach(vm.chapters) { chapter in
+                let x = geo.size.width * CGFloat(chapter.startTime / max(vm.duration, 1))
+                ZStack {
+                    // Invisible enlarged hit area
+                    Color.clear
+                        .frame(width: 24, height: 44)
+                    // Visible tick
+                    Rectangle()
+                        .fill(Color.white.opacity(0.85))
+                        .frame(width: 2, height: 12)
+                }
+                .contentShape(Rectangle())
+                .onTapGesture { vm.seek(to: chapter.startTime) }
+                .position(x: x, y: geo.size.height / 2)
+            }
+        }
     }
 
     // SponsorBlock segment markers on the progress bar

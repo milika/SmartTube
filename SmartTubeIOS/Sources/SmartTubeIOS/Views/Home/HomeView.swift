@@ -159,6 +159,16 @@ public struct HomeView: View {
                                 .frame(width: 240)
                                 .accessibilityIdentifier("video.card.\(video.id)")
                                 .onTapGesture { selectVideo(video, from: state.videos) }
+                                .onAppear {
+                                    if state.videos.last?.id == video.id {
+                                        homeVM.loadMore(sectionId: state.section.id)
+                                    }
+                                }
+                        }
+                        if state.isLoadingMore {
+                            ProgressView()
+                                .frame(width: 80)
+                                .padding(.trailing, 8)
                         }
                     }
                     .padding(.horizontal)

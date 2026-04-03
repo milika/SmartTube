@@ -58,6 +58,22 @@ public struct Video: Identifiable, Hashable, Codable, Sendable {
     }
 }
 
+// MARK: - Chapter
+
+/// A named time-range bookmark within a video.
+/// Mirrors Android's Chapter data class in YouTubeMediaItem.
+public struct Chapter: Identifiable, Hashable, Sendable {
+    public let id: UUID
+    public let title: String
+    public let startTime: TimeInterval  // seconds from the start
+
+    public init(title: String, startTime: TimeInterval) {
+        self.id = UUID()
+        self.title = title
+        self.startTime = startTime
+    }
+}
+
 // MARK: - Convenience helpers
 
 public extension Video {

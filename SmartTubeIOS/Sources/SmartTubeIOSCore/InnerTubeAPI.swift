@@ -237,14 +237,30 @@ public actor InnerTubeAPI {
     /// Mirrors Android's SuggestionsController + LikeDislikePresenter.
     public func fetchNextInfo(videoId: String) async throws -> NextInfo {
         let isAuth = authToken != nil
-        var body = makeBody(client: isAuth ? tvClientContext : webClientContext)
-        body["videoId"] = videoId
-        let data = isAuth
-            ? try await postTV(endpoint: "next", body: body)
-            : try await post(endpoint: "next", body: body)
-        let videos = parseRelatedVideos(from: data)
-        let status = isAuth ? parseLikeStatus(from: data) : .none
-        return NextInfo(relatedVideos: videos, likeStatus: status)
+        var tvBody = makeBody(client: isAuth ? tvClientContext : webClientContext)
+        tvBody["videoId"] = videoId
+
+        if isAuth {
+            // TV client (/next) returns like status + related but omits
+            // engagementPanels (where chapters live). Make a second sequential
+            // WEB /next call to extract chapters — no auth needed.
+            // (async let cannot be used here: [String:Any] is not Sendable in Swift 6.)
+            var webBody = makeBody(client: webClientContext)
+            webBody["videoId"] = videoId
+            let tvData  = try await postTV(endpoint: "next", body: tvBody)
+            let webData = try await post(endpoint: "next", body: webBody)
+            let videos   = parseRelatedVideos(from: tvData)
+            let status   = parseLikeStatus(from: tvData)
+            let chapters = parseChapters(from: webData)
+            tubeLog.notice("fetchNextInfo (auth) → related=\(videos.count, privacy: .public) chapters=\(chapters.count, privacy: .public)")
+            return NextInfo(relatedVideos: videos, likeStatus: status, chapters: chapters)
+        } else {
+            let data     = try await post(endpoint: "next", body: tvBody)
+            let videos   = parseRelatedVideos(from: data)
+            let chapters = parseChapters(from: data)
+            tubeLog.notice("fetchNextInfo (anon) → related=\(videos.count, privacy: .public) chapters=\(chapters.count, privacy: .public)")
+            return NextInfo(relatedVideos: videos, likeStatus: .none, chapters: chapters)
+        }
     }
 
     // MARK: - Like / Dislike
@@ -583,18 +599,41 @@ public actor InnerTubeAPI {
         var rows: [VideoGroup] = []
         var continuationToken: String? = nil
 
+        // Renderer keys that are known ad/promoted slots — skip silently.
+        let adRendererKeys: Set<String> = [
+            "adSlotRenderer", "adRenderer", "promotedSparklesVideoRenderer",
+            "promotedVideoRenderer", "adBreakServiceRenderer",
+            "movingThumbnailRenderer",
+        ]
+
         func walkShelfContents(_ obj: Any) -> [Video] {
             var videos: [Video] = []
             if let dict = obj as? [String: Any] {
                 if let vr = dict["videoRenderer"] as? [String: Any], let v = parseVideoRenderer(vr) {
                     videos.append(v)
                 } else if let ri = dict["richItemRenderer"] as? [String: Any],
-                          let content = ri["content"] as? [String: Any],
-                          let vr = content["videoRenderer"] as? [String: Any],
-                          let v = parseVideoRenderer(vr) {
-                    videos.append(v)
+                          let content = ri["content"] as? [String: Any] {
+                    if let vr = content["videoRenderer"] as? [String: Any],
+                       let v = parseVideoRenderer(vr) {
+                        videos.append(v)
+                    } else {
+                        let contentKeys = content.keys.sorted()
+                        let isAd = contentKeys.contains(where: { adRendererKeys.contains($0) })
+                        if isAd {
+                            tubeLog.debug("walkShelfContents: skipping ad richItemRenderer keys=\(contentKeys, privacy: .public)")
+                        } else {
+                            tubeLog.notice("walkShelfContents: unrecognised richItemRenderer content keys=\(contentKeys, privacy: .public)")
+                            for value in content.values { videos += walkShelfContents(value) }
+                        }
+                    }
                 } else {
-                    for value in dict.values { videos += walkShelfContents(value) }
+                    let dictKeys = dict.keys.sorted()
+                    let isAd = dictKeys.contains(where: { adRendererKeys.contains($0) })
+                    if isAd {
+                        tubeLog.debug("walkShelfContents: skipping ad renderer keys=\(dictKeys, privacy: .public)")
+                    } else {
+                        for value in dict.values { videos += walkShelfContents(value) }
+                    }
                 }
             } else if let arr = obj as? [Any] {
                 for item in arr { videos += walkShelfContents(item) }
@@ -702,6 +741,48 @@ public actor InnerTubeAPI {
         return Array(videos.prefix(25))
     }
 
+    /// Parses video chapters from a `/next` response.
+    /// Chapters live in `engagementPanels[].engagementPanelSectionListRenderer
+    ///   .content.macroMarkersListRenderer.contents[].macroMarkersListItemRenderer`.
+    /// Each item carries a `title` text object and either
+    ///   - `onTap.watchEndpoint.startTimeSeconds` (Int) — preferred, or
+    ///   - `timeDescription` text object — fallback (parsed via `parseDuration`).
+    private func parseChapters(from json: [String: Any]) -> [Chapter] {
+        var chapters: [Chapter] = []
+        func walk(_ obj: Any) {
+            if let dict = obj as? [String: Any] {
+                if let renderer = dict["macroMarkersListItemRenderer"] as? [String: Any] {
+                    let title = (renderer["title"] as? [String: Any]).flatMap { extractText($0) } ?? ""
+                    // startTimeSeconds arrives as Int, Double, or NSNumber depending on
+                    // how JSONSerialization bridges the JSON number — handle all three.
+                    let startTime: TimeInterval? = {
+                        if let watchEndpoint = (renderer["onTap"] as? [String: Any])
+                            .flatMap({ $0["watchEndpoint"] as? [String: Any] }) {
+                            let raw = watchEndpoint["startTimeSeconds"]
+                            if let n = raw as? Int    { return TimeInterval(n) }
+                            if let n = raw as? Double { return n }
+                            if let n = raw as? NSNumber { return n.doubleValue }
+                            if let s = raw as? String { return TimeInterval(s) }
+                        }
+                        // Fallback: parse the visible time description (e.g. "1:23")
+                        return (renderer["timeDescription"] as? [String: Any])
+                            .flatMap { extractText($0) }
+                            .flatMap { parseDuration($0) }
+                    }()
+                    if let t = startTime {
+                        chapters.append(Chapter(title: title, startTime: t))
+                    }
+                    return
+                }
+                for value in dict.values { walk(value) }
+            } else if let arr = obj as? [Any] {
+                for item in arr { walk(item) }
+            }
+        }
+        walk(json)
+        return chapters.sorted { $0.startTime < $1.startTime }
+    }
+
     private func parseVideoGroup(from json: [String: Any], title: String?) throws -> VideoGroup {
         var videos: [Video] = []
         var nextPageToken: String? = nil
@@ -712,6 +793,17 @@ public actor InnerTubeAPI {
         // Matches Android MediaServiceCore ItemWrapper renderer dispatch order.
         func walk(_ obj: Any) {
             if let dict = obj as? [String: Any] {
+                // TVHTML5 gridRenderer stores its continuation in
+                // gridRenderer.continuations[0].nextContinuationData.continuation.
+                // Check this independently of the renderer dispatch below so we still
+                // recurse into gridRenderer.items to collect the video tiles.
+                if let continuations = dict["continuations"] as? [[String: Any]],
+                   let token = continuations.first
+                       .flatMap({ $0["nextContinuationData"] as? [String: Any] })
+                       .flatMap({ $0["continuation"] as? String }) {
+                    nextPageToken = token
+                }
+
                 if let renderer = dict["tileRenderer"] as? [String: Any] {
                     // TVHTML5 client (subs, history, home) — Android ItemWrapper.tileRenderer
                     if let v = parseTileRenderer(renderer) { videos.append(v) }
@@ -752,7 +844,8 @@ public actor InnerTubeAPI {
         }
 
         walk(json)
-        tubeLog.notice("parseVideoGroup '\(title ?? "nil", privacy: .public)' → \(videos.count, privacy: .public) videos, nextPage=\(nextPageToken != nil ? "yes" : "no", privacy: .public)")
+        let shortsCount = videos.filter { $0.isShort }.count
+        tubeLog.notice("parseVideoGroup '\(title ?? "nil", privacy: .public)' → \(videos.count, privacy: .public) videos (\(videos.count - shortsCount, privacy: .public) regular, \(shortsCount, privacy: .public) shorts), nextPage=\(nextPageToken != nil ? "yes" : "no", privacy: .public)")
         return VideoGroup(title: title, videos: videos, nextPageToken: nextPageToken)
     }
 
@@ -763,10 +856,28 @@ public actor InnerTubeAPI {
         let contentType = tile["contentType"] as? String
         if let ct = contentType, ct != "TILE_CONTENT_TYPE_VIDEO" { return nil }
 
-        // videoId: onSelectCommand.watchEndpoint.videoId — Android: TileItem.getVideoId()
-        guard let onSelect = tile["onSelectCommand"] as? [String: Any],
-              let watchEndpoint = onSelect["watchEndpoint"] as? [String: Any],
-              let videoId = watchEndpoint["videoId"] as? String else { return nil }
+        // videoId: Android TileItem.getVideoId() uses onSelectCommand.watchEndpoint.videoId.
+        // Newer TVHTML5 history/subs responses sometimes nest it under innertubeCommand, or use
+        // navigationEndpoint instead of onSelectCommand — try all three paths so regular history
+        // videos are not silently dropped (leaving only reelItemRenderer Shorts visible).
+        let onSelectCommand = tile["onSelectCommand"] as? [String: Any]
+        let navigationEndpoint = tile["navigationEndpoint"] as? [String: Any]
+        // videoId resolution order (most to least common in TVHTML5 history/subs responses):
+        // 1. onSelectCommand.watchEndpoint.videoId              — classic path
+        // 2. onSelectCommand.innertubeCommand.watchEndpoint.videoId — newer TV variant
+        // 3. navigationEndpoint.watchEndpoint.videoId           — another TV variant
+        // 4. tile.contentId                                     — confirmed by live log: TVHTML5
+        //    history tiles with commandExecutorCommand store the id directly here
+        let watchEndpoint: [String: Any]? = {
+            if let ep = onSelectCommand?["watchEndpoint"] as? [String: Any] { return ep }
+            if let inner = onSelectCommand?["innertubeCommand"] as? [String: Any],
+               let ep = inner["watchEndpoint"] as? [String: Any] { return ep }
+            if let ep = navigationEndpoint?["watchEndpoint"] as? [String: Any] { return ep }
+            return nil
+        }()
+        guard let videoId = watchEndpoint?["videoId"] as? String ?? (tile["contentId"] as? String) else {
+            return nil
+        }
 
         // title: metadata.tileMetadataRenderer.title — Android: TileItem.getTitle()
         let tileMetadata = (tile["metadata"] as? [String: Any])?["tileMetadataRenderer"] as? [String: Any]
@@ -786,8 +897,10 @@ public actor InnerTubeAPI {
             return extractText(text) ?? ""
         }()
 
-        // channelId: onSelectCommand.browseEndpoint.browseId — Android: TileItem.getChannelId()
-        let channelId = (onSelect["browseEndpoint"] as? [String: Any])?["browseId"] as? String
+        // channelId: watchEndpoint.channelId (primary) or onSelectCommand.browseEndpoint.browseId (fallback)
+        // Android: TileItem.getChannelId() → watchEndpoint.channelId
+        let channelId: String? = (watchEndpoint?["channelId"] as? String)
+            ?? (onSelectCommand?["browseEndpoint"] as? [String: Any])?["browseId"] as? String
 
         // thumbnail: header.tileHeaderRenderer.thumbnail.thumbnails — Android: TileItem.getThumbnails()
         let tileHeader = (tile["header"] as? [String: Any])?["tileHeaderRenderer"] as? [String: Any]
@@ -967,8 +1080,20 @@ public actor InnerTubeAPI {
 
         // Stream formats
         let streamingData = json["streamingData"] as? [String: Any]
-        let playabilityStatus = (json["playabilityStatus"] as? [String: Any])?["status"] as? String ?? "unknown"
-        tubeLog.notice("parsePlayerInfo id=\(videoId, privacy: .public) playability=\(playabilityStatus, privacy: .public) hasStreamingData=\(streamingData != nil, privacy: .public)")
+        let playabilityDict  = json["playabilityStatus"] as? [String: Any]
+        let playabilityStatus = playabilityDict?["status"] as? String ?? "unknown"
+        let playabilityReason = playabilityDict?["reason"] as? String
+            ?? (playabilityDict?["errorScreen"] as? [String: Any])
+                .flatMap { ($0["playerErrorMessageRenderer"] as? [String: Any])?["subreason"] as? [String: Any] }
+                .flatMap { extractText($0) }
+        tubeLog.notice("parsePlayerInfo id=\(videoId, privacy: .public) playability=\(playabilityStatus, privacy: .public) reason=\(playabilityReason ?? "nil", privacy: .public) hasStreamingData=\(streamingData != nil, privacy: .public)")
+        // Fail early for definitely-unplayable videos so callers don't waste work on
+        // related/SponsorBlock fetches. Mirrors Android playabilityStatus check.
+        if streamingData == nil, playabilityStatus != "OK" {
+            let reason = playabilityReason ?? "This video is unavailable (\(playabilityStatus))"
+            tubeLog.error("❌ parsePlayerInfo: unplayable — \(reason, privacy: .public)")
+            throw APIError.unavailable(reason)
+        }
         var formats: [VideoFormat] = []
 
         func parseFormats(_ raw: [[String: Any]]) -> [VideoFormat] {
@@ -1009,6 +1134,9 @@ public actor InnerTubeAPI {
             isLive: isLive
         )
 
+        guard hlsURL != nil || !formats.isEmpty else {
+            throw APIError.unavailable("This video is unavailable")
+        }
         return PlayerInfo(video: video, formats: formats, hlsURL: hlsURL, dashURL: dashURL)
     }
 
@@ -1128,6 +1256,7 @@ public actor InnerTubeAPI {
 public struct NextInfo: Sendable {
     public let relatedVideos: [Video]
     public let likeStatus: LikeStatus
+    public let chapters: [Chapter]
 }
 
 // MARK: - PlayerInfo

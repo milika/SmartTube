@@ -31,11 +31,19 @@ public final class PlaybackViewModel {
     /// The segment currently under the playhead whose action is `.showToast` (nil otherwise).
     public private(set) var currentToastSegment: SponsorSegment? = nil
     public private(set) var relatedVideos: [Video] = []
+    public private(set) var chapters: [Chapter] = []
     public private(set) var hasPrevious: Bool = false
     public private(set) var hasNext: Bool = false
     public var error: Error?
     public var controlsVisible: Bool = false
     public private(set) var likeStatus: LikeStatus = .none
+
+    /// The chapter whose start time is closest-but-not-greater-than `currentTime`.
+    /// Nil when no chapters are available or the video hasn't started.
+    public var currentChapter: Chapter? {
+        guard !chapters.isEmpty else { return nil }
+        return chapters.last(where: { $0.startTime <= currentTime })
+    }
 
     // MARK: - History
 
@@ -91,6 +99,7 @@ public final class PlaybackViewModel {
         controlsVisible = false
         controlsTimer?.cancel()
         likeStatus = .none
+        chapters = []
 
         // Push the currently playing video onto the history stack before switching
         if let prev = currentVideo {
@@ -133,13 +142,19 @@ public final class PlaybackViewModel {
                 relatedVideos = nextInfo.relatedVideos.filter { $0.id != video.id }
                 hasNext = !relatedVideos.isEmpty
             } else {
-                // Fallback to search if /next returns nothing
-                let searched = try? await api.search(query: info.video.title)
-                relatedVideos = searched?.videos.filter { $0.id != video.id }.prefix(InnerTubeClients.maxVideoResults).map { $0 } ?? []
-                hasNext = !relatedVideos.isEmpty
+                // Fallback to search if /next returns nothing.
+                // Use video.title (from the original Video parameter) — info.video.title
+                // can be empty for ads/unplayable content where videoDetails is sparse.
+                let fallbackQuery = video.title.isEmpty ? nil : video.title
+                if let query = fallbackQuery {
+                    let searched = try? await api.search(query: query)
+                    relatedVideos = searched?.videos.filter { $0.id != video.id }.prefix(InnerTubeClients.maxVideoResults).map { $0 } ?? []
+                    hasNext = !relatedVideos.isEmpty
+                }
             }
             // Apply like status returned from the authenticated /next call
             if let status = nextInfo?.likeStatus { likeStatus = status }
+            if let ch = nextInfo?.chapters, !ch.isEmpty { chapters = ch }
 
             // Restore saved watch position (mirrors VideoStateController)
             let savedState = await VideoStateStore.shared.state(for: video.id)
@@ -148,9 +163,10 @@ public final class PlaybackViewModel {
                 playerLog.notice("Restoring position \(Int(pos), privacy: .public)s for \(video.id, privacy: .public)")
             }
 
-            // Build player item
+            // Build player item — preferredStreamURL is guaranteed non-nil here because
+            // parsePlayerInfo throws APIError.unavailable when streamingData is absent.
             guard let url = info.preferredStreamURL else {
-                playerLog.error("❌ No stream URL available — formats=\(info.formats.count, privacy: .public) hls=\(info.hlsURL != nil, privacy: .public) dash=\(info.dashURL != nil, privacy: .public)")
+                playerLog.error("❌ No stream URL after successful parse (should not happen)")
                 throw APIError.decodingError("No stream URL")
             }
             playerLog.notice("Starting AVPlayer with: \(url.absoluteString.prefix(120), privacy: .public)")
