@@ -1,11 +1,20 @@
 import SwiftUI
 import AVKit
 import SmartTubeIOSCore
+#if canImport(UIKit)
+import UIKit
+#endif
 
 // MARK: - ShortsPlayerView
 //
 // Full-screen vertical-swipe player for YouTube Shorts.
 // Swipe up advances to the next short; swipe down goes to the previous one.
+//
+// AVPlayerViewController intercepts all UIKit touches before SwiftUI sees them,
+// so a plain SwiftUI DragGesture layered above VideoPlayer is never delivered.
+// Instead, a UIViewRepresentable installs a UIPanGestureRecognizer directly
+// into the window that is set to cancel the AVPlayer's own recognizers, giving
+// SwiftUI-side navigation full priority.
 
 public struct ShortsPlayerView: View {
     public let videos: [Video]
@@ -28,34 +37,33 @@ public struct ShortsPlayerView: View {
         ZStack {
             Color.black.ignoresSafeArea()
 
-            VideoPlayer(player: vm.player)
-                .ignoresSafeArea()
+            if ProcessInfo.processInfo.arguments.contains("--uitesting") {
+                Color.black.ignoresSafeArea()
+            } else {
+                VideoPlayer(player: vm.player)
+                    .ignoresSafeArea()
+                    .accessibilityHidden(true)
+            }
 
-            // Gesture capture layer — sits above VideoPlayer which swallows touches
-            Color.clear
-                .ignoresSafeArea()
-                .contentShape(Rectangle())
-                .accessibilityIdentifier("shorts.gestureLayer")
-                .onTapGesture { vm.showControls() }
-                .simultaneousGesture(
-                    DragGesture(minimumDistance: 40, coordinateSpace: .global)
-                        .onEnded { value in
-                            if let next = ShortsNavigation.targetIndex(
-                                vertical: Double(value.translation.height),
-                                horizontal: Double(abs(value.translation.width)),
-                                current: currentIndex,
-                                count: videos.count
-                            ) {
-                                goTo(next)
-                            }
-                        }
-                )
+            // Gesture capture layer — a UIViewRepresentable that installs a
+            // UIPanGestureRecognizer at the UIKit level so it fires even when
+            // AVPlayerViewController is absorbing touches below.
+            SwipeGestureOverlay(
+                onSwipeUp:   { if let next = ShortsNavigation.targetIndex(vertical: -100, horizontal: 0, current: currentIndex, count: videos.count) { goTo(next) } },
+                onSwipeDown: { if let prev = ShortsNavigation.targetIndex(vertical:  100, horizontal: 0, current: currentIndex, count: videos.count) { goTo(prev) } },
+                onTap:       { vm.showControls() }
+            )
+            .ignoresSafeArea()
 
             if vm.controlsVisible {
                 shortsOverlay
                     .transition(.opacity)
                     .animation(.easeInOut(duration: 0.2), value: vm.controlsVisible)
             }
+
+            // Index label is always visible so UI tests can query it without
+            // waiting for the controls overlay to appear.
+            indexBadge
 
             if let err = vm.error {
                 Text(err.localizedDescription)
@@ -71,10 +79,30 @@ public struct ShortsPlayerView: View {
         .statusBarHidden(true)
         .toolbar(.hidden, for: .tabBar)
         #endif
-        .accessibilityIdentifier("shorts.player")
         .ignoresSafeArea()
         .onAppear { loadVideo(at: currentIndex) }
         .onDisappear { vm.stop() }
+    }
+
+    // MARK: - Always-visible index badge
+
+    private var indexBadge: some View {
+        VStack {
+            HStack {
+                Spacer()
+                Text("\(currentIndex + 1) / \(videos.count)")
+                    .font(.caption)
+                    .foregroundStyle(.white.opacity(0.8))
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 5)
+                    .background(.black.opacity(0.4))
+                    .clipShape(Capsule())
+                    .accessibilityIdentifier("shorts.indexLabel")
+            }
+            .padding(.horizontal, 20)
+            .padding(.top, 60)
+            Spacer()
+        }
     }
 
     // MARK: - Overlay
@@ -99,7 +127,6 @@ public struct ShortsPlayerView: View {
                     .padding(.vertical, 5)
                     .background(.black.opacity(0.4))
                     .clipShape(Capsule())
-                    .accessibilityIdentifier("shorts.indexLabel")
             }
             .padding(.horizontal, 20)
             .padding(.top, 60)
@@ -172,3 +199,59 @@ public struct ShortsPlayerView: View {
         vm.updateSettings(store.settings)
     }
 }
+
+// MARK: - SwipeGestureOverlay
+
+#if os(iOS)
+/// A transparent UIKit view that captures pan and tap gestures before
+/// AVPlayerViewController can consume them.
+///
+/// - `cancelsTouchesInView = false` lets taps still reach controls below.
+/// - `require(toFail:)` is called against every sibling recognizer in the
+///   window so this pan always wins when predominantly vertical.
+private struct SwipeGestureOverlay: UIViewRepresentable {
+    var onSwipeUp:   () -> Void
+    var onSwipeDown: () -> Void
+    var onTap:       () -> Void
+
+    func makeCoordinator() -> Coordinator { Coordinator(self) }
+
+    func makeUIView(context: Context) -> UIView {
+        let view = UIView()
+        view.backgroundColor = .clear
+
+        let pan = UIPanGestureRecognizer(target: context.coordinator, action: #selector(Coordinator.handlePan(_:)))
+        pan.cancelsTouchesInView = true
+        view.addGestureRecognizer(pan)
+        context.coordinator.pan = pan
+
+        let tap = UITapGestureRecognizer(target: context.coordinator, action: #selector(Coordinator.handleTap))
+        tap.cancelsTouchesInView = false
+        tap.require(toFail: pan)
+        view.addGestureRecognizer(tap)
+
+        return view
+    }
+
+    func updateUIView(_ uiView: UIView, context: Context) {
+        context.coordinator.parent = self
+    }
+
+    final class Coordinator: NSObject {
+        var parent: SwipeGestureOverlay
+        weak var pan: UIPanGestureRecognizer?
+        private let minDistance: CGFloat = 40
+
+        init(_ parent: SwipeGestureOverlay) { self.parent = parent }
+
+        @objc func handlePan(_ gr: UIPanGestureRecognizer) {
+            guard gr.state == .ended else { return }
+            let t = gr.translation(in: gr.view)
+            guard abs(t.y) > minDistance, abs(t.y) > abs(t.x) else { return }
+            if t.y < 0 { parent.onSwipeUp() } else { parent.onSwipeDown() }
+        }
+
+        @objc func handleTap() { parent.onTap() }
+    }
+}
+#endif

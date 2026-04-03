@@ -96,6 +96,7 @@ public struct HomeView: View {
         }
         .buttonStyle(.plain)
         .animation(.easeInOut(duration: 0.15), value: selectedSection)
+        .accessibilityAddTraits(isSelected ? [.isSelected] : [])
     }
 
     // MARK: - Content area

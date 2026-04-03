@@ -29,15 +29,14 @@ final class ShortsNavigationUITests: XCTestCase {
 
     // MARK: - Helpers
 
-    /// Scrolls the horizontal chip bar left until the Shorts chip is hittable.
+    /// Scrolls the horizontal chip bar left by performing coordinate-based swipes
+    /// near the top of the screen where the chip bar lives.
     private func scrollToShortsChip() {
-        let chipBar = app.scrollViews["home.chipBar"]
-        guard chipBar.waitForExistence(timeout: 5) else { return }
-        let shortsChip = app.buttons["Shorts"]
-        var attempts = 0
-        while !shortsChip.isHittable && attempts < 5 {
-            chipBar.swipeLeft()
-            attempts += 1
+        // dy ≈ 0.09 places the gesture in the chip bar area (~72pt from the top).
+        let start = app.coordinate(withNormalizedOffset: CGVector(dx: 0.8, dy: 0.09))
+        let end   = app.coordinate(withNormalizedOffset: CGVector(dx: 0.2, dy: 0.09))
+        for _ in 0..<3 {
+            start.press(forDuration: 0.05, thenDragTo: end)
         }
     }
 
@@ -118,5 +117,143 @@ final class ShortsNavigationUITests: XCTestCase {
         // Pause briefly to let the view settle, then assert no crash occurred.
         _ = app.scrollViews.firstMatch.waitForExistence(timeout: 3)
         XCTAssertTrue(app.windows.firstMatch.exists, "App should still be running after navigating to Shorts")
+    }
+}
+
+// MARK: - ShortsSwipeUITests
+//
+// Full-app UI tests that exercise swipe-up / swipe-down gesture navigation
+// inside ShortsPlayerView.
+//
+// Setup: the app is launched with `--uitesting-shorts` which bypasses the full
+// navigation stack and presents ShortsPlayerView directly with three stub shorts
+// (Short One, Short Two, Short Three). No network calls or sign-in required.
+//
+// The index label `shorts.indexLabel` shows "N / 3" and is the primary assertion
+// target: if the swipe registered, the label changes.
+
+final class ShortsSwipeUITests: XCTestCase {
+
+    private var app: XCUIApplication!
+
+    // MARK: - Lifecycle
+
+    override func setUpWithError() throws {
+        continueAfterFailure = false
+        app = XCUIApplication()
+        app.launchArguments += ["--uitesting", "--uitesting-shorts"]
+        app.launch()
+    }
+
+    override func tearDownWithError() throws {
+        app = nil
+    }
+
+    // MARK: - Helpers
+
+    /// Performs initial setup: waits for the shorts player to be on screen.
+    /// Returns the window element used for swipe gestures.
+    private func openControls() -> XCUIElement {
+        // The index label is always visible — wait for it as the ready signal.
+        XCTAssertTrue(indexLabel.waitForExistence(timeout: 5), "Index label should appear on launch")
+        return app.windows.firstMatch
+    }
+
+    private var indexLabel: XCUIElement {
+        app.staticTexts["shorts.indexLabel"].firstMatch
+    }
+
+    private enum SwipeDirection { case up, down }
+
+    private func swipe(_ direction: SwipeDirection, on element: XCUIElement) {
+        switch direction {
+        case .up:   element.swipeUp(velocity: .fast)
+        case .down: element.swipeDown(velocity: .fast)
+        }
+    }
+
+    // MARK: - Tests
+
+    /// Shorts player appears on launch and shows "1 / 3".
+    func testShortsPlayerAppears() {
+        XCTAssertTrue(indexLabel.waitForExistence(timeout: 5), "Index label should be visible on launch")
+        XCTAssertEqual(indexLabel.label, "1 / 3", "Should start at the first short")
+    }
+
+    /// Swipe up advances from short 1 → 2.
+    func testSwipeUpAdvancesToNextShort() {
+        let player = openControls()
+        XCTAssertTrue(indexLabel.waitForExistence(timeout: 3))
+        XCTAssertEqual(indexLabel.label, "1 / 3")
+
+        swipe(.up, on: player)
+
+        XCTAssertTrue(indexLabel.waitForExistence(timeout: 3))
+        XCTAssertEqual(indexLabel.label, "2 / 3", "Swipe up should advance to the next short")
+    }
+
+    /// Swipe up twice reaches the last short (3 / 3).
+    func testSwipeUpTwiceReachesLastShort() {
+        let player = openControls()
+        XCTAssertTrue(indexLabel.waitForExistence(timeout: 3))
+
+        swipe(.up, on: player)
+        _ = indexLabel.waitForExistence(timeout: 3)
+        swipe(.up, on: player)
+        _ = indexLabel.waitForExistence(timeout: 3)
+
+        XCTAssertEqual(indexLabel.label, "3 / 3", "After two swipes up should be on last short")
+    }
+
+    /// Swipe down from short 2 goes back to short 1.
+    func testSwipeDownGoesToPreviousShort() {
+        let player = openControls()
+
+        swipe(.up, on: player)
+        _ = indexLabel.waitForExistence(timeout: 3)
+        XCTAssertEqual(indexLabel.label, "2 / 3")
+
+        swipe(.down, on: player)
+        _ = indexLabel.waitForExistence(timeout: 3)
+        XCTAssertEqual(indexLabel.label, "1 / 3", "Swipe down should go back to the previous short")
+    }
+
+    /// Swipe up at the last short does not overflow past "3 / 3".
+    func testSwipeUpAtLastShortDoesNotOverflow() {
+        let player = openControls()
+
+        swipe(.up, on: player); _ = indexLabel.waitForExistence(timeout: 3)
+        swipe(.up, on: player); _ = indexLabel.waitForExistence(timeout: 3)
+        XCTAssertEqual(indexLabel.label, "3 / 3")
+
+        swipe(.up, on: player)
+        _ = indexLabel.waitForExistence(timeout: 2)
+
+        XCTAssertEqual(indexLabel.label, "3 / 3", "Swipe up at the last short should stay on '3 / 3'")
+    }
+
+    /// Swipe down at the first short does not underflow below "1 / 3".
+    func testSwipeDownAtFirstShortDoesNotUnderflow() {
+        let player = openControls()
+        XCTAssertTrue(indexLabel.waitForExistence(timeout: 3))
+        XCTAssertEqual(indexLabel.label, "1 / 3")
+
+        swipe(.down, on: player)
+        _ = indexLabel.waitForExistence(timeout: 2)
+
+        XCTAssertEqual(indexLabel.label, "1 / 3", "Swipe down at the first short should stay on '1 / 3'")
+    }
+
+    /// Full round-trip: advance to last short then swipe back to first.
+    func testSwipeUpThenDownRoundTrip() {
+        let player = openControls()
+
+        swipe(.up, on: player);   _ = indexLabel.waitForExistence(timeout: 3)
+        swipe(.up, on: player);   _ = indexLabel.waitForExistence(timeout: 3)
+        XCTAssertEqual(indexLabel.label, "3 / 3", "Should reach the last short")
+
+        swipe(.down, on: player); _ = indexLabel.waitForExistence(timeout: 3)
+        swipe(.down, on: player); _ = indexLabel.waitForExistence(timeout: 3)
+        XCTAssertEqual(indexLabel.label, "1 / 3", "Should return to the first short")
     }
 }
