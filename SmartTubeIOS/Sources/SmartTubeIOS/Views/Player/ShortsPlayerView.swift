@@ -70,7 +70,7 @@ public struct ShortsPlayerView: View {
                     if let prev = ShortsNavigation.targetIndex(vertical: 100, horizontal: 0, current: currentIndex, count: videos.count) {
                         performVerticalTransition(direction: 1) { goTo(prev) }
                     } else {
-                        withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) { slideOffset = 0 }
+                        loadMoreAtStart()
                     }
                 },
                 onTap: { vm.showControls() },
@@ -255,7 +255,7 @@ public struct ShortsPlayerView: View {
                             vertical: 100, horizontal: 0,
                             current: currentIndex, count: videos.count
                         ) { performVerticalTransition(direction: 1) { goTo(prev) } }
-                        else { withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) { slideOffset = 0 } }
+                        else { loadMoreAtStart() }
                     }
                 }
         )
@@ -309,6 +309,31 @@ public struct ShortsPlayerView: View {
             let newVideos = group.videos.filter { !existingIDs.contains($0.id) }
             guard !newVideos.isEmpty else { return }
             videos.append(contentsOf: newVideos)
+        }
+    }
+
+    /// Fetches a batch of Shorts, prepends them before the current video, adjusts
+    /// `currentIndex` to keep the current video in place, then animates down into
+    /// the last prepended video — giving the user new content above.
+    private func loadMoreAtStart() {
+        guard !isFetchingMore else {
+            withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) { slideOffset = 0 }
+            return
+        }
+        isFetchingMore = true
+        // Spring back to centre while the fetch is in flight.
+        withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) { slideOffset = 0 }
+        let existingIDs = Set(videos.map(\.id))
+        Task { @MainActor in
+            defer { isFetchingMore = false }
+            guard let group = try? await api.fetchShorts() else { return }
+            let newVideos = group.videos.filter { !existingIDs.contains($0.id) }
+            guard !newVideos.isEmpty else { return }
+            // Prepend the new videos; re-anchor currentIndex so the on-screen
+            // video doesn't change, then animate down to the last prepended video.
+            videos.insert(contentsOf: newVideos, at: 0)
+            currentIndex += newVideos.count
+            performVerticalTransition(direction: 1) { goTo(currentIndex - 1) }
         }
     }
 
