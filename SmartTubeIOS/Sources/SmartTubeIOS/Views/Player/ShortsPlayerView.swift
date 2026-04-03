@@ -188,6 +188,27 @@ public struct ShortsPlayerView: View {
                 .allowsHitTesting(false)
             )
         }
+        // Allow swipe navigation even when the controls overlay is on screen.
+        // .simultaneousGesture fires alongside button taps so controls remain
+        // interactive while vertical swipes still drive Shorts navigation.
+        .simultaneousGesture(
+            DragGesture(minimumDistance: 50, coordinateSpace: .global)
+                .onEnded { value in
+                    let dy = value.translation.height
+                    guard abs(dy) > abs(value.translation.width) else { return }
+                    if dy < 0 {
+                        if let next = ShortsNavigation.targetIndex(
+                            vertical: -100, horizontal: 0,
+                            current: currentIndex, count: videos.count
+                        ) { goTo(next) }
+                    } else {
+                        if let prev = ShortsNavigation.targetIndex(
+                            vertical: 100, horizontal: 0,
+                            current: currentIndex, count: videos.count
+                        ) { goTo(prev) }
+                    }
+                }
+        )
     }
 
     // MARK: - Navigation

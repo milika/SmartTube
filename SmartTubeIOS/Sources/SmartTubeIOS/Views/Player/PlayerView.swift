@@ -1,6 +1,9 @@
 import SwiftUI
-import AVKit
+import AVFoundation
 import SmartTubeIOSCore
+#if canImport(UIKit)
+import UIKit
+#endif
 
 // MARK: - PlayerView
 //
@@ -25,17 +28,23 @@ public struct PlayerView: View {
             ZStack {
                 Color.black.ignoresSafeArea()
 
-                // AVKit video player (handles Picture-in-Picture automatically)
-                VideoPlayer(player: vm.player)
+                // AVPlayerLayerView: bare AVPlayerLayer without AVPlayerViewController.
+                // AVPlayerViewController (VideoPlayer) dominates the UIKit accessibility
+                // tree, making all overlaid SwiftUI elements invisible to XCUITest.
+                // A bare AVPlayerLayer renders video with no accessibility interference.
+                AVPlayerLayerView(player: vm.player)
                     .ignoresSafeArea()
+                    .accessibilityHidden(true)
 
-                // Transparent tap target on top of VideoPlayer.
-                // AVKit's VideoPlayer swallows gesture recognizers placed on it
-                // directly, so we layer a clear view above it to catch taps.
-                Color.clear
-                    .ignoresSafeArea()
-                    .contentShape(Rectangle())
-                    .onTapGesture { vm.showControls() }
+                // Horizontal swipe layer: left → next video, right → previous video.
+                // Uses UIKit-level UIPanGestureRecognizer so it fires above AVPlayerLayer.
+                SwipeGestureOverlay(
+                    onSwipeLeft:  { vm.playNext() },
+                    onSwipeRight: { vm.playPrevious() },
+                    onTap:        { vm.showControls() }
+                )
+                .ignoresSafeArea()
+                .accessibilityHidden(true)
 
                 // Custom overlay controls
                 if vm.controlsVisible {
@@ -59,6 +68,17 @@ public struct PlayerView: View {
         .statusBarHidden(true)
         .toolbar(.hidden, for: .tabBar)
         #endif
+        // Always-visible title badge so XCUITest can read the current video title
+        // without waiting for the controls overlay to be shown.
+        .overlay(alignment: .topLeading) {
+            Text(vm.playerInfo?.video.title ?? video.title)
+                .font(.caption)
+                .foregroundStyle(.white.opacity(0.01))   // visually invisible, accessible
+                .accessibilityIdentifier("player.titleLabel")
+                .padding(.top, 60)
+                .padding(.leading, 20)
+                .allowsHitTesting(false)
+        }
         .onAppear  { vm.load(video: video); vm.setPlaybackSpeed(store.settings.playbackSpeed); vm.updateSettings(store.settings) }
         .onDisappear { vm.stop() }
         .sheet(isPresented: $showSpeedPicker) {
@@ -88,6 +108,7 @@ public struct PlayerView: View {
                         .font(.headline)
                         .foregroundStyle(.white)
                         .lineLimit(1)
+                        .accessibilityIdentifier("player.titleLabel")
                     Text(vm.playerInfo?.video.channelTitle ?? video.channelTitle)
                         .font(.subheadline)
                         .foregroundStyle(.white.opacity(0.8))
@@ -172,6 +193,7 @@ public struct PlayerView: View {
                     }
                     .buttonStyle(.plain)
                     .disabled(!vm.hasNext || vm.isLoading)
+                    .accessibilityIdentifier("player.nextBtn")
                 }
                 .font(.caption)
                 .foregroundStyle(.white.opacity(0.8))
@@ -185,6 +207,17 @@ public struct PlayerView: View {
                 startPoint: .top,
                 endPoint: .bottom
             )
+        )
+        // Allow swipe navigation even when the controls overlay is on screen.
+        // .simultaneousGesture fires alongside button taps so seek/pause controls
+        // remain interactive while horizontal swipes still drive prev/next.
+        .simultaneousGesture(
+            DragGesture(minimumDistance: 50, coordinateSpace: .global)
+                .onEnded { value in
+                    let dx = value.translation.width
+                    guard abs(dx) > abs(value.translation.height) else { return }
+                    if dx < 0 { vm.playNext() } else { vm.playPrevious() }
+                }
         )
     }
 
@@ -361,9 +394,87 @@ public struct PlayerView: View {
     }
 }
 
-// MARK: - RelatedVideosView
+// MARK: - AVPlayerLayerView
 
-/// Embedded within PlayerView on iPad/macOS to show suggestions alongside the player.
+#if os(iOS)
+/// Lightweight UIViewRepresentable wrapping an `AVPlayerLayer` directly.
+/// Unlike `VideoPlayer` / `AVPlayerViewController`, it does not interfere
+/// with the UIKit accessibility tree so SwiftUI overlays remain reachable.
+private struct AVPlayerLayerView: UIViewRepresentable {
+    let player: AVPlayer?
+
+    func makeUIView(context: Context) -> _PlayerUIView {
+        let view = _PlayerUIView()
+        view.backgroundColor = .black
+        view.isAccessibilityElement = false
+        view.accessibilityElementsHidden = true
+        view.playerLayer.player = player
+        view.playerLayer.videoGravity = .resizeAspect
+        return view
+    }
+
+    func updateUIView(_ uiView: _PlayerUIView, context: Context) {
+        uiView.playerLayer.player = player
+    }
+
+    final class _PlayerUIView: UIView {
+        override static var layerClass: AnyClass { AVPlayerLayer.self }
+        var playerLayer: AVPlayerLayer { layer as! AVPlayerLayer }
+    }
+}
+
+// MARK: - SwipeGestureOverlay (horizontal)
+
+/// Transparent UIKit overlay that captures horizontal swipe and tap gestures.
+/// Left swipe → `onSwipeLeft`, right swipe → `onSwipeRight`, tap → `onTap`.
+private struct SwipeGestureOverlay: UIViewRepresentable {
+    var onSwipeLeft:  () -> Void
+    var onSwipeRight: () -> Void
+    var onTap:        () -> Void
+
+    func makeCoordinator() -> Coordinator { Coordinator(self) }
+
+    func makeUIView(context: Context) -> UIView {
+        let view = UIView()
+        view.backgroundColor = .clear
+
+        let pan = UIPanGestureRecognizer(target: context.coordinator,
+                                         action: #selector(Coordinator.handlePan(_:)))
+        pan.cancelsTouchesInView = true
+        view.addGestureRecognizer(pan)
+
+        let tap = UITapGestureRecognizer(target: context.coordinator,
+                                          action: #selector(Coordinator.handleTap))
+        tap.cancelsTouchesInView = false
+        tap.require(toFail: pan)
+        view.addGestureRecognizer(tap)
+
+        return view
+    }
+
+    func updateUIView(_ uiView: UIView, context: Context) {
+        context.coordinator.parent = self
+    }
+
+    final class Coordinator: NSObject {
+        var parent: SwipeGestureOverlay
+        private let minDistance: CGFloat = 40
+
+        init(_ parent: SwipeGestureOverlay) { self.parent = parent }
+
+        @objc func handlePan(_ gr: UIPanGestureRecognizer) {
+            guard gr.state == .ended else { return }
+            let t = gr.translation(in: gr.view)
+            guard abs(t.x) > minDistance, abs(t.x) > abs(t.y) else { return }
+            if t.x < 0 { parent.onSwipeLeft() } else { parent.onSwipeRight() }
+        }
+
+        @objc func handleTap() { parent.onTap() }
+    }
+}
+#endif
+
+// MARK: - RelatedVideosView
 struct RelatedVideosView: View {
     let videos: [Video]
     let onSelect: (Video) -> Void

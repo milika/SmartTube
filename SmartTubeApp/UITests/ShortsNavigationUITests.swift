@@ -256,6 +256,50 @@ final class ShortsSwipeUITests: XCTestCase {
         swipe(.down, on: player); _ = indexLabel.waitForExistence(timeout: 3)
         XCTAssertEqual(indexLabel.label, "1 / 3", "Should return to the first short")
     }
+
+    // MARK: - Controls-visible swipe tests
+    //
+    // These tests verify that swipe navigation still works when the controls
+    // overlay is displayed on screen.  The overlay is revealed by tapping the
+    // player window (which fires SwipeGestureOverlay.onTap → vm.showControls()).
+    // The swipe is then performed immediately while the overlay is visible.
+
+    /// Swipe up advances to the next short even when the controls overlay is shown.
+    func testSwipeUpWorksWhenControlsAreVisible() {
+        let player = openControls()
+        XCTAssertTrue(indexLabel.waitForExistence(timeout: 3))
+        XCTAssertEqual(indexLabel.label, "1 / 3")
+
+        // Tap to reveal the controls overlay (vm.showControls → controlsVisible = true).
+        player.tap()
+
+        // Swipe up immediately while the controls overlay is still on screen.
+        swipe(.up, on: player)
+        _ = indexLabel.waitForExistence(timeout: 3)
+
+        XCTAssertEqual(indexLabel.label, "2 / 3",
+                       "Swipe up should advance to the next short even when controls are visible")
+    }
+
+    /// Swipe down returns to the previous short even when the controls overlay is shown.
+    func testSwipeDownWorksWhenControlsAreVisible() {
+        let player = openControls()
+
+        // Advance to short 2 first (controls not shown).
+        swipe(.up, on: player)
+        _ = indexLabel.waitForExistence(timeout: 3)
+        XCTAssertEqual(indexLabel.label, "2 / 3")
+
+        // Tap to reveal the controls overlay.
+        player.tap()
+
+        // Swipe down while controls are visible.
+        swipe(.down, on: player)
+        _ = indexLabel.waitForExistence(timeout: 3)
+
+        XCTAssertEqual(indexLabel.label, "1 / 3",
+                       "Swipe down should return to the previous short even when controls are visible")
+    }
 }
 
 // MARK: - ShortsLiveSwipeUITests
