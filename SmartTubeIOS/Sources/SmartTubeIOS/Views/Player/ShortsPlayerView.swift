@@ -61,6 +61,15 @@ public struct ShortsPlayerView: View {
             .ignoresSafeArea()
             .accessibilityHidden(true)
 
+            if vm.isLoading {
+                ProgressView()
+                    .progressViewStyle(.circular)
+                    .tint(.white)
+                    .scaleEffect(1.5)
+                    .transition(.opacity)
+                    .animation(.easeInOut(duration: 0.2), value: vm.isLoading)
+            }
+
             if vm.controlsVisible {
                 shortsOverlay
                     .transition(.opacity)

@@ -46,6 +46,16 @@ public struct PlayerView: View {
                 .ignoresSafeArea()
                 .accessibilityHidden(true)
 
+                // Loading spinner
+                if vm.isLoading {
+                    ProgressView()
+                        .progressViewStyle(.circular)
+                        .tint(.white)
+                        .scaleEffect(1.5)
+                        .transition(.opacity)
+                        .animation(.easeInOut(duration: 0.2), value: vm.isLoading)
+                }
+
                 // Custom overlay controls
                 if vm.controlsVisible {
                     controlsOverlay(size: geo.size, safeAreaInsets: geo.safeAreaInsets)

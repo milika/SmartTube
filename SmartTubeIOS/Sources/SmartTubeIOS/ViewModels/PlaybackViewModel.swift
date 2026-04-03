@@ -80,6 +80,14 @@ public final class PlaybackViewModel {
     // MARK: - Load video
 
     public func load(video: Video) {
+        // Stop and clear the current item immediately so the previous frame
+        // is not visible while the next video is loading.
+        player.pause()
+        player.replaceCurrentItem(with: nil)
+        isPlaying = false
+        currentTime = 0
+        duration = 0
+
         // Push the currently playing video onto the history stack before switching
         if let prev = currentVideo {
             history.append(prev)
