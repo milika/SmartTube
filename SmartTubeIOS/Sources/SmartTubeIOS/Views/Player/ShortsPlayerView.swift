@@ -35,6 +35,7 @@ public struct ShortsPlayerView: View {
             Color.clear
                 .ignoresSafeArea()
                 .contentShape(Rectangle())
+                .accessibilityIdentifier("shorts.gestureLayer")
                 .onTapGesture { vm.showControls() }
                 .simultaneousGesture(
                     DragGesture(minimumDistance: 40, coordinateSpace: .global)
@@ -70,6 +71,7 @@ public struct ShortsPlayerView: View {
         .statusBarHidden(true)
         .toolbar(.hidden, for: .tabBar)
         #endif
+        .accessibilityIdentifier("shorts.player")
         .ignoresSafeArea()
         .onAppear { loadVideo(at: currentIndex) }
         .onDisappear { vm.stop() }
@@ -97,6 +99,7 @@ public struct ShortsPlayerView: View {
                     .padding(.vertical, 5)
                     .background(.black.opacity(0.4))
                     .clipShape(Capsule())
+                    .accessibilityIdentifier("shorts.indexLabel")
             }
             .padding(.horizontal, 20)
             .padding(.top, 60)

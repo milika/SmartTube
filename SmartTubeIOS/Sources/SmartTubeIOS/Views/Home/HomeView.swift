@@ -68,6 +68,7 @@ public struct HomeView: View {
             .padding(.horizontal, 16)
             .padding(.vertical, 10)
         }
+        .accessibilityIdentifier("home.chipBar")
     }
 
     private func chipButton(section: BrowseSection) -> some View {
