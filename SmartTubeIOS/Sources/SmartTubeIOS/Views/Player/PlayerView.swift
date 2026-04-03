@@ -18,6 +18,8 @@ public struct PlayerView: View {
     @Environment(SettingsStore.self) private var store
     @State private var showSpeedPicker = false
     @State private var showQualityPicker = false
+    @State private var slideOffset: CGFloat = 0
+    @State private var isTransitioning = false
 
     public init(video: Video) {
         self.video = video
@@ -39,9 +41,28 @@ public struct PlayerView: View {
                 // Horizontal swipe layer: left → next video, right → previous video.
                 // Uses UIKit-level UIPanGestureRecognizer so it fires above AVPlayerLayer.
                 SwipeGestureOverlay(
-                    onSwipeLeft:  { vm.playNext() },
-                    onSwipeRight: { vm.playPrevious() },
-                    onTap:        { vm.showControls() }
+                    onSwipeLeft: {
+                        guard !isTransitioning else { return }
+                        if vm.hasNext { performHorizontalTransition(direction: -1, screenWidth: geo.size.width) { vm.playNext() } }
+                        else { withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) { slideOffset = 0 } }
+                    },
+                    onSwipeRight: {
+                        guard !isTransitioning else { return }
+                        if vm.hasPrevious { performHorizontalTransition(direction: 1, screenWidth: geo.size.width) { vm.playPrevious() } }
+                        else { withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) { slideOffset = 0 } }
+                    },
+                    onTap: { vm.showControls() },
+                    onPanChanged: { dx in
+                        guard !isTransitioning else { return }
+                        if (dx < 0 && vm.hasNext) || (dx > 0 && vm.hasPrevious) {
+                            slideOffset = dx
+                        } else {
+                            slideOffset = dx * 0.15
+                        }
+                    },
+                    onSwipeCancelled: {
+                        withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) { slideOffset = 0 }
+                    }
                 )
                 .ignoresSafeArea()
                 .accessibilityHidden(true)
@@ -72,7 +93,9 @@ public struct PlayerView: View {
                 // SponsorBlock skip toast
                 sponsorSkipToast
             }
+            .offset(x: slideOffset)
         }
+        .background(Color.black.ignoresSafeArea())
         #if os(iOS)
         .navigationBarHidden(true)
         .statusBarHidden(true)
@@ -96,6 +119,28 @@ public struct PlayerView: View {
         }
         .sheet(isPresented: $showQualityPicker) {
             qualityPickerSheet
+        }
+    }
+
+    // MARK: - Slide transition
+
+    /// Animates the current content off-screen in `direction` (-1 = left, +1 = right),
+    /// runs `action` to load the next/previous video, then slides the new content in
+    /// from the opposite side.
+    private func performHorizontalTransition(direction: CGFloat, screenWidth: CGFloat, action: @escaping () -> Void) {
+        isTransitioning = true
+        withAnimation(.easeIn(duration: 0.2)) {
+            slideOffset = direction * screenWidth
+        }
+        Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(220))
+            action()                                        // load new video, clears AVPlayer
+            slideOffset = -direction * screenWidth          // snap to opposite side (off-screen)
+            withAnimation(.easeOut(duration: 0.25)) {
+                slideOffset = 0                             // slide new content in
+            }
+            try? await Task.sleep(for: .milliseconds(270))
+            isTransitioning = false
         }
     }
 
@@ -224,9 +269,16 @@ public struct PlayerView: View {
         .simultaneousGesture(
             DragGesture(minimumDistance: 50, coordinateSpace: .global)
                 .onEnded { value in
+                    guard !isTransitioning else { return }
                     let dx = value.translation.width
                     guard abs(dx) > abs(value.translation.height) else { return }
-                    if dx < 0 { vm.playNext() } else { vm.playPrevious() }
+                    if dx < 0 {
+                        if vm.hasNext { performHorizontalTransition(direction: -1, screenWidth: size.width) { vm.playNext() } }
+                        else { withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) { slideOffset = 0 } }
+                    } else {
+                        if vm.hasPrevious { performHorizontalTransition(direction: 1, screenWidth: size.width) { vm.playPrevious() } }
+                        else { withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) { slideOffset = 0 } }
+                    }
                 }
         )
     }
@@ -438,9 +490,11 @@ private struct AVPlayerLayerView: UIViewRepresentable {
 /// Transparent UIKit overlay that captures horizontal swipe and tap gestures.
 /// Left swipe → `onSwipeLeft`, right swipe → `onSwipeRight`, tap → `onTap`.
 private struct SwipeGestureOverlay: UIViewRepresentable {
-    var onSwipeLeft:  () -> Void
-    var onSwipeRight: () -> Void
-    var onTap:        () -> Void
+    var onSwipeLeft:      () -> Void
+    var onSwipeRight:     () -> Void
+    var onTap:            () -> Void
+    var onPanChanged:     ((CGFloat) -> Void)?
+    var onSwipeCancelled: (() -> Void)?
 
     func makeCoordinator() -> Coordinator { Coordinator(self) }
 
@@ -473,10 +527,21 @@ private struct SwipeGestureOverlay: UIViewRepresentable {
         init(_ parent: SwipeGestureOverlay) { self.parent = parent }
 
         @objc func handlePan(_ gr: UIPanGestureRecognizer) {
-            guard gr.state == .ended else { return }
             let t = gr.translation(in: gr.view)
-            guard abs(t.x) > minDistance, abs(t.x) > abs(t.y) else { return }
-            if t.x < 0 { parent.onSwipeLeft() } else { parent.onSwipeRight() }
+            switch gr.state {
+            case .changed:
+                parent.onPanChanged?(t.x)
+            case .ended:
+                guard abs(t.x) > minDistance, abs(t.x) > abs(t.y) else {
+                    parent.onSwipeCancelled?()
+                    return
+                }
+                if t.x < 0 { parent.onSwipeLeft() } else { parent.onSwipeRight() }
+            case .cancelled, .failed:
+                parent.onSwipeCancelled?()
+            default:
+                break
+            }
         }
 
         @objc func handleTap() { parent.onTap() }
