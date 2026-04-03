@@ -8,6 +8,7 @@ import SmartTubeIOSCore
 
 public struct SearchView: View {
     @Environment(SearchViewModel.self) private var vm
+    @Environment(SettingsStore.self) private var store
     @State private var selectedVideo: Video?
     @State private var showFilterSheet = false
     @FocusState private var isSearchFocused: Bool
@@ -127,7 +128,7 @@ public struct SearchView: View {
                     ProgressView().padding()
                 }
                 ForEach(vm.results) { video in
-                    VideoCardView(video: video, compact: true)
+                    VideoCardView(video: video, compact: store.settings.compactThumbnails)
                         .padding(.horizontal)
                         .padding(.vertical, 6)
                         .onTapGesture { selectedVideo = video }

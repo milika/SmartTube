@@ -10,6 +10,7 @@ import SmartTubeIOSCore
 public struct LibraryView: View {
     @Environment(AuthService.self) private var auth
     @Environment(BrowseViewModel.self) private var browseVM
+    @Environment(SettingsStore.self) private var store
     @State private var selectedSection: LibrarySection = .subscriptions
     @State private var selectedVideo: Video?
     @State private var selectedPlaylist: Video?
@@ -70,22 +71,42 @@ public struct LibraryView: View {
                     emptyLibraryView
                 } else {
                     ScrollView {
-                        LazyVStack(spacing: 0) {
-                            ForEach(videos) { video in
-                                VideoCardView(video: video, compact: true)
-                                    .padding(.horizontal)
-                                    .padding(.vertical, 6)
-                                    .onTapGesture {
-                                        if video.playlistId == video.id {
-                                            selectedPlaylist = video
-                                        } else {
-                                            selectedVideo = video
+                        if store.settings.compactThumbnails {
+                            LazyVStack(spacing: 0) {
+                                ForEach(videos) { video in
+                                    VideoCardView(video: video, compact: true)
+                                        .padding(.horizontal)
+                                        .padding(.vertical, 6)
+                                        .onTapGesture {
+                                            if video.playlistId == video.id {
+                                                selectedPlaylist = video
+                                            } else {
+                                                selectedVideo = video
+                                            }
                                         }
-                                    }
-                                Divider().padding(.horizontal)
+                                    Divider().padding(.horizontal)
+                                }
+                                if browseVM.isLoading {
+                                    ProgressView().padding()
+                                }
                             }
+                        } else {
+                            LazyVGrid(columns: videoGridColumns, spacing: 12) {
+                                ForEach(videos) { video in
+                                    VideoCardView(video: video, compact: false)
+                                        .onTapGesture {
+                                            if video.playlistId == video.id {
+                                                selectedPlaylist = video
+                                            } else {
+                                                selectedVideo = video
+                                            }
+                                        }
+                                }
+                            }
+                            .padding(.horizontal)
+                            .padding(.vertical, 8)
                             if browseVM.isLoading {
-                                ProgressView().padding()
+                                ProgressView().frame(maxWidth: .infinity).padding()
                             }
                         }
                     }

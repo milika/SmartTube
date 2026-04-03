@@ -19,6 +19,7 @@ public struct ChannelView: View {
     @State private var selectedVideo: Video?
     @State private var shortsPresentation: ShortsPresentation?
     @State private var filter: ChannelFilter = .all
+    @Environment(SettingsStore.self) private var store
 
     public init(channelId: String) {
         self.channelId = channelId
@@ -94,16 +95,34 @@ public struct ChannelView: View {
     // MARK: - Grid layouts
 
     private func videosGrid(_ videos: [Video]) -> some View {
-        LazyVGrid(columns: videoGridColumns, spacing: 12) {
-            ForEach(videos) { video in
-                VideoCardView(video: video)
-                    .onTapGesture { selectedVideo = video }
-                    .onAppear {
-                        if video.id == vm.videos.last?.id { vm.loadMore() }
+        let compact = store.settings.compactThumbnails
+        return Group {
+            if compact {
+                LazyVStack(spacing: 0) {
+                    ForEach(videos) { video in
+                        VideoCardView(video: video, compact: true)
+                            .padding(.horizontal)
+                            .padding(.vertical, 6)
+                            .onTapGesture { selectedVideo = video }
+                            .onAppear {
+                                if video.id == vm.videos.last?.id { vm.loadMore() }
+                            }
+                        Divider().padding(.horizontal)
                     }
+                }
+            } else {
+                LazyVGrid(columns: videoGridColumns, spacing: 12) {
+                    ForEach(videos) { video in
+                        VideoCardView(video: video, compact: false)
+                            .onTapGesture { selectedVideo = video }
+                            .onAppear {
+                                if video.id == vm.videos.last?.id { vm.loadMore() }
+                            }
+                    }
+                }
+                .padding()
             }
         }
-        .padding()
     }
 
     private func shortsGrid(_ videos: [Video]) -> some View {

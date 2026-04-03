@@ -15,7 +15,8 @@ struct ShortsPresentation: Identifiable {
 // MARK: - Shared layout constants
 
 /// Adaptive grid columns used for video grids across Browse and Channel views.
-let videoGridColumns = [GridItem(.adaptive(minimum: 300, maximum: 400), spacing: 12)]
+/// Sized to produce ~2 columns on iPhone and more on larger screens.
+let videoGridColumns = [GridItem(.adaptive(minimum: 160, maximum: 200), spacing: 12)]
 
 // MARK: - AppSymbol
 //

@@ -11,6 +11,7 @@ public struct PlaylistView: View {
     public let playlistTitle: String
 
     @Environment(AuthService.self) private var auth
+    @Environment(SettingsStore.self) private var store
     @State private var vm = PlaylistViewModel()
     @State private var selectedVideo: Video?
 
@@ -50,14 +51,28 @@ public struct PlaylistView: View {
 
     private var content: some View {
         ScrollView {
-            LazyVStack(spacing: 0) {
-                ForEach(vm.videos) { video in
-                    VideoCardView(video: video, compact: true)
-                        .padding(.horizontal)
-                        .padding(.vertical, 6)
-                        .onTapGesture { selectedVideo = video }
-                    Divider().padding(.horizontal)
+            if store.settings.compactThumbnails {
+                LazyVStack(spacing: 0) {
+                    ForEach(vm.videos) { video in
+                        VideoCardView(video: video, compact: true)
+                            .padding(.horizontal)
+                            .padding(.vertical, 6)
+                            .onTapGesture { selectedVideo = video }
+                        Divider().padding(.horizontal)
+                    }
+                    if vm.isLoading {
+                        ProgressView().frame(maxWidth: .infinity).padding()
+                    }
                 }
+            } else {
+                LazyVGrid(columns: videoGridColumns, spacing: 12) {
+                    ForEach(vm.videos) { video in
+                        VideoCardView(video: video, compact: false)
+                            .onTapGesture { selectedVideo = video }
+                    }
+                }
+                .padding(.horizontal)
+                .padding(.vertical, 8)
                 if vm.isLoading {
                     ProgressView().frame(maxWidth: .infinity).padding()
                 }

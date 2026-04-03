@@ -165,19 +165,38 @@ struct VideoGridSection: View {
     let onSelect: (Video) -> Void
     var loadMore: (() -> Void)? = nil
 
+    @Environment(SettingsStore.self) private var store
+
     var body: some View {
-        LazyVGrid(columns: videoGridColumns, spacing: 12) {
-            ForEach(videos) { video in
-                VideoCardView(video: video)
-                    .accessibilityIdentifier("video.card.\(video.id)")
-                    .onTapGesture { onSelect(video) }
-                    .onAppear {
-                        if video.id == videos.last?.id { loadMore?() }
-                    }
+        let compact = store.settings.compactThumbnails
+        if compact {
+            LazyVStack(spacing: 0) {
+                ForEach(videos) { video in
+                    VideoCardView(video: video, compact: true)
+                        .padding(.horizontal)
+                        .padding(.vertical, 6)
+                        .accessibilityIdentifier("video.card.\(video.id)")
+                        .onTapGesture { onSelect(video) }
+                        .onAppear {
+                            if video.id == videos.last?.id { loadMore?() }
+                        }
+                    Divider().padding(.horizontal)
+                }
             }
+        } else {
+            LazyVGrid(columns: videoGridColumns, spacing: 12) {
+                ForEach(videos) { video in
+                    VideoCardView(video: video, compact: false)
+                        .accessibilityIdentifier("video.card.\(video.id)")
+                        .onTapGesture { onSelect(video) }
+                        .onAppear {
+                            if video.id == videos.last?.id { loadMore?() }
+                        }
+                }
+            }
+            .padding(.horizontal)
+            .padding(.vertical, 8)
         }
-        .padding(.horizontal)
-        .padding(.vertical, 8)
     }
 }
 
