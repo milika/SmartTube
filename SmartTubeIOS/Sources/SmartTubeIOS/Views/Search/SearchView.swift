@@ -23,10 +23,14 @@ public struct SearchView: View {
                 filterChipsRow
             }
             Group {
-                if vm.results.isEmpty && !vm.isLoading && vm.query.isEmpty {
-                    placeholderView
+                if !vm.results.isEmpty || (vm.isLoading && !vm.suggestions.isEmpty) {
+                    resultsView
+                } else if !vm.suggestions.isEmpty && vm.results.isEmpty && !vm.isLoading {
+                    suggestionsListView
                 } else if vm.results.isEmpty && !vm.isLoading && !vm.query.isEmpty {
                     noResultsView
+                } else if vm.results.isEmpty && !vm.isLoading && vm.query.isEmpty {
+                    placeholderView
                 } else {
                     resultsView
                 }
@@ -142,6 +146,43 @@ public struct SearchView: View {
                 }
             }
         }
+    }
+
+    // MARK: - Suggestions list (recommended or live)
+
+    @ViewBuilder
+    private var suggestionsListView: some View {
+        @Bindable var vm = vm
+        let header = vm.query.isEmpty ? "Recommended" : "Suggestions"
+        List {
+            Section(header: Text(header).font(.caption).foregroundStyle(.secondary)) {
+                ForEach(vm.suggestions, id: \.self) { suggestion in
+                    Button {
+                        vm.query = suggestion
+                        vm.search()
+                    } label: {
+                        HStack(spacing: 12) {
+                            Image(systemName: AppSymbol.search)
+                                .foregroundStyle(.secondary)
+                                .frame(width: 20)
+                            Text(suggestion)
+                                .foregroundStyle(.primary)
+                            Spacer()
+                            Button {
+                                vm.query = suggestion
+                            } label: {
+                                Image(systemName: "arrow.up.left")
+                                    .foregroundStyle(.secondary)
+                                    .font(.caption)
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+        }
+        .listStyle(.plain)
     }
 
     private var placeholderView: some View {

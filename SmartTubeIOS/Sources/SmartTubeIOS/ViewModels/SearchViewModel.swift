@@ -27,14 +27,11 @@ public final class SearchViewModel {
     }
 
     /// Call from `.task(id: query)` in the view to debounce live suggestions.
+    /// When `q` is empty, fetches trending/recommended terms so the list is never blank.
     public func updateSuggestions(for q: String) async {
         try? await Task.sleep(for: .milliseconds(300))
         guard !Task.isCancelled else { return }
-        if q.isEmpty {
-            suggestions = []
-        } else {
-            fetchSuggestions(for: q)
-        }
+        fetchSuggestions(for: q)
     }
 
     public func search() {
