@@ -1,5 +1,5 @@
 import SwiftUI
-import AVKit
+import AVFoundation
 import SmartTubeIOSCore
 #if canImport(UIKit)
 import UIKit
@@ -40,7 +40,12 @@ public struct ShortsPlayerView: View {
             if ProcessInfo.processInfo.arguments.contains("--uitesting") {
                 Color.black.ignoresSafeArea()
             } else {
-                VideoPlayer(player: vm.player)
+                // AVPlayerLayerView instead of VideoPlayer/AVPlayerViewController.
+                // Using AVPlayerViewController (VideoPlayer) causes it to dominate
+                // the entire UIKit accessibility tree, hiding all overlaid SwiftUI
+                // elements (index badge, controls). A bare AVPlayerLayer renders
+                // video without any UIKit accessibility interference.
+                AVPlayerLayerView(player: vm.player)
                     .ignoresSafeArea()
                     .accessibilityHidden(true)
             }
@@ -54,16 +59,13 @@ public struct ShortsPlayerView: View {
                 onTap:       { vm.showControls() }
             )
             .ignoresSafeArea()
+            .accessibilityHidden(true)
 
             if vm.controlsVisible {
                 shortsOverlay
                     .transition(.opacity)
                     .animation(.easeInOut(duration: 0.2), value: vm.controlsVisible)
             }
-
-            // Index label is always visible so UI tests can query it without
-            // waiting for the controls overlay to appear.
-            indexBadge
 
             if let err = vm.error {
                 Text(err.localizedDescription)
@@ -73,6 +75,12 @@ public struct ShortsPlayerView: View {
                     .background(.black.opacity(0.6))
                     .clipShape(RoundedRectangle(cornerRadius: 8))
             }
+        }
+        // indexBadge is placed OUTSIDE the ZStack as an overlay so it lives at
+        // the top-level SwiftUI view layer, away from UIViewRepresentable elements
+        // inside the ZStack that can absorb the accessibility tree in fullScreenCover.
+        .overlay(alignment: .topTrailing) {
+            indexBadge
         }
         #if os(iOS)
         .navigationBarHidden(true)
@@ -85,24 +93,21 @@ public struct ShortsPlayerView: View {
     }
 
     // MARK: - Always-visible index badge
+    //
+    // Rendered outside the ZStack (as an .overlay on the body) so UIViewRepresentable
+    // elements inside the ZStack cannot absorb it from the accessibility tree.
 
     private var indexBadge: some View {
-        VStack {
-            HStack {
-                Spacer()
-                Text("\(currentIndex + 1) / \(videos.count)")
-                    .font(.caption)
-                    .foregroundStyle(.white.opacity(0.8))
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 5)
-                    .background(.black.opacity(0.4))
-                    .clipShape(Capsule())
-                    .accessibilityIdentifier("shorts.indexLabel")
-            }
-            .padding(.horizontal, 20)
+        Text("\(currentIndex + 1) / \(videos.count)")
+            .font(.caption)
+            .foregroundStyle(.white.opacity(0.8))
+            .padding(.horizontal, 10)
+            .padding(.vertical, 5)
+            .background(.black.opacity(0.4))
+            .clipShape(Capsule())
+            .accessibilityIdentifier("shorts.indexLabel")
             .padding(.top, 60)
-            Spacer()
-        }
+            .padding(.trailing, 20)
     }
 
     // MARK: - Overlay
@@ -199,6 +204,38 @@ public struct ShortsPlayerView: View {
         vm.updateSettings(store.settings)
     }
 }
+
+// MARK: - AVPlayerLayerView
+
+#if os(iOS)
+/// A lightweight UIView that hosts an `AVPlayerLayer` directly — no
+/// `AVPlayerViewController` involved.  This keeps the UIKit accessibility
+/// tree completely clean so SwiftUI overlays (index badge, controls) remain
+/// visible to XCUITest.
+private struct AVPlayerLayerView: UIViewRepresentable {
+    let player: AVPlayer?
+
+    func makeUIView(context: Context) -> _AVLayerUIView {
+        let view = _AVLayerUIView()
+        view.isAccessibilityElement = false
+        view.accessibilityElementsHidden = true
+        view.backgroundColor = .black
+        view.playerLayer.player = player
+        view.playerLayer.videoGravity = .resizeAspectFill
+        return view
+    }
+
+    func updateUIView(_ uiView: _AVLayerUIView, context: Context) {
+        uiView.playerLayer.player = player
+    }
+
+    /// UIView subclass that exposes `AVPlayerLayer` as its backing layer.
+    final class _AVLayerUIView: UIView {
+        override static var layerClass: AnyClass { AVPlayerLayer.self }
+        var playerLayer: AVPlayerLayer { layer as! AVPlayerLayer }
+    }
+}
+#endif
 
 // MARK: - SwipeGestureOverlay
 

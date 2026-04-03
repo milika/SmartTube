@@ -20,6 +20,7 @@ public struct HomeView: View {
     // "Home" is always first; its type is .home.
     @State private var selectedSection: BrowseSection = BrowseSection.allSections[0]
     @State private var selectedVideo: Video?
+    @State private var shortsPresentation: ShortsPresentation?
     @State private var showSignIn = false
 
     private var visibleSections: [BrowseSection] {
@@ -44,6 +45,9 @@ public struct HomeView: View {
         #if os(iOS)
         .toolbar(.hidden, for: .navigationBar)
         #endif
+        .fullScreenCover(item: $shortsPresentation) { target in
+            ShortsPlayerView(videos: target.videos, startIndex: target.startIndex)
+        }
         .sheet(isPresented: $showSignIn) { SignInView() }
         .onChange(of: visibleSections) { _, newSections in
             if !newSections.contains(selectedSection), let first = newSections.first {
@@ -153,7 +157,8 @@ public struct HomeView: View {
                         ForEach(state.videos) { video in
                             VideoCardView(video: video)
                                 .frame(width: 240)
-                                .onTapGesture { selectedVideo = video }
+                                .accessibilityIdentifier("video.card.\(video.id)")
+                                .onTapGesture { selectVideo(video, from: state.videos) }
                         }
                     }
                     .padding(.horizontal)
@@ -213,11 +218,11 @@ public struct HomeView: View {
                             .padding(.bottom, 4)
                     }
                     if group.layout == .row {
-                        VideoRowSection(videos: group.videos, onSelect: { selectedVideo = $0 })
+                        VideoRowSection(videos: group.videos, onSelect: { selectVideo($0, from: group.videos) })
                     } else {
                         VideoGridSection(
                             videos: group.videos,
-                            onSelect: { selectedVideo = $0 },
+                            onSelect: { selectVideo($0, from: group.videos) },
                             loadMore: {
                                 if let last = group.videos.last {
                                     sectionVM.loadMoreIfNeeded(lastVideo: last)
@@ -257,5 +262,17 @@ public struct HomeView: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    // MARK: - Video selection
+
+    private func selectVideo(_ video: Video, from groupVideos: [Video]) {
+        if video.isShort {
+            let shorts = groupVideos.filter { $0.isShort }
+            let idx = shorts.firstIndex(where: { $0.id == video.id }) ?? 0
+            shortsPresentation = ShortsPresentation(videos: shorts, startIndex: idx)
+        } else {
+            selectedVideo = video
+        }
     }
 }

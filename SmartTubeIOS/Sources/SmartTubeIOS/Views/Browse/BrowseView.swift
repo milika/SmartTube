@@ -169,6 +169,7 @@ struct VideoGridSection: View {
         LazyVGrid(columns: videoGridColumns, spacing: 12) {
             ForEach(videos) { video in
                 VideoCardView(video: video)
+                    .accessibilityIdentifier("video.card.\(video.id)")
                     .onTapGesture { onSelect(video) }
                     .onAppear {
                         if video.id == videos.last?.id { loadMore?() }
@@ -193,6 +194,7 @@ struct VideoRowSection: View {
                 ForEach(videos) { video in
                     VideoCardView(video: video, compact: false)
                         .frame(width: 220)
+                        .accessibilityIdentifier("video.card.\(video.id)")
                         .onTapGesture { onSelect(video) }
                 }
             }
