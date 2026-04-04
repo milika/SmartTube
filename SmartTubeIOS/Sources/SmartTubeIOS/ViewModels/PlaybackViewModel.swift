@@ -144,11 +144,19 @@ public final class PlaybackViewModel {
             playerLog.notice("preferredStreamURL=\(prefURL?.absoluteString.prefix(120) ?? "nil", privacy: .public)")
 
             // SponsorBlock
-            if settings.sponsorBlockEnabled {
-                sponsorSegments = await sponsorBlock.fetchSegments(
+            let channelIsExcluded = video.channelId.map {
+                settings.sponsorBlockExcludedChannels.keys.contains($0)
+            } ?? false
+            if settings.sponsorBlockEnabled, !channelIsExcluded {
+                var segments = await sponsorBlock.fetchSegments(
                     videoId: video.id,
                     categories: settings.activeSponsorCategories
                 )
+                let minDur = settings.sponsorBlockMinSegmentDuration
+                if minDur > 0 {
+                    segments = segments.filter { ($0.end - $0.start) >= minDur }
+                }
+                sponsorSegments = segments
             }
 
             // Related videos + like status — use /next endpoint (mirrors SuggestionsController)

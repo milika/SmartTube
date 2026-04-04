@@ -137,11 +137,11 @@ Added a `.contextMenu` modifier wrapping both `gridLayout` and `compactLayout` v
 
 ---
 
-## Phase 2 — Missing Browse Sections
+## Phase 2 — Missing Browse Sections ✅ COMPLETE
 
 > Add browse sections that were absent from the initial release.
 
-### 2.1 Add missing browse sections
+### 2.1 Add missing browse sections ✅
 Add support for additional feed sections:
 
 | Section | Browse ID / Method | Layout |
@@ -163,7 +163,7 @@ Add support for additional feed sections:
 
 **Files:** `InnerTubeAPI.swift`, `VideoGroup.swift` (BrowseSection), `BrowseViewModel.swift`, `BrowseView.swift`
 
-### 2.2 Configurable sections (sidebar toggle)
+### 2.2 Configurable sections (sidebar toggle) ✅
 **Android:** `SidebarService` allows enabling/disabling and reordering sections.
 
 **Implementation:**
@@ -175,9 +175,9 @@ Add support for additional feed sections:
 
 ---
 
-## Phase 3 — Playback Enhancements
+## Phase 3 — Playback Enhancements ✅ COMPLETE
 
-### 3.1 Quality selection dialog
+### 3.1 Quality selection dialog ✅
 **Android:** `HQDialogController` shows available formats and lets user pick quality.
 
 **Implementation:**
@@ -188,7 +188,7 @@ Add support for additional feed sections:
 
 **Files:** `PlayerView.swift`, `PlaybackViewModel.swift`
 
-### 3.2 In-player speed control
+### 3.2 In-player speed control ✅
 **Android:** Speed can be changed in-player via dialog.
 
 **Implementation:**
@@ -224,7 +224,7 @@ Added `SponsorBlockAction` enum (`.skip`, `.showToast`, `.nothing`) to `AppSetti
 
 `SettingsView.sponsorBlockSection` replaced category Toggles with a three-option `Picker` (Skip / Show Toast / Nothing) per category, each prefixed with a colour dot.
 
-### 3.4 Chapters support
+### 3.4 Chapters support ✅
 **Android:** Chapters parsed from video metadata, shown as markers on progress bar.
 
 **Implementation:**
@@ -234,7 +234,7 @@ Added `SponsorBlockAction` enum (`.skip`, `.showToast`, `.nothing`) to `AppSetti
 
 **Files:** `InnerTubeAPI.swift`, `PlaybackViewModel.swift`, `PlayerView.swift`
 
-### 3.5 Like/Dislike buttons
+### 3.5 Like/Dislike buttons ✅
 **Android:** MediaItemService handles like/dislike toggling.
 
 **Implementation:**
@@ -272,14 +272,17 @@ Following Android's `SearchData`:
 
 **Files:** `AppSettings.swift`, `SettingsView.swift`, `SearchViewModel.swift`
 
-### 4.4 SponsorBlock settings expansion
+### 4.4 SponsorBlock settings expansion ✅
 Following Android's `SponsorBlockData`:
-- Per-category action selection
-- Excluded channels list
-- Minimum segment duration filter
-- Add missing `poi_highlight` category
+- Per-category action selection ✅
+- Excluded channels list ✅
+- Minimum segment duration filter ✅
+- Add missing `poi_highlight` category ✅
 
-**Files:** `AppSettings.swift`, `SettingsView.swift`
+**Files:** `AppSettings.swift`, `SettingsView.swift`, `ChannelView.swift`
+
+**How it was done:**
+Added `sponsorBlockMinSegmentDuration: Double` (default 0 = off) and `sponsorBlockExcludedChannels: [String: String]` (channelId → display title, default empty) to `AppSettings`. In `PlaybackViewModel.loadAsync`, the `fetchSegments` call is now skipped entirely when the video's channel is in the excluded list; returned segments are post-filtered to drop any whose duration is below `sponsorBlockMinSegmentDuration` when that setting is > 0. Added a `Picker` for minimum duration (Off / 1 s / 2 s / 5 s / 10 s) and a `NavigationLink` to `SponsorBlockExcludedChannelsView` (swipe-to-delete list) inside `SettingsView.sponsorBlockSection`. A toolbar button in `ChannelView` lets users toggle the exclusion for the channel currently being viewed.
 
 ---
 

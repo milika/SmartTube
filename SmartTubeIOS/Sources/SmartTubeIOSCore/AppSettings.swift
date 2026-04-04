@@ -42,6 +42,12 @@ public struct AppSettings: Codable {
     public var sponsorBlockEnabled: Bool
     /// Per-category action. Categories absent from this dict are treated as `.nothing`.
     public var sponsorBlockActions: [SponsorSegment.Category: SponsorBlockAction]
+    /// Minimum segment length (seconds). Segments shorter than this value are ignored.
+    /// 0 means "accept all" (no filtering). Mirrors Android's `SponsorBlockData.minSegmentDuration`.
+    public var sponsorBlockMinSegmentDuration: Double
+    /// Channels where SponsorBlock is disabled. Key = channelId, value = display title.
+    /// Mirrors Android's `SponsorBlockData.excludedChannels`.
+    public var sponsorBlockExcludedChannels: [String: String]
 
     /// Convenience: the set of categories whose action is not `.nothing`.
     /// Passed to `SponsorBlockService.fetchSegments` so we only fetch relevant segments.
@@ -118,6 +124,8 @@ public struct AppSettings: Codable {
             .musicOfftopic: .showToast,
             .poiHighlight:  .nothing,
         ]
+        sponsorBlockMinSegmentDuration = 0
+        sponsorBlockExcludedChannels   = [:]
         deArrowEnabled       = false
     }
 }

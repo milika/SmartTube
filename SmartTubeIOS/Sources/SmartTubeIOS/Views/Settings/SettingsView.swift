@@ -124,6 +124,20 @@ public struct SettingsView: View {
 
                     }
                 }
+
+                // Minimum segment duration
+                Picker("Min. Segment Length", selection: $store.settings.sponsorBlockMinSegmentDuration) {
+                    Text("Off").tag(0.0)
+                    Text("1 s").tag(1.0)
+                    Text("2 s").tag(2.0)
+                    Text("5 s").tag(5.0)
+                    Text("10 s").tag(10.0)
+                }
+
+                // Excluded channels
+                NavigationLink("Excluded Channels (\(store.settings.sponsorBlockExcludedChannels.count))") {
+                    SponsorBlockExcludedChannelsView()
+                }
             }
         } header: {
             Text("SponsorBlock")
@@ -203,6 +217,45 @@ struct SectionsSettingsView: View {
         #endif
         #if os(iOS)
         .navigationBarTitleDisplayMode(.inline)
+        #endif
+    }
+}
+
+// MARK: - SponsorBlockExcludedChannelsView
+
+/// Lists channels excluded from SponsorBlock processing.
+/// Channels can be added from ChannelView and removed here via swipe-to-delete.
+struct SponsorBlockExcludedChannelsView: View {
+    @Environment(SettingsStore.self) private var store
+
+    var body: some View {
+        @Bindable var store = store
+        let sortedChannels = store.settings.sponsorBlockExcludedChannels
+            .sorted { $0.value.localizedCompare($1.value) == .orderedAscending }
+        return List {
+            if sortedChannels.isEmpty {
+                ContentUnavailableView(
+                    "No Excluded Channels",
+                    systemImage: "person.crop.circle.badge.minus",
+                    description: Text("Open a channel and tap \u{201C}Exclude from SponsorBlock\u{201D} to add it here.")
+                )
+            } else {
+                ForEach(sortedChannels, id: \.key) { channelId, title in
+                    Text(title)
+                }
+                .onDelete { indices in
+                    let ids = indices.map { sortedChannels[$0].key }
+                    ids.forEach { store.settings.sponsorBlockExcludedChannels.removeValue(forKey: $0) }
+                }
+            }
+        }
+        .navigationTitle("Excluded Channels")
+        #if os(iOS)
+        .toolbar(.visible, for: .navigationBar)
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            EditButton()
+        }
         #endif
     }
 }

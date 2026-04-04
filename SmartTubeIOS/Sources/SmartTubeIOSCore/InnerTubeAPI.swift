@@ -45,6 +45,7 @@ public actor InnerTubeAPI {
 
     /// The iOS client context used for stream URL retrieval.
     /// Returns c=iOS URLs and an HLS manifest, both playable natively by AVPlayer.
+    /// Device model and osVersion must stay in sync with InnerTubeClients.iOS.userAgent.
     private let iosClientContext: [String: Any] = [
         "client": [
             "hl": "en",
@@ -52,9 +53,9 @@ public actor InnerTubeAPI {
             "clientName": InnerTubeClients.iOS.name,
             "clientVersion": InnerTubeClients.iOS.version,
             "deviceMake": "Apple",
-            "deviceModel": "iPhone10,4",
+            "deviceModel": "iPhone16,2",
             "osName": "iOS",
-            "osVersion": "16.7.7.20H330",
+            "osVersion": "18.1.1.22B91",
             "clientScreen": "WATCH",
         ]
     ]

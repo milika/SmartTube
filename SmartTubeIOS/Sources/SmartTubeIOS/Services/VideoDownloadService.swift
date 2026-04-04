@@ -46,11 +46,21 @@ public final class VideoDownloadService {
     /// httpAdditionalHeaders cannot override User-Agent on iOS — must use URLRequest.setValue.
     private static let cdnSession = URLSession(configuration: .default)
 
-    /// Builds a URLRequest for a YouTube CDN URL with the iOS YouTube User-Agent.
-    /// googlevideo.com validates the UA matches the client that signed the URL.
-    nonisolated private static func cdnRequest(for url: URL) -> URLRequest {
-        var req = URLRequest(url: url)
-        req.setValue(InnerTubeClients.iOS.userAgent, forHTTPHeaderField: "User-Agent")
+    /// Builds a URLRequest for a YouTube CDN URL.
+    /// - `alr=yes` signals the CDN to respond with the full stream rather than an
+    ///   initial probe chunk. Without it, adaptive-stream URLs often return 403.
+    /// - `userAgent` must match the client that signed the URL (`c=` parameter):
+    ///   Web → desktop Chrome, TV-auth → Cobalt, iOS → native iOS app UA.
+    nonisolated private static func cdnRequest(for url: URL, userAgent: String = InnerTubeClients.iOS.userAgent) -> URLRequest {
+        var components = URLComponents(url: url, resolvingAgainstBaseURL: false)
+        var queryItems = components?.queryItems ?? []
+        if !queryItems.contains(where: { $0.name == "alr" }) {
+            queryItems.append(URLQueryItem(name: "alr", value: "yes"))
+        }
+        components?.queryItems = queryItems
+        let finalURL = components?.url ?? url
+        var req = URLRequest(url: finalURL)
+        req.setValue(userAgent, forHTTPHeaderField: "User-Agent")
         return req
     }
 
@@ -140,11 +150,13 @@ public final class VideoDownloadService {
     /// Tries Web client then authenticated TV client for a direct muxed MP4 download.
     /// Returns the temp file URL on success, nil if no muxed stream could be found.
     private func tryDirectDownload(videoId: String) async -> URL? {
-        let candidates: [(String, () async throws -> PlayerInfo)] = [
-            ("Web", { [self] in try await api.fetchPlayerInfoForDownload(videoId: videoId) }),
-            ("TV-auth", { [self] in try await api.fetchPlayerInfoAuthenticated(videoId: videoId) }),
+        let candidates: [(String, String, () async throws -> PlayerInfo)] = [
+            ("Web", InnerTubeClients.Web.userAgent,
+             { [self] in try await api.fetchPlayerInfoForDownload(videoId: videoId) }),
+            ("TV-auth", InnerTubeClients.TV.userAgent,
+             { [self] in try await api.fetchPlayerInfoAuthenticated(videoId: videoId) }),
         ]
-        for (label, fetch) in candidates {
+        for (label, clientUA, fetch) in candidates {
             guard let info = try? await fetch() else {
                 downloadLog.notice("[download] \(label, privacy: .public) client failed or UNPLAYABLE, trying next")
                 continue
@@ -159,7 +171,7 @@ public final class VideoDownloadService {
             }
             downloadLog.notice("[download] \(label, privacy: .public) ✅ muxed URL found, downloading")
             state = .downloading(progress: 0)
-            if let tempURL = try? await downloadToTemp(url: muxedURL, videoId: videoId) {
+            if let tempURL = try? await downloadToTemp(url: muxedURL, videoId: videoId, userAgent: clientUA) {
                 let size = (try? FileManager.default.attributesOfItem(atPath: tempURL.path)[.size] as? Int) ?? 0
                 downloadLog.notice("[download] \(label, privacy: .public) download complete bytes=\(size, privacy: .public)")
                 guard size > 0 else {
@@ -328,8 +340,8 @@ public final class VideoDownloadService {
         }
     }
 
-    private func downloadToTemp(url: URL, videoId: String) async throws -> URL {
-        let req = VideoDownloadService.cdnRequest(for: url)
+    private func downloadToTemp(url: URL, videoId: String, userAgent: String = InnerTubeClients.iOS.userAgent) async throws -> URL {
+        let req = VideoDownloadService.cdnRequest(for: url, userAgent: userAgent)
         let (tempURL, response) = try await VideoDownloadService.cdnSession.download(for: req)
         let status = (response as? HTTPURLResponse)?.statusCode ?? 0
         let size = (try? FileManager.default.attributesOfItem(atPath: tempURL.path)[.size] as? Int) ?? 0
