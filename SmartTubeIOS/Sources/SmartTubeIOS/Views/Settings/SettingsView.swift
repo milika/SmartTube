@@ -62,6 +62,12 @@ public struct SettingsView: View {
                 }
             }
 
+            Picker("Max Resolution", selection: $store.settings.preferredQuality) {
+                ForEach(AppSettings.VideoQuality.allCases, id: \.self) { q in
+                    Text(q == .auto ? "Auto" : q.rawValue).tag(q)
+                }
+            }
+
             Stepper(
                 "Seek Back: \(store.settings.seekBackSeconds)s",
                 value: $store.settings.seekBackSeconds,

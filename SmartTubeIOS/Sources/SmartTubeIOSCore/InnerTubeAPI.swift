@@ -61,8 +61,7 @@ public actor InnerTubeAPI {
     private let iosUserAgent = InnerTubeClients.iOS.userAgent
 
     /// The Android client context used for download URL retrieval.
-    /// CDN URLs signed by the Android client are reliably downloadable;
-    /// TVHTML5-signed URLs always return 403 when fetched without session cookies.
+    /// Exact params match yt-dlp's android client to avoid HTTP 400.
     private let androidClientContext: [String: Any] = [
         "client": [
             "hl": "en",
@@ -71,8 +70,7 @@ public actor InnerTubeAPI {
             "clientVersion": InnerTubeClients.Android.version,
             "androidSdkVersion": InnerTubeClients.Android.androidSdkVersion,
             "osName": "Android",
-            "osVersion": "14",
-            "platform": "MOBILE",
+            "osVersion": "11",
         ]
     ]
 

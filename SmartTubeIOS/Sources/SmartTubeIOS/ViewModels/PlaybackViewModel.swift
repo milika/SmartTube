@@ -188,12 +188,26 @@ public final class PlaybackViewModel {
 
             // Build player item — preferredStreamURL is guaranteed non-nil here because
             // parsePlayerInfo throws APIError.unavailable when streamingData is absent.
-            guard let url = info.preferredStreamURL else {
-                playerLog.error("❌ No stream URL after successful parse (should not happen)")
-                throw APIError.decodingError("No stream URL")
+            //
+            // If the user has set a max resolution (preferredQuality != .auto), select the
+            // best available direct-URL format at or below that height instead of the
+            // adaptive HLS/DASH stream.
+            let resolvedURL: URL
+            if settings.preferredQuality != .auto,
+               let capped = Self.bestFormat(for: settings.preferredQuality, from: availableFormats),
+               let fmtURL = capped.url {
+                selectedFormat = capped
+                resolvedURL = fmtURL
+                playerLog.notice("Quality cap \(settings.preferredQuality.rawValue, privacy: .public) → \(capped.qualityLabel, privacy: .public)")
+            } else {
+                guard let url = info.preferredStreamURL else {
+                    playerLog.error("❌ No stream URL after successful parse (should not happen)")
+                    throw APIError.decodingError("No stream URL")
+                }
+                resolvedURL = url
             }
-            playerLog.notice("Starting AVPlayer with: \(url.absoluteString.prefix(120), privacy: .public)")
-            let item = AVPlayerItem(url: url)
+            playerLog.notice("Starting AVPlayer with: \(resolvedURL.absoluteString.prefix(120), privacy: .public)")
+            let item = AVPlayerItem(url: resolvedURL)
             // Observe item status using async/await (withCheckedContinuation is not needed
             // here since we only need to react to status changes, not await them).
             itemObserverTask?.cancel()
@@ -444,6 +458,14 @@ public final class PlaybackViewModel {
         player.play()
         isPlaying = true
         playerLog.notice("Quality → \(format?.qualityLabel ?? "Auto", privacy: .public)")
+    }
+
+    /// Returns the highest-quality format whose height is at or below the cap defined
+    /// by `quality`. Returns `nil` when `quality` is `.auto` or no suitable format exists.
+    private static func bestFormat(for quality: AppSettings.VideoQuality, from formats: [VideoFormat]) -> VideoFormat? {
+        guard let maxH = quality.maxHeight else { return nil }
+        // formats is already sorted descending by height/fps/bitrate from deduplicatedVideoFormats
+        return formats.first { $0.height <= maxH }
     }
 
     private static func deduplicatedVideoFormats(_ formats: [VideoFormat]) -> [VideoFormat] {

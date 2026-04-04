@@ -75,6 +75,7 @@ public final class BrowseViewModel {
               lastGroup.nextPageToken != nil,
               !isLoading
         else { return }
+        isLoading = true  // synchronous guard — prevents duplicate tasks before the Task body runs
         fetchTask = Task { await fetchNextPage(for: currentSection) }
     }
 

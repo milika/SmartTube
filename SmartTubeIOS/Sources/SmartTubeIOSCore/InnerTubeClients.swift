@@ -23,14 +23,15 @@ package enum InnerTubeClients {
     }
 
     /// Android client — used exclusively for downloads.
-    /// CDN URLs signed by the Android client (`c=ANDROID`) are reliably downloadable
-    /// with a standard Android UA and do not require TVHTML5 session cookies.
+    /// CDN URLs signed by the Android client are reliably downloadable using just
+    /// the Android UA; no session cookies or PO tokens required.
+    /// Exact params from yt-dlp to avoid YouTube bot detection / HTTP 400.
     package enum Android {
         package static let name            = "ANDROID"
         package static let nameID          = "3"
-        package static let version         = "19.44.38"
-        package static let androidSdkVersion = 34  // Android 14
-        package static let userAgent       = "com.google.android.youtube/\(version) (Linux; U; Android 14; en_US; Pixel 7) gzip"
+        package static let version         = "21.02.35"
+        package static let androidSdkVersion = 30  // Android 11
+        package static let userAgent       = "com.google.android.youtube/\(version) (Linux; U; Android 11) gzip"
     }
 
     package enum TV {

@@ -482,6 +482,7 @@ public struct PlayerView: View {
             List {
                 Button {
                     vm.selectFormat(nil)
+                    store.settings.preferredQuality = .auto
                     showQualityPicker = false
                 } label: {
                     HStack {
@@ -498,6 +499,7 @@ public struct PlayerView: View {
                 ForEach(vm.availableFormats) { fmt in
                     Button {
                         vm.selectFormat(fmt)
+                        store.settings.preferredQuality = AppSettings.VideoQuality.from(height: fmt.height) ?? .auto
                         showQualityPicker = false
                     } label: {
                         HStack {

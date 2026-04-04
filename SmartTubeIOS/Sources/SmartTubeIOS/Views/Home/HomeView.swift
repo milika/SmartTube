@@ -237,16 +237,48 @@ public struct HomeView: View {
                     }
                     if group.layout == .row {
                         VideoRowSection(videos: group.videos, onSelect: { selectVideo($0, from: group.videos) })
+                    } else if store.settings.compactThumbnails {
+                        ForEach(group.videos) { video in
+                            VideoCardView(video: video, compact: true)
+                                .padding(.horizontal)
+                                .padding(.vertical, 6)
+                                .accessibilityIdentifier("video.card.\(video.id)")
+                                .onTapGesture { selectVideo(video, from: group.videos) }
+                                .onAppear {
+                                    if video.id == group.videos.last?.id {
+                                        sectionVM.loadMoreIfNeeded(lastVideo: video)
+                                    }
+                                }
+                            Divider().padding(.horizontal)
+                        }
                     } else {
-                        VideoGridSection(
-                            videos: group.videos,
-                            onSelect: { selectVideo($0, from: group.videos) },
-                            loadMore: {
-                                if let last = group.videos.last {
+                        // Grid mode: pairs as HStack rows so each row is a truly lazy LazyVStack item
+                        ForEach(Array(stride(from: 0, to: group.videos.count, by: 2)), id: \.self) { idx in
+                            HStack(alignment: .top, spacing: 12) {
+                                let v1 = group.videos[idx]
+                                VideoCardView(video: v1, compact: false)
+                                    .frame(maxWidth: .infinity)
+                                    .accessibilityIdentifier("video.card.\(v1.id)")
+                                    .onTapGesture { selectVideo(v1, from: group.videos) }
+                                if idx + 1 < group.videos.count {
+                                    let v2 = group.videos[idx + 1]
+                                    VideoCardView(video: v2, compact: false)
+                                        .frame(maxWidth: .infinity)
+                                        .accessibilityIdentifier("video.card.\(v2.id)")
+                                        .onTapGesture { selectVideo(v2, from: group.videos) }
+                                } else {
+                                    Color.clear.frame(maxWidth: .infinity)
+                                }
+                            }
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 6)
+                            .onAppear {
+                                if idx + 2 >= group.videos.count, let last = group.videos.last {
                                     sectionVM.loadMoreIfNeeded(lastVideo: last)
                                 }
                             }
-                        )
+                        }
+                        .padding(.vertical, 2)
                     }
                 }
                 if sectionVM.isLoading {

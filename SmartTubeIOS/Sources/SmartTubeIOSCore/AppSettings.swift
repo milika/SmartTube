@@ -78,6 +78,27 @@ public struct AppSettings: Codable {
         case q1080 = "1080p"
         case q1440 = "1440p"
         case q2160 = "2160p"
+
+        /// The maximum pixel height corresponding to this quality level.
+        /// Returns `nil` for `.auto` (no cap).
+        public var maxHeight: Int? {
+            switch self {
+            case .auto:  return nil
+            case .q144:  return 144
+            case .q240:  return 240
+            case .q360:  return 360
+            case .q480:  return 480
+            case .q720:  return 720
+            case .q1080: return 1080
+            case .q1440: return 1440
+            case .q2160: return 2160
+            }
+        }
+
+        /// Returns the `VideoQuality` matching an exact pixel height, or `nil` if none matches.
+        public static func from(height: Int) -> VideoQuality? {
+            allCases.first { $0.maxHeight == height }
+        }
     }
 
     public enum ThemeName: String, Codable, CaseIterable {
