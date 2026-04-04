@@ -45,7 +45,6 @@ public actor InnerTubeAPI {
 
     /// The iOS client context used for stream URL retrieval.
     /// Returns c=iOS URLs and an HLS manifest, both playable natively by AVPlayer.
-    /// Device model and osVersion must stay in sync with InnerTubeClients.iOS.userAgent.
     private let iosClientContext: [String: Any] = [
         "client": [
             "hl": "en",
@@ -53,13 +52,29 @@ public actor InnerTubeAPI {
             "clientName": InnerTubeClients.iOS.name,
             "clientVersion": InnerTubeClients.iOS.version,
             "deviceMake": "Apple",
-            "deviceModel": "iPhone16,2",
+            "deviceModel": "iPhone10,4",
             "osName": "iOS",
-            "osVersion": "18.1.1.22B91",
+            "osVersion": "16.7.7.20H330",
             "clientScreen": "WATCH",
         ]
     ]
     private let iosUserAgent = InnerTubeClients.iOS.userAgent
+
+    /// The Android client context used for download URL retrieval.
+    /// CDN URLs signed by the Android client are reliably downloadable;
+    /// TVHTML5-signed URLs always return 403 when fetched without session cookies.
+    private let androidClientContext: [String: Any] = [
+        "client": [
+            "hl": "en",
+            "gl": "US",
+            "clientName": InnerTubeClients.Android.name,
+            "clientVersion": InnerTubeClients.Android.version,
+            "androidSdkVersion": InnerTubeClients.Android.androidSdkVersion,
+            "osName": "Android",
+            "osVersion": "14",
+            "platform": "MOBILE",
+        ]
+    ]
 
     /// The TVHTML5 client context required for all authenticated InnerTube requests
     /// (subscriptions, history, playlists, personalised home).
@@ -269,6 +284,19 @@ public actor InnerTubeAPI {
         body["racyCheckOk"] = true
         body["contentCheckOk"] = true
         let data = try await post(endpoint: "player", body: body)
+        return try parsePlayerInfo(from: data, videoId: videoId)
+    }
+
+    /// Fetches player info using the Android client.
+    /// Used as the primary download fallback: Android CDN URLs are signed with
+    /// `c=ANDROID` and are reliably downloadable with a standard Android UA.
+    /// Unlike TVHTML5-signed URLs, these do not require session cookies.
+    public func fetchPlayerInfoAndroid(videoId: String) async throws -> PlayerInfo {
+        var body = makeBody(client: androidClientContext)
+        body["videoId"] = videoId
+        body["racyCheckOk"] = true
+        body["contentCheckOk"] = true
+        let data = try await postAndroid(endpoint: "player", body: body)
         return try parsePlayerInfo(from: data, videoId: videoId)
     }
 
@@ -500,6 +528,42 @@ public actor InnerTubeAPI {
         } else {
             let topKeys = Array(json.keys.prefix(6))
             tubeLog.notice("✅ /player HTTP \(statusCode, privacy: .public) keys: \(topKeys, privacy: .public)")
+        }
+        return json
+    }
+
+    /// Android client player request — used for download URL resolution.
+    /// Android client headers use googleapis.com like iOS, but with Android UA/client IDs.
+    private func postAndroid(endpoint: String, body: [String: Any]) async throws -> [String: Any] {
+        guard var comps = URLComponents(url: playerBaseURL.appendingPathComponent(endpoint), resolvingAgainstBaseURL: false) else {
+            throw APIError.invalidURL(endpoint)
+        }
+        comps.queryItems = [URLQueryItem(name: "key", value: apiKey)]
+        guard let url = comps.url else { throw APIError.invalidURL(endpoint) }
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue(InnerTubeClients.Android.userAgent, forHTTPHeaderField: "User-Agent")
+        request.setValue(InnerTubeClients.Android.nameID, forHTTPHeaderField: "X-YouTube-Client-Name")
+        request.setValue(InnerTubeClients.Android.version, forHTTPHeaderField: "X-YouTube-Client-Version")
+        request.httpBody = try JSONSerialization.data(withJSONObject: body)
+        let videoId = body["videoId"] as? String ?? ""
+        tubeLog.notice("POST /\(endpoint, privacy: .public) [Android] videoId=\(videoId, privacy: .public)")
+        let (data, response) = try await session.data(for: request)
+        let statusCode = (response as? HTTPURLResponse)?.statusCode ?? 0
+        guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
+            tubeLog.error("❌ HTTP \(statusCode, privacy: .public) for /\(endpoint, privacy: .public) [Android]")
+            throw APIError.httpError(statusCode)
+        }
+        guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            tubeLog.error("❌ Non-dictionary JSON root for /\(endpoint, privacy: .public) [Android]")
+            throw APIError.decodingError("Root JSON is not a dictionary")
+        }
+        if let error = json["error"] as? [String: Any] {
+            tubeLog.error("❌ API error in /\(endpoint, privacy: .public) [Android]: \(String(describing: error["message"] ?? error), privacy: .public)")
+        } else {
+            let topKeys = Array(json.keys.prefix(6))
+            tubeLog.notice("✅ /\(endpoint, privacy: .public) [Android] HTTP \(statusCode, privacy: .public) keys: \(topKeys, privacy: .public)")
         }
         return json
     }

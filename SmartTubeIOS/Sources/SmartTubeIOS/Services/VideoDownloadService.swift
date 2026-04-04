@@ -116,16 +116,15 @@ public final class VideoDownloadService {
             }
 
             // All direct download attempts failed — merge best adaptive video+audio streams.
-            // AVAssetExportSession cannot export networked HLS; instead we download the
-            // best video-only and audio-only MP4 adaptive streams and merge them locally.
+            // Use the Android client: c=ANDROID adaptive URLs are reliably downloadable.
             downloadLog.notice("[download] direct download failed, trying adaptive merge fallback")
-            let iosInfo = try await api.fetchPlayerInfo(videoId: video.id)
-            downloadLog.notice("[download] adaptive fallback formats=\(iosInfo.formats.count, privacy: .public)")
-            for (i, fmt) in iosInfo.formats.enumerated() {
+            let androidInfo = try await api.fetchPlayerInfoAndroid(videoId: video.id)
+            downloadLog.notice("[download] adaptive fallback formats=\(androidInfo.formats.count, privacy: .public)")
+            for (i, fmt) in androidInfo.formats.enumerated() {
                 downloadLog.notice("[download]   [\(i, privacy: .public)] mime=\(fmt.mimeType, privacy: .public) label=\(fmt.label, privacy: .public) hasURL=\(fmt.url != nil, privacy: .public) bitrate=\(fmt.bitrate ?? 0, privacy: .public)")
             }
-            guard let videoURL = iosInfo.bestAdaptiveVideoURL,
-                  let audioURL = iosInfo.bestAdaptiveAudioURL else {
+            guard let videoURL = androidInfo.bestAdaptiveVideoURL,
+                  let audioURL = androidInfo.bestAdaptiveAudioURL else {
                 downloadLog.error("[download] ❌ no adaptive video/audio streams found")
                 state = .failed("No downloadable stream found for this video")
                 return
@@ -133,7 +132,8 @@ public final class VideoDownloadService {
             downloadLog.notice("[download] merging adaptive videoURL prefix=\(videoURL.absoluteString.prefix(60), privacy: .public)")
             downloadLog.notice("[download] merging adaptive audioURL prefix=\(audioURL.absoluteString.prefix(60), privacy: .public)")
             state = .downloading(progress: 0)
-            let mergedURL = try await mergeAdaptiveStreams(videoURL: videoURL, audioURL: audioURL, videoId: video.id)
+            let mergedURL = try await mergeAdaptiveStreams(videoURL: videoURL, audioURL: audioURL, videoId: video.id,
+                                                          userAgent: InnerTubeClients.Android.userAgent)
             state = .saving
             try await saveToPhotoLibrary(fileURL: mergedURL)
             try? FileManager.default.removeItem(at: mergedURL)
@@ -147,14 +147,16 @@ public final class VideoDownloadService {
         }
     }
 
-    /// Tries Web client then authenticated TV client for a direct muxed MP4 download.
+    /// Tries Web client then Android client for a direct muxed MP4 download.
     /// Returns the temp file URL on success, nil if no muxed stream could be found.
+    /// Note: TVHTML5-signed CDN URLs always return 403 when fetched without session cookies,
+    /// so the Android client (c=ANDROID URLs) is used as the reliable fallback.
     private func tryDirectDownload(videoId: String) async -> URL? {
         let candidates: [(String, String, () async throws -> PlayerInfo)] = [
             ("Web", InnerTubeClients.Web.userAgent,
              { [self] in try await api.fetchPlayerInfoForDownload(videoId: videoId) }),
-            ("TV-auth", InnerTubeClients.TV.userAgent,
-             { [self] in try await api.fetchPlayerInfoAuthenticated(videoId: videoId) }),
+            ("Android", InnerTubeClients.Android.userAgent,
+             { [self] in try await api.fetchPlayerInfoAndroid(videoId: videoId) }),
         ]
         for (label, clientUA, fetch) in candidates {
             guard let info = try? await fetch() else {
@@ -210,10 +212,11 @@ public final class VideoDownloadService {
     /// Downloads best adaptive video-only and audio-only MP4 streams concurrently,
     /// then merges them into a single MP4 using AVAssetWriter for true passthrough
     /// (sample-level copy, no re-encode of codec data).
-    private nonisolated func mergeAdaptiveStreams(videoURL: URL, audioURL: URL, videoId: String) async throws -> URL {
-        // Download both streams concurrently with explicit iOS UA per-request
-        let videoReq = VideoDownloadService.cdnRequest(for: videoURL)
-        let audioReq = VideoDownloadService.cdnRequest(for: audioURL)
+    private nonisolated func mergeAdaptiveStreams(videoURL: URL, audioURL: URL, videoId: String,
+                                                  userAgent: String = InnerTubeClients.iOS.userAgent) async throws -> URL {
+        // Download both streams concurrently with explicit UA per-request
+        let videoReq = VideoDownloadService.cdnRequest(for: videoURL, userAgent: userAgent)
+        let audioReq = VideoDownloadService.cdnRequest(for: audioURL, userAgent: userAgent)
         async let videoTemp = VideoDownloadService.cdnSession.download(for: videoReq)
         async let audioTemp = VideoDownloadService.cdnSession.download(for: audioReq)
         let (videoResult, audioResult) = try await (videoTemp, audioTemp)

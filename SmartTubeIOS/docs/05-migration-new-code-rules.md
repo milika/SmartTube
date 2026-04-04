@@ -2,7 +2,7 @@
 
 > **Status key:** ✅ Done · 🔲 Not started · 🚧 Partial  
 > **Reference rules:** `.github/swift.instructions.md` · `.github/skills/swift-concurrency/SKILL.md`  
-> **Audited:** 2026-03-31
+> **Audited:** 2026-04-04
 
 ---
 
@@ -14,11 +14,11 @@ Each phase is independently shippable (builds and passes tests before moving for
 
 ---
 
-## Phase 1 — Security & Swift 6 Foundation
+## Phase 1 — Security & Swift 6 Foundation ✅ COMPLETE
 
 > These are blockers for all other phases. Fix before any feature work.
 
-### 1.1 Move OAuth tokens to Keychain 🔲
+### 1.1 Move OAuth tokens to Keychain ✅
 **File:** `Sources/SmartTubeIOS/Services/AuthService.swift`  
 **Violation:** `saveToKeychain()` / `loadFromKeychain()` store `accessToken` and `refreshToken` in `UserDefaults`. This is a CWE-312 / OWASP M2 vulnerability — `UserDefaults` is unencrypted and readable by other processes.  
 **Fix:** Replace `UserDefaults` reads/writes for `accessToken`, `refreshToken`, `expiresAt`, and `userId` with `SecItemAdd` / `SecItemCopyMatching` / `SecItemDelete` calls using `kSecClassGenericPassword`.  
@@ -29,7 +29,7 @@ Each phase is independently shippable (builds and passes tests before moving for
 
 ---
 
-### 1.2 Enable Swift 6 Language Mode 🔲
+### 1.2 Enable Swift 6 Language Mode ✅
 **File:** `Package.swift`  
 **Violation:** `swift-tools-version: 5.9`, no `swiftLanguageVersions` set. No strict concurrency settings on any target. All data-race, Sendable, and actor-isolation checks are suppressed.  
 **Fix:** 
@@ -43,13 +43,13 @@ Each phase is independently shippable (builds and passes tests before moving for
 
 ---
 
-## Phase 2 — Replace ObservableObject with @Observable
+## Phase 2 — Replace ObservableObject with @Observable ✅ COMPLETE
 
 > All seven view-model and service classes use the deprecated `ObservableObject` + `@Published` pattern. This phase migrates them to the `@Observable` macro (Swift 5.9+, iOS 17+). All downstream SwiftUI property-wrapper changes cascade automatically.
 
 **Order matters:** migrate leaf dependencies first (services before view models, view models before views).
 
-### 2.1 Migrate `SettingsStore` 🔲
+### 2.1 Migrate `SettingsStore` ✅
 **File:** `Sources/SmartTubeIOS/Services/SettingsStore.swift`  
 **Violations:**
 - `final class SettingsStore: ObservableObject`
@@ -72,7 +72,7 @@ Remove `import Combine` if it becomes unused.
 
 ---
 
-### 2.2 Migrate `AuthService` 🔲
+### 2.2 Migrate `AuthService` ✅
 **File:** `Sources/SmartTubeIOS/Services/AuthService.swift`  
 **Violations:**
 - `final class AuthService: ObservableObject`
@@ -83,21 +83,21 @@ Note: `@MainActor` must be retained on the class (it is UI-observable state).
 
 ---
 
-### 2.3 Migrate `HomeViewModel` 🔲
+### 2.3 Migrate `HomeViewModel` ✅
 **File:** `Sources/SmartTubeIOS/ViewModels/HomeViewModel.swift`  
 **Violations:** `ObservableObject`, 2× `@Published`  
 **Fix:** Same pattern as 2.1.
 
 ---
 
-### 2.4 Migrate `BrowseViewModel` 🔲
+### 2.4 Migrate `BrowseViewModel` ✅
 **File:** `Sources/SmartTubeIOS/ViewModels/BrowseViewModel.swift`  
 **Violations:** `ObservableObject`, 6× `@Published`  
 **Fix:** Same pattern. Also remove the `print()` call at line ~89 (use `Logger` / OSLog or remove — OSLog already covers this).
 
 ---
 
-### 2.5 Migrate `SearchViewModel` + `ChannelViewModel` 🔲
+### 2.5 Migrate `SearchViewModel` + `ChannelViewModel` ✅
 **File:** `Sources/SmartTubeIOS/ViewModels/SearchViewModel.swift`  
 **Violations:** `ObservableObject`, 5× `@Published`, `ChannelViewModel: ObservableObject`, 3× `@Published`  
 **Additional violation:** Combine debounce pipeline (`$query.debounce(...).sink { ... }`) must be replaced with structured concurrency.
@@ -121,7 +121,7 @@ Remove `import Combine` and `Set<AnyCancellable>`.
 
 ---
 
-### 2.6 Migrate `PlaybackViewModel` 🔲
+### 2.6 Migrate `PlaybackViewModel` ✅
 **File:** `Sources/SmartTubeIOS/ViewModels/PlaybackViewModel.swift`  
 **Violations:** `ObservableObject`, 10× `@Published`, 2× `AnyCancellable` for AVPlayer observation, `DispatchQueue.main` in `addPeriodicTimeObserver`.
 
@@ -155,7 +155,7 @@ Remove `import Combine`.
 
 ---
 
-### 2.7 Update SwiftUI call sites 🔲
+### 2.7 Update SwiftUI call sites ✅
 **Files:** `AppEntry.swift`, `SmartTubeApp.swift`, `RootView.swift`, `HomeView.swift`, `PlayerView.swift`, `ChannelView.swift`, `SignInView.swift`, `BrowseView.swift`, `LibraryView.swift`, `SearchView.swift`, `SettingsView.swift`  
 
 **Pattern changes:**
@@ -171,9 +171,9 @@ Remove all `import Combine` in view files once `ObservableObject` types are gone
 
 ---
 
-## Phase 3 — Replace DispatchQueue with Actors and Structured Concurrency
+## Phase 3 — Replace DispatchQueue with Actors and Structured Concurrency ✅ COMPLETE
 
-### 3.1 Refactor `VideoStateStore` to an `actor` 🔲
+### 3.1 Refactor `VideoStateStore` to an `actor` ✅
 **File:** `Sources/SmartTubeIOSCore/VideoStateStore.swift`  
 **Violations:** `DispatchQueue(label:)` used as manual synchronization, `queue.sync`, `queue.async`.  
 **Fix:** Convert to `actor`, make `state(for:)`, `save(videoId:...)`, and `clear(videoId:)` `async`.
@@ -201,7 +201,7 @@ Update all call sites to `await VideoStateStore.shared.state(for:)`.
 
 ---
 
-### 3.2 Replace `DispatchQueue.main.asyncAfter` in `CountdownView` 🔲
+### 3.2 Replace `DispatchQueue.main.asyncAfter` in `CountdownView` ✅
 **File:** `Sources/SmartTubeIOS/Views/Common/SignInView.swift`  
 **Violation:** Recursive `DispatchQueue.main.asyncAfter(deadline: .now() + 1) { tick() }` timer.  
 **Fix:** Replace with `.task` modifier + `Task.sleep`:
@@ -227,9 +227,9 @@ func tick() {
 
 ---
 
-## Phase 4 — Remove Force Unwraps
+## Phase 4 — Remove Force Unwraps 🚧 Partial
 
-### 4.1 Fix force unwraps in `InnerTubeAPI` 🔲
+### 4.1 Fix force unwraps in `InnerTubeAPI` ✅
 **File:** `Sources/SmartTubeIOSCore/InnerTubeAPI.swift`  
 **Violations:** `URLComponents(...)!` and `URLRequest(url: comps.url!)` in `post()`, `postPlayer()`, and `postTV()`.  
 **Fix:** Replace with `guard let` + throw a typed error:
@@ -243,10 +243,10 @@ guard let comps = URLComponents(string: baseURL + endpoint),
 
 ---
 
-### 4.2 Fix force unwrap in `AuthService` 🔲
+### 4.2 Fix force unwrap in `AuthService` �
 **File:** `Sources/SmartTubeIOS/Services/AuthService.swift`  
-**Violation:** `URL(string: "https://yt.be/activate")!`  
-**Fix:** This is a static literal — safe to use `URL(staticString:)` initializer. Or store as a `static let` with a `guard`.
+**Remaining violations:** Three `private static let` endpoint constants (`deviceCodeURL`, `tokenURL`, `accountsListURL`) and the activation URL fallback still use `URL(string:)!`. The original named violation (`URL(string: "https://yt.be/activate")!`) was changed to a `?? URL(string: "https://youtube.com/activate")!` fallback — the force-unwrap moved rather than being eliminated.  
+**Fix:** Replace all four occurrences with `URL(staticString:)` since every value is a known-valid compile-time literal.
 
 ```swift
 // Before
@@ -260,7 +260,7 @@ static let activationURL: URL = URL(staticString: "https://yt.be/activate")
 
 ---
 
-### 4.3 Fix force unwrap in `VideoCardView` 🔲
+### 4.3 Fix force unwrap in `VideoCardView` ✅
 **File:** `Sources/SmartTubeIOS/Views/Browse/VideoCardView.swift`  
 **Violation:** `ShareLink(item: URL(string: "...")!)`  
 **Fix:** Use optional chaining and hide the share button if URL is nil:
@@ -276,8 +276,8 @@ if let shareURL = URL(string: shareURLString) {
 ## Phase 5 — Remove `print()` Logging
 
 ### 5.1 Remove `print()` calls 🔲
-**Files:** `InnerTubeAPI.swift`, `BrowseViewModel.swift`  
-**Violation:** `print(...)` statements alongside existing `OSLog`/`Logger` usage.  
+**Files:** `InnerTubeAPI.swift`, `SearchViewModel.swift`  
+**Violation:** `print(...)` statements (9 in `InnerTubeAPI` suggestions path, 7 in `SearchViewModel`) alongside existing `OSLog`/`Logger` usage.  
 **Fix:** Delete the `print()` lines. OSLog already captures the same info.
 
 ---
@@ -348,9 +348,9 @@ Phase 6 (Typed throws, Sendable, DocC) — ongoing, parallel with feature work
 | 3.1 | `VideoStateStore` → `actor` | `VideoStateStore.swift` | 🔴 Must | ✅ |
 | 3.2 | `CountdownView` timer → `Task.sleep` | `SignInView.swift` | 🔴 Must | ✅ |
 | 4.1 | Fix `InnerTubeAPI` force unwraps | `InnerTubeAPI.swift` | 🔴 Must | ✅ |
-| 4.2 | Fix `AuthService` force unwrap | `AuthService.swift` | 🔴 Must | ✅ |
+| 4.2 | Fix `AuthService` force unwrap | `AuthService.swift` | 🔴 Must | 🚧 |
 | 4.3 | Fix `VideoCardView` force unwrap | `VideoCardView.swift` | 🔴 Must | ✅ |
-| 5.1 | Remove `print()` calls | `InnerTubeAPI.swift`, `BrowseViewModel.swift` | 🔴 Must | ✅ |
+| 5.1 | Remove `print()` calls | `InnerTubeAPI.swift`, `SearchViewModel.swift` | 🔴 Must | 🔲 |
 | 6.1 | Add typed throws | `InnerTubeAPI.swift`, `AuthService.swift` | 🟡 Should | 🔲 |
 | 6.2 | Add `Sendable` conformance | `VideoGroup.swift`, `SponsorBlockService.swift`, `AuthService.swift` | 🟡 Should | ✅ |
 | 6.3 | Add DocC `///` documentation | All public API files | 🟡 Should | 🔲 |
