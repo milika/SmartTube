@@ -14,6 +14,7 @@ public struct LibraryView: View {
     @State private var selectedSection: LibrarySection = .subscriptions
     @State private var selectedVideo: Video?
     @State private var selectedPlaylist: Video?
+    @State private var channelDestination: ChannelDestination?
 
     enum LibrarySection: String, CaseIterable, Identifiable {
         case subscriptions = "Subscriptions"
@@ -48,6 +49,13 @@ public struct LibraryView: View {
         }
         .navigationDestination(item: $selectedPlaylist) { stub in
             PlaylistView(playlistId: stub.id, playlistTitle: stub.title)
+        }
+        .navigationDestination(item: $channelDestination) { dest in
+            ChannelView(channelId: dest.channelId)
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .openChannel)) { note in
+            guard let channelId = note.userInfo?["channelId"] as? String, !channelId.isEmpty else { return }
+            channelDestination = ChannelDestination(channelId: channelId)
         }
     }
 

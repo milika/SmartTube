@@ -26,6 +26,7 @@ public struct ShortsPlayerView: View {
     @State private var slideOffset: CGFloat = 0
     @State private var isTransitioning = false
     @State private var isFetchingMore = false
+    @State private var channelDestination: ChannelDestination?
     private let api = InnerTubeAPI()
 
     public init(videos: [Video], startIndex: Int = 0) {
@@ -37,6 +38,7 @@ public struct ShortsPlayerView: View {
     private var currentVideo: Video { videos[currentIndex] }
 
     public var body: some View {
+        NavigationStack {
         ZStack {
             Color.black.ignoresSafeArea()
 
@@ -74,6 +76,7 @@ public struct ShortsPlayerView: View {
                     }
                 },
                 onTap: { vm.showControls() },
+                onTwoFingerTap: { vm.toggleStatsForNerds() },
                 onPanChanged: { dy in
                     guard !isTransitioning else { return }
                     let canGoUp   = ShortsNavigation.targetIndex(vertical: -100, horizontal: 0, current: currentIndex, count: videos.count) != nil
@@ -114,6 +117,13 @@ public struct ShortsPlayerView: View {
                     .background(.black.opacity(0.6))
                     .clipShape(RoundedRectangle(cornerRadius: 8))
             }
+
+            // Stats for Nerds overlay (toggled by two-finger tap)
+            if vm.statsForNerdsVisible {
+                StatsForNerdsOverlay(snapshot: vm.statsSnapshot)
+                    .transition(.opacity)
+                    .animation(.easeInOut(duration: 0.2), value: vm.statsForNerdsVisible)
+            }
         }
         .offset(y: slideOffset)
         .background(Color.black.ignoresSafeArea())
@@ -144,6 +154,10 @@ public struct ShortsPlayerView: View {
         .ignoresSafeArea()
         .onAppear { loadVideo(at: currentIndex) }
         .onDisappear { vm.stop() }
+        .navigationDestination(item: $channelDestination) { dest in
+            ChannelView(channelId: dest.channelId)
+        }
+        } // NavigationStack
     }
 
     // MARK: - Always-visible index badge
@@ -199,10 +213,19 @@ public struct ShortsPlayerView: View {
                             .font(.subheadline.weight(.semibold))
                             .foregroundStyle(.white)
                             .lineLimit(2)
-                        Text(vm.playerInfo?.video.channelTitle ?? currentVideo.channelTitle)
-                            .font(.caption)
-                            .foregroundStyle(.white.opacity(0.8))
-                            .lineLimit(1)
+                        let channelId = vm.playerInfo?.video.channelId ?? currentVideo.channelId
+                        let channelTitle = vm.playerInfo?.video.channelTitle ?? currentVideo.channelTitle
+                        Button {
+                            guard let cid = channelId, !cid.isEmpty else { return }
+                            channelDestination = ChannelDestination(channelId: cid)
+                        } label: {
+                            Text(channelTitle)
+                                .font(.caption)
+                                .foregroundStyle(.white.opacity(0.8))
+                                .lineLimit(1)
+                        }
+                        .buttonStyle(.plain)
+                        .disabled(channelId == nil || channelId?.isEmpty == true)
                     }
                     Spacer()
                     Button { vm.togglePlayPause() } label: {
@@ -389,6 +412,7 @@ private struct SwipeGestureOverlay: UIViewRepresentable {
     var onSwipeUp:        () -> Void
     var onSwipeDown:      () -> Void
     var onTap:            () -> Void
+    var onTwoFingerTap:   () -> Void = {}
     var onPanChanged:     ((CGFloat) -> Void)?
     var onSwipeCancelled: (() -> Void)?
 
@@ -407,6 +431,12 @@ private struct SwipeGestureOverlay: UIViewRepresentable {
         tap.cancelsTouchesInView = false
         tap.require(toFail: pan)
         view.addGestureRecognizer(tap)
+
+        let twoFingerTap = UITapGestureRecognizer(target: context.coordinator,
+                                                   action: #selector(Coordinator.handleTwoFingerTap))
+        twoFingerTap.numberOfTouchesRequired = 2
+        twoFingerTap.cancelsTouchesInView = false
+        view.addGestureRecognizer(twoFingerTap)
 
         return view
     }
@@ -441,6 +471,7 @@ private struct SwipeGestureOverlay: UIViewRepresentable {
         }
 
         @objc func handleTap() { parent.onTap() }
+        @objc func handleTwoFingerTap() { parent.onTwoFingerTap() }
     }
 }
 #endif

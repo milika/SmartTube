@@ -37,12 +37,27 @@ public final class PlaybackViewModel {
     public var error: Error?
     public var controlsVisible: Bool = false
     public private(set) var likeStatus: LikeStatus = .none
+    public private(set) var statsForNerdsVisible: Bool = false
+    public private(set) var statsSnapshot: StatsForNerdsSnapshot = .empty
 
     /// The chapter whose start time is closest-but-not-greater-than `currentTime`.
     /// Nil when no chapters are available or the video hasn't started.
     public var currentChapter: Chapter? {
         guard !chapters.isEmpty else { return nil }
         return chapters.last(where: { $0.startTime <= currentTime })
+    }
+
+    /// True when there is a chapter ahead of the current playhead position.
+    public var hasNextChapter: Bool {
+        chapters.contains { $0.startTime > currentTime }
+    }
+
+    /// True when the playhead can be moved backward to a chapter boundary —
+    /// either to the start of the current chapter (if >3 s in) or to the previous one.
+    public var hasPreviousChapter: Bool {
+        guard let current = currentChapter else { return false }
+        if currentTime - current.startTime > 3 { return true }
+        return chapters.contains { $0.startTime < current.startTime }
     }
 
     // MARK: - History
@@ -236,6 +251,106 @@ public final class PlaybackViewModel {
         Task { await api.setAuthToken(token) }
     }
 
+    // MARK: - Stats for Nerds
+
+    public func toggleStatsForNerds() {
+        statsForNerdsVisible.toggle()
+        if statsForNerdsVisible { updateStatsSnapshot() }
+    }
+
+    private func updateStatsSnapshot() {
+        guard let item = player.currentItem else {
+            statsSnapshot = .empty
+            return
+        }
+        let logEvent = item.accessLog()?.events.last
+        let videoId = playerInfo?.video.id ?? currentVideo?.id ?? ""
+
+        // Resolution – prefer actual presentation size, fall back to format metadata
+        let presentationSize = item.presentationSize
+        let res: String
+        if presentationSize.width > 0 && presentationSize.height > 0 {
+            res = "\(Int(presentationSize.width))×\(Int(presentationSize.height))"
+        } else if let fmt = selectedFormat, fmt.height > 0 {
+            res = fmt.width > 0 ? "\(fmt.width)×\(fmt.height)" : "\(fmt.height)p"
+        } else {
+            res = "—"
+        }
+
+        let fps = selectedFormat?.fps ?? 0
+
+        // Codec: if a format is manually selected use its mimeType; otherwise
+        // reflect the adaptive stream type (HLS / DASH) or fallback to the
+        // best available progressive format.
+        let codec: String
+        if let fmt = selectedFormat {
+            codec = Self.extractCodec(from: fmt.mimeType)
+        } else if playerInfo?.hlsURL != nil {
+            codec = "HLS"
+        } else if playerInfo?.dashURL != nil {
+            codec = "DASH"
+        } else if let fmt = playerInfo?.formats.first {
+            codec = Self.extractCodec(from: fmt.mimeType)
+        } else {
+            codec = "—"
+        }
+
+        let nominalBitrate: String
+        if let br = selectedFormat?.bitrate, br > 0 {
+            nominalBitrate = Self.formatBitrate(br)
+        } else if playerInfo?.hlsURL != nil || playerInfo?.dashURL != nil {
+            nominalBitrate = "Adaptive"
+        } else if let br = playerInfo?.formats.first?.bitrate, br > 0 {
+            nominalBitrate = Self.formatBitrate(br)
+        } else {
+            nominalBitrate = "—"
+        }
+
+        let observedBitrate: String
+        if let br = logEvent?.observedBitrate, br > 0 {
+            observedBitrate = Self.formatBitrate(Int(br))
+        } else {
+            observedBitrate = "—"
+        }
+
+        let droppedFrames = logEvent.map { $0.numberOfDroppedVideoFrames } ?? 0
+        let stalls = logEvent.map { $0.numberOfStalls } ?? 0
+
+        statsSnapshot = StatsForNerdsSnapshot(
+            videoId: videoId,
+            displayResolution: res,
+            fps: fps,
+            codec: codec,
+            nominalBitrate: nominalBitrate,
+            observedBitrate: observedBitrate,
+            droppedFrames: droppedFrames,
+            stalls: stalls
+        )
+    }
+
+    private static func extractCodec(from mimeType: String) -> String {
+        if mimeType.contains("mpegURL") || mimeType.contains("m3u8") { return "HLS" }
+        if let range = mimeType.range(of: #"codecs="([^"]+)""#, options: .regularExpression) {
+            let matched = String(mimeType[range])
+            if let valueRange = matched.range(of: #"(?<==)[^"]+"#, options: .regularExpression) {
+                let codecs = String(matched[valueRange])
+                    .trimmingCharacters(in: CharacterSet(charactersIn: "\""))
+                let first = codecs.components(separatedBy: ",").first?
+                    .trimmingCharacters(in: .whitespaces) ?? codecs
+                return first.components(separatedBy: ".").first ?? first
+            }
+        }
+        if mimeType.contains("mp4")  { return "mp4" }
+        if mimeType.contains("webm") { return "webm" }
+        return mimeType.isEmpty ? "—" : mimeType
+    }
+
+    private static func formatBitrate(_ bps: Int) -> String {
+        if bps >= 1_000_000 { return String(format: "%.1f Mbps", Double(bps) / 1_000_000) }
+        if bps >= 1_000     { return String(format: "%.0f kbps", Double(bps) / 1_000) }
+        return "\(bps) bps"
+    }
+
     // MARK: - Like / Dislike
 
     /// Toggles the like state for the current video (optimistic update; rolls back on failure).
@@ -384,6 +499,22 @@ public final class PlaybackViewModel {
         seek(to: max(0, currentTime + seconds))
     }
 
+    /// Seek to the start of the next chapter.
+    public func skipToNextChapter() {
+        guard let next = chapters.first(where: { $0.startTime > currentTime }) else { return }
+        seek(to: next.startTime)
+    }
+
+    /// Seek to the start of the current chapter (if >3 s in) or to the previous chapter.
+    public func skipToPreviousChapter() {
+        guard let current = currentChapter else { return }
+        if currentTime - current.startTime > 3 {
+            seek(to: current.startTime)
+        } else if let prev = chapters.last(where: { $0.startTime < current.startTime }) {
+            seek(to: prev.startTime)
+        }
+    }
+
     public func setPlaybackSpeed(_ speed: Double) {
         player.rate = Float(speed)
     }
@@ -456,6 +587,7 @@ public final class PlaybackViewModel {
                 guard let self else { return }
                 self.currentTime = seconds
                 self.checkSponsorSkip(at: seconds)
+                if self.statsForNerdsVisible { self.updateStatsSnapshot() }
             }
         }
     }
@@ -480,6 +612,31 @@ public final class PlaybackViewModel {
         #endif
         controlsTimer?.cancel()
     }
+}
+
+// MARK: - StatsForNerdsSnapshot
+
+/// Snapshot of playback diagnostics for the "Stats for Nerds" overlay.
+public struct StatsForNerdsSnapshot: Sendable {
+    public var videoId: String
+    public var displayResolution: String
+    public var fps: Int
+    public var codec: String
+    public var nominalBitrate: String
+    public var observedBitrate: String
+    public var droppedFrames: Int
+    public var stalls: Int
+
+    public static let empty = StatsForNerdsSnapshot(
+        videoId: "",
+        displayResolution: "",
+        fps: 0,
+        codec: "",
+        nominalBitrate: "",
+        observedBitrate: "",
+        droppedFrames: 0,
+        stalls: 0
+    )
 }
 
 // MARK: - AVPlayerItem async helpers

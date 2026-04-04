@@ -12,6 +12,16 @@ struct ShortsPresentation: Identifiable {
     let startIndex: Int
 }
 
+// MARK: - ChannelDestination
+//
+// Identifiable wrapper used to drive navigationDestination(item:) for channel navigation
+// triggered by the .openChannel NotificationCenter event.
+
+struct ChannelDestination: Identifiable, Hashable {
+    let channelId: String
+    var id: String { channelId }
+}
+
 // MARK: - Shared layout constants
 
 /// Adaptive grid columns used for video grids across Browse and Channel views.
@@ -36,8 +46,10 @@ enum AppSymbol {
     static let chevronDown  = "chevron.down"
 
     // MARK: - Playback controls
-    static let previousTrack = "backward.end.fill"
-    static let nextTrack     = "forward.end.fill"
+    static let previousTrack    = "backward.end.fill"
+    static let nextTrack        = "forward.end.fill"
+    static let previousChapter  = "backward.end.alt.fill"
+    static let nextChapter      = "forward.end.alt.fill"
     static let thumbsUp      = "hand.thumbsup"
     static let thumbsDown    = "hand.thumbsdown"
 
@@ -47,6 +59,7 @@ enum AppSymbol {
     static let xmarkCircle     = "xmark.circle.fill"
     static let share           = "square.and.arrow.up"
     static let copyDoc         = "doc.on.doc"
+    static let download        = "arrow.down.to.line"
 
     // MARK: - Status / info
     static let warning         = "exclamationmark.triangle.fill"

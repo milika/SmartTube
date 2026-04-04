@@ -18,6 +18,10 @@ public struct VideoCardView: View {
     public let video: Video
     public var compact: Bool = false
 
+    @Environment(AuthService.self) private var authService
+    @State private var downloadService = VideoDownloadService()
+    @State private var downloadAlertItem: DownloadAlertItem?
+
     public init(video: Video, compact: Bool = false) {
         self.video = video
         self.compact = compact
@@ -48,6 +52,43 @@ public struct VideoCardView: View {
                     Label("Open Channel", systemImage: AppSymbol.personRectangle)
                 }
             }
+            Button {
+                downloadService.updateAuthToken(authService.accessToken)
+                downloadService.download(video: video)
+            } label: {
+                if downloadService.state.isActive {
+                    Label("Downloading…", systemImage: AppSymbol.download)
+                } else {
+                    Label("Download to Gallery", systemImage: AppSymbol.download)
+                }
+            }
+            .disabled(downloadService.state.isActive)
+        } preview: {
+            Group {
+                if compact {
+                    compactLayout
+                } else {
+                    gridLayout
+                }
+            }
+            .padding(12)
+            .frame(width: 300)
+            .background(.background)
+        }
+        .onChange(of: downloadService.state) { _, newState in
+            switch newState {
+            case .done:
+                downloadAlertItem = DownloadAlertItem(title: "Saved to Gallery", message: "\"\(video.title)\" has been saved to your Photos library.")
+                downloadService.reset()
+            case .failed(let reason):
+                downloadAlertItem = DownloadAlertItem(title: "Download Failed", message: reason)
+                downloadService.reset()
+            default:
+                break
+            }
+        }
+        .alert(item: $downloadAlertItem) { item in
+            Alert(title: Text(item.title), message: Text(item.message), dismissButton: .default(Text("OK")))
         }
     }
 
@@ -55,8 +96,9 @@ public struct VideoCardView: View {
 
     private var gridLayout: some View {
         VStack(alignment: .leading, spacing: 6) {
-            thumbnailView
+            Color.clear
                 .aspectRatio(16 / 9, contentMode: .fit)
+                .overlay(thumbnailView.clipped())
                 .clipShape(RoundedRectangle(cornerRadius: 8))
                 .overlay(alignment: .bottomTrailing) {
                     let dur = video.formattedDuration
@@ -70,7 +112,7 @@ public struct VideoCardView: View {
                 Text(video.title)
                     .font(.subheadline)
                     .fontWeight(.medium)
-                    .lineLimit(2)
+                    .lineLimit(2, reservesSpace: true)
                 Text(video.channelTitle)
                     .font(.caption)
                     .foregroundStyle(.secondary)
@@ -163,6 +205,14 @@ public struct VideoCardView: View {
             .clipShape(RoundedRectangle(cornerRadius: 3))
             .padding(4)
     }
+}
+
+// MARK: - DownloadAlertItem
+
+private struct DownloadAlertItem: Identifiable {
+    let id = UUID()
+    let title: String
+    let message: String
 }
 
 // MARK: - Preview

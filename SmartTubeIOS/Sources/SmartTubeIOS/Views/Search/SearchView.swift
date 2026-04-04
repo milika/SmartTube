@@ -10,6 +10,7 @@ public struct SearchView: View {
     @Environment(SearchViewModel.self) private var vm
     @Environment(SettingsStore.self) private var store
     @State private var selectedVideo: Video?
+    @State private var channelDestination: ChannelDestination?
     @State private var showFilterSheet = false
     @FocusState private var isSearchFocused: Bool
 
@@ -39,6 +40,13 @@ public struct SearchView: View {
         #endif
         .navigationDestination(item: $selectedVideo) { video in
             PlayerView(video: video)
+        }
+        .navigationDestination(item: $channelDestination) { dest in
+            ChannelView(channelId: dest.channelId)
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .openChannel)) { note in
+            guard let channelId = note.userInfo?["channelId"] as? String, !channelId.isEmpty else { return }
+            channelDestination = ChannelDestination(channelId: channelId)
         }
         .sheet(isPresented: $showFilterSheet) {
             SearchFilterSheet(current: vm.filter) { newFilter in

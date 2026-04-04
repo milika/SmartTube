@@ -138,9 +138,6 @@ All tests live in `SmartTubeApp/UITests/` and run against the `SmartTubeUITests`
 
 ## Work remaining (open tasks)
 
-### Security (before any public release)
-- 🔲 **Keychain migration** — move `accessToken`, `refreshToken`, `expiresAt`, `userId` from `UserDefaults` to `SecItem*` Keychain APIs (CWE-312 / OWASP M2) — see `05-migration-new-code-rules.md` §1.1
-
 ### Phase 3 — Playback enhancements (in progress)
 - ✅ **Quality selection dialog** — format list parsed from PlayerInfo; picker sheet in player controls overlay
 - ✅ **In-player speed control** — speed picker sheet; persisted in `AppSettings.playbackSpeed`

@@ -14,6 +14,7 @@ public struct PlaylistView: View {
     @Environment(SettingsStore.self) private var store
     @State private var vm = PlaylistViewModel()
     @State private var selectedVideo: Video?
+    @State private var channelDestination: ChannelDestination?
 
     public init(playlistId: String, playlistTitle: String) {
         self.playlistId = playlistId
@@ -40,6 +41,13 @@ public struct PlaylistView: View {
         }
         .navigationDestination(item: $selectedVideo) { video in
             PlayerView(video: video)
+        }
+        .navigationDestination(item: $channelDestination) { dest in
+            ChannelView(channelId: dest.channelId)
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .openChannel)) { note in
+            guard let channelId = note.userInfo?["channelId"] as? String, !channelId.isEmpty else { return }
+            channelDestination = ChannelDestination(channelId: channelId)
         }
         .alert("Error", isPresented: .constant(vm.error != nil), presenting: vm.error) { _ in
             Button("Retry") { vm.load(playlistId: playlistId) }

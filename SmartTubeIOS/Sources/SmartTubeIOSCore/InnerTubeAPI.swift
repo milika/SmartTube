@@ -201,10 +201,38 @@ public actor InnerTubeAPI {
     // MARK: - Channel
 
     public func fetchChannel(channelId: String) async throws -> (channel: Channel, videos: VideoGroup) {
+        // @handle strings are not valid browseIds — resolve to the real UC… channel ID first.
+        let resolvedId: String
+        if channelId.hasPrefix("@") {
+            tubeLog.notice("fetchChannel resolving handle \(channelId, privacy: .public)")
+            resolvedId = try await resolveChannelHandle(channelId)
+            tubeLog.notice("fetchChannel resolved \(channelId, privacy: .public) → \(resolvedId, privacy: .public)")
+        } else {
+            resolvedId = channelId
+        }
         var body = makeBody(client: webClientContext)
-        body["browseId"] = channelId
+        body["browseId"] = resolvedId
+        tubeLog.notice("fetchChannel browseId=\(resolvedId, privacy: .public)")
         let data = try await post(endpoint: "browse", body: body)
-        return try parseChannel(from: data, channelId: channelId)
+        return try parseChannel(from: data, channelId: resolvedId)
+    }
+
+    /// Resolves a YouTube `@handle` to the canonical `UC…` channel ID using the
+    /// InnerTube `navigation/resolve_url` endpoint.
+    private func resolveChannelHandle(_ handle: String) async throws -> String {
+        let handleURL = "https://www.youtube.com/\(handle)"
+        var body = makeBody(client: webClientContext)
+        body["url"] = handleURL
+        tubeLog.notice("resolveChannelHandle url=\(handleURL, privacy: .public)")
+        let data = try await post(endpoint: "navigation/resolve_url", body: body)
+        // Response shape: { "endpoint": { "browseEndpoint": { "browseId": "UCxxx" } } }
+        let endpoint = data["endpoint"] as? [String: Any]
+        if let browseId = (endpoint?["browseEndpoint"] as? [String: Any])?["browseId"] as? String {
+            return browseId
+        }
+        let topKeys = data.keys.joined(separator: ", ")
+        tubeLog.error("resolveChannelHandle: unexpected response keys=[\(topKeys, privacy: .public)]")
+        throw APIError.decodingError("Could not resolve handle \(handle) to a channel ID")
     }
 
     public func fetchChannelVideos(channelId: String, continuationToken: String? = nil) async throws -> VideoGroup {
@@ -213,6 +241,8 @@ public actor InnerTubeAPI {
             body["browseId"] = channelId
             body["params"] = "EgZ2aWRlb3PyBgQKAjoA"  // "Videos" tab parameter
         }
+        let videosParams = (body["params"] as? String) ?? "nil"
+        tubeLog.notice("fetchChannelVideos browseId=\(channelId, privacy: .public) hasContinuation=\(continuationToken != nil, privacy: .public) params=\(videosParams, privacy: .public)")
         let data = try await post(endpoint: "browse", body: body)
         return try parseVideoGroup(from: data, title: nil)
     }
@@ -225,6 +255,31 @@ public actor InnerTubeAPI {
         body["racyCheckOk"] = true
         body["contentCheckOk"] = true
         let data = try await postPlayer(body: body)
+        return try parsePlayerInfo(from: data, videoId: videoId)
+    }
+
+    /// Fetches player info using the Web client, which returns muxed (video+audio)
+    /// MP4 streams suitable for direct file download and saving to Photos.
+    /// The iOS client only returns adaptive-only streams; the Web client includes
+    /// itag 18 (360p muxed) and itag 22 (720p muxed) in the `formats` array.
+    public func fetchPlayerInfoForDownload(videoId: String) async throws -> PlayerInfo {
+        var body = makeBody(client: webClientContext)
+        body["videoId"] = videoId
+        body["racyCheckOk"] = true
+        body["contentCheckOk"] = true
+        let data = try await post(endpoint: "player", body: body)
+        return try parsePlayerInfo(from: data, videoId: videoId)
+    }
+
+    /// Fetches player info using the authenticated TV client.
+    /// Used as a fallback when the anonymous Web client returns UNPLAYABLE —
+    /// membership-only, age-restricted, or subscription-paywalled videos require auth.
+    public func fetchPlayerInfoAuthenticated(videoId: String) async throws -> PlayerInfo {
+        var body = makeBody(client: tvClientContext)
+        body["videoId"] = videoId
+        body["racyCheckOk"] = true
+        body["contentCheckOk"] = true
+        let data = try await postTV(endpoint: "player", body: body)
         return try parsePlayerInfo(from: data, videoId: videoId)
     }
 
@@ -920,10 +975,22 @@ public actor InnerTubeAPI {
             return extractText(text) ?? ""
         }()
 
-        // channelId: watchEndpoint.channelId (primary) or onSelectCommand.browseEndpoint.browseId (fallback)
-        // Android: TileItem.getChannelId() → watchEndpoint.channelId
-        let channelId: String? = (watchEndpoint?["channelId"] as? String)
-            ?? (onSelectCommand?["browseEndpoint"] as? [String: Any])?["browseId"] as? String
+        // channelId: watchEndpoint.channelId (primary) or onSelectCommand.browseEndpoint.browseId (secondary)
+        // Fallback: extract @handle from onLongPressCommand.showMenuCommand.subtitle.simpleText
+        // TV client subtitle format: "ChannelName • @handle" — YouTube browse API accepts @handle as browseId.
+        let channelId: String? = {
+            if let id = watchEndpoint?["channelId"] as? String { return id }
+            if let id = (onSelectCommand?["browseEndpoint"] as? [String: Any])?["browseId"] as? String { return id }
+            guard let showMenu = (tile["onLongPressCommand"] as? [String: Any])?["showMenuCommand"] as? [String: Any],
+                  let subtitleText = (showMenu["subtitle"] as? [String: Any])?["simpleText"] as? String,
+                  let atIndex = subtitleText.firstIndex(of: "@")
+            else { return nil }
+            let handle = subtitleText[atIndex...]
+                .components(separatedBy: .whitespacesAndNewlines)
+                .first
+                .map { String($0) }
+            return handle
+        }()
 
         // thumbnail: header.tileHeaderRenderer.thumbnail.thumbnails — Android: TileItem.getThumbnails()
         let tileHeader = (tile["header"] as? [String: Any])?["tileHeaderRenderer"] as? [String: Any]
@@ -980,13 +1047,49 @@ public actor InnerTubeAPI {
         let lockupMeta = (lockup["metadata"] as? [String: Any])?["lockupMetadataViewModel"] as? [String: Any]
         let title = (lockupMeta?["title"] as? [String: Any]).flatMap { extractText($0) } ?? ""
 
+        // channelTitle + channelId: metadata.lockupMetadataViewModel.metadata.contentMetadataViewModel.metadataRows
+        // The first row typically contains the channel name with a browseEndpoint for the channel.
+        let metaContentVM = (lockupMeta?["metadata"] as? [String: Any])?["contentMetadataViewModel"] as? [String: Any]
+        let metaRows = metaContentVM?["metadataRows"] as? [[String: Any]] ?? []
+
+        let channelTitle: String = {
+            guard let firstRow = metaRows.first,
+                  let parts = firstRow["metadataParts"] as? [[String: Any]],
+                  let firstPart = parts.first,
+                  let text = firstPart["text"] as? [String: Any]
+            else { return "" }
+            return text["content"] as? String ?? extractText(text) ?? ""
+        }()
+
+        // channelId: watchEndpoint.channelId (primary) or
+        // lockupMetadataViewModel.metadata.contentMetadataViewModel.metadataRows[].metadataParts[]
+        //   .text.commandRuns[].onTap.innertubeCommand.browseEndpoint.browseId (fallback)
+        let channelId: String? = (watchEndpoint["channelId"] as? String) ?? {
+            for row in metaRows {
+                guard let parts = row["metadataParts"] as? [[String: Any]] else { continue }
+                for part in parts {
+                    guard let text = part["text"] as? [String: Any],
+                          let commandRuns = text["commandRuns"] as? [[String: Any]]
+                    else { continue }
+                    for run in commandRuns {
+                        guard let cmd = (run["onTap"] as? [String: Any])?["innertubeCommand"] as? [String: Any],
+                              let browseId = (cmd["browseEndpoint"] as? [String: Any])?["browseId"] as? String,
+                              browseId.hasPrefix("UC")
+                        else { continue }
+                        return browseId
+                    }
+                }
+            }
+            return nil
+        }()
+
         // thumbnail: contentImage.thumbnailViewModel.image.thumbnails
         let thumbVM = (lockup["contentImage"] as? [String: Any])?["thumbnailViewModel"] as? [String: Any]
         let thumbnails = (thumbVM?["image"] as? [String: Any])?["thumbnails"] as? [[String: Any]]
         let thumbURL = thumbnails?.last.flatMap { $0["url"] as? String }.flatMap { URL(string: $0) }
 
         return Video(
-            id: videoId, title: title, channelTitle: "", channelId: nil,
+            id: videoId, title: title, channelTitle: channelTitle, channelId: channelId,
             thumbnailURL: thumbURL, duration: nil, viewCount: nil,
             isLive: false, isShort: false, badges: []
         )
@@ -998,8 +1101,30 @@ public actor InnerTubeAPI {
         let title = (r["headline"] as? [String: Any]).flatMap { extractText($0) } ?? ""
         let thumbnails = (r["thumbnail"] as? [String: Any])?["thumbnails"] as? [[String: Any]]
         let thumbURL = thumbnails?.last.flatMap { $0["url"] as? String }.flatMap { URL(string: $0) }
+
+        // channelTitle: ownerText or shortBylineText
+        let channelTitle: String = (r["ownerText"] as? [String: Any]).flatMap { extractText($0) }
+            ?? (r["shortBylineText"] as? [String: Any]).flatMap { extractText($0) }
+            ?? ""
+
+        // channelId: navigationEndpoint.reelWatchEndpoint.channelId (primary)
+        // or ownerText/shortBylineText runs[0].navigationEndpoint.browseEndpoint.browseId (fallback)
+        let channelId: String? = {
+            if let channelId = (r["navigationEndpoint"] as? [String: Any])
+                .flatMap({ ($0["reelWatchEndpoint"] as? [String: Any])?["channelId"] as? String }) {
+                return channelId
+            }
+            let sourceKey = r["ownerText"] != nil ? "ownerText" : "shortBylineText"
+            guard let runs = (r[sourceKey] as? [String: Any])?["runs"] as? [[String: Any]],
+                  let first = runs.first,
+                  let nav = first["navigationEndpoint"] as? [String: Any],
+                  let browse = nav["browseEndpoint"] as? [String: Any]
+            else { return nil }
+            return browse["browseId"] as? String
+        }()
+
         return Video(
-            id: videoId, title: title, channelTitle: "", channelId: nil,
+            id: videoId, title: title, channelTitle: channelTitle, channelId: channelId,
             thumbnailURL: thumbURL, duration: nil, viewCount: nil,
             isLive: false, isShort: true, badges: []
         )
@@ -1067,13 +1192,44 @@ public actor InnerTubeAPI {
     }
 
     private func parseChannel(from json: [String: Any], channelId: String) throws -> (Channel, VideoGroup) {
-        let header = (json["header"] as? [String: Any])?["c4TabbedHeaderRenderer"] as? [String: Any]
-        let title = header.flatMap { $0["title"] as? String } ?? ""
+        let headerDict = json["header"] as? [String: Any]
+        tubeLog.notice("parseChannel header keys=[\((headerDict?.keys.joined(separator: ",")) ?? "nil", privacy: .public)]")
+        let header = headerDict?["c4TabbedHeaderRenderer"] as? [String: Any]
+            ?? headerDict?["pageHeaderRenderer"] as? [String: Any]
+        let title = header.flatMap { $0["title"] as? String }
+            ?? (header?["pageTitle"] as? String)
+            ?? {
+                // pageHeaderRenderer uses content.pageHeaderViewModel.title.content
+                if let content = (header?["content"] as? [String: Any])?["pageHeaderViewModel"] as? [String: Any] {
+                    return (content["title"] as? [String: Any]).flatMap { extractText($0) }
+                        ?? content["title"] as? String
+                }
+                return nil
+            }()
+            ?? ""
+        tubeLog.notice("parseChannel header=\(header != nil ? "found" : "nil", privacy: .public) title='\(title, privacy: .public)'")
         let description = header
             .flatMap { $0["description"] as? [String: Any] }
             .flatMap { extractText($0) }
-        let thumbURL = ((header?["avatar"] as? [String: Any])?["thumbnails"] as? [[String: Any]])?
-            .last.flatMap { $0["url"] as? String }.flatMap { URL(string: $0) }
+        // avatar: c4TabbedHeaderRenderer uses avatar.thumbnails, pageHeaderRenderer uses banner or content avatar
+        let thumbURL: URL? = {
+            // c4TabbedHeaderRenderer path
+            if let url = ((header?["avatar"] as? [String: Any])?["thumbnails"] as? [[String: Any]])?
+                .last.flatMap({ $0["url"] as? String }).flatMap({ URL(string: $0) }) {
+                return url
+            }
+            // pageHeaderViewModel path: content.pageHeaderViewModel.image.decoratedAvatarViewModel.avatar.avatarViewModel.image.sources
+            if let hvm = (header?["content"] as? [String: Any])?["pageHeaderViewModel"] as? [String: Any],
+               let sources = ((((hvm["image"] as? [String: Any])?["decoratedAvatarViewModel"] as? [String: Any])?["avatar"] as? [String: Any])?["avatarViewModel"] as? [String: Any])?["image"] as? [String: Any],
+               let urlStr = (sources["sources"] as? [[String: Any]])?.last?["url"] as? String {
+                return URL(string: urlStr)
+            }
+            // metadata fallback: json.metadata.channelMetadataRenderer.avatar.thumbnails
+            if let urlStr = (((json["metadata"] as? [String: Any])?["channelMetadataRenderer"] as? [String: Any])?["avatar"] as? [String: Any]).flatMap({ ($0["thumbnails"] as? [[String: Any]])?.last?["url"] as? String }) {
+                return URL(string: urlStr)
+            }
+            return nil
+        }()
         let subscribers = header.flatMap { $0["subscriberCountText"] as? [String: Any] }.flatMap { extractText($0) }
 
         let channel = Channel(
@@ -1297,6 +1453,40 @@ public struct PlayerInfo: Sendable {
         // Combined (muxed) video+audio MP4 as fallback
         let combined = formats.filter { $0.mimeType.contains("video/mp4") && $0.mimeType.contains("codecs=") }
         return combined.sorted { ($0.bitrate ?? 0) > ($1.bitrate ?? 0) }.first?.url
+    }
+
+    /// A direct MP4 URL suitable for file download (muxed video+audio).
+    /// Muxed formats list two codecs separated by ", " (e.g. "avc1.xxx, mp4a.xxx"),
+    /// unlike adaptive streams which have a single codec.
+    /// Returns nil if no muxed MP4 with a plain URL is available.
+    public var bestMuxedDownloadURL: URL? {
+        let muxed = formats.filter {
+            $0.mimeType.hasPrefix("video/mp4") &&
+            $0.mimeType.contains(", ") &&
+            $0.url != nil
+        }
+        return muxed.sorted { ($0.bitrate ?? 0) > ($1.bitrate ?? 0) }.first?.url
+    }
+
+    /// Best adaptive video-only MP4 URL (single codec, no audio).
+    /// Used together with bestAdaptiveAudioURL for the merge fallback.
+    public var bestAdaptiveVideoURL: URL? {
+        let videoOnly = formats.filter {
+            $0.mimeType.hasPrefix("video/mp4") &&
+            !$0.mimeType.contains(", ") &&
+            $0.url != nil
+        }
+        return videoOnly.sorted { ($0.bitrate ?? 0) > ($1.bitrate ?? 0) }.first?.url
+    }
+
+    /// Best adaptive audio-only MP4 URL.
+    /// Used together with bestAdaptiveVideoURL for the merge fallback.
+    public var bestAdaptiveAudioURL: URL? {
+        let audioOnly = formats.filter {
+            $0.mimeType.hasPrefix("audio/mp4") &&
+            $0.url != nil
+        }
+        return audioOnly.sorted { ($0.bitrate ?? 0) > ($1.bitrate ?? 0) }.first?.url
     }
 }
 

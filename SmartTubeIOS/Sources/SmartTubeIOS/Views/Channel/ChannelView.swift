@@ -18,6 +18,7 @@ public struct ChannelView: View {
     @State private var vm = ChannelViewModel()
     @State private var selectedVideo: Video?
     @State private var shortsPresentation: ShortsPresentation?
+    @State private var channelDestination: ChannelDestination?
     @State private var filter: ChannelFilter = .all
     @Environment(SettingsStore.self) private var store
 
@@ -38,6 +39,13 @@ public struct ChannelView: View {
         .onAppear { vm.load(channelId: channelId) }
         .navigationDestination(item: $selectedVideo) { video in
             PlayerView(video: video)
+        }
+        .navigationDestination(item: $channelDestination) { dest in
+            ChannelView(channelId: dest.channelId)
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .openChannel)) { note in
+            guard let channelId = note.userInfo?["channelId"] as? String, !channelId.isEmpty else { return }
+            channelDestination = ChannelDestination(channelId: channelId)
         }
         .fullScreenCover(item: $shortsPresentation) { target in
             ShortsPlayerView(videos: target.videos, startIndex: target.startIndex)

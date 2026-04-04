@@ -10,6 +10,7 @@ public struct BrowseView: View {
     @Environment(AuthService.self) private var auth
     @State private var selectedVideo: Video?
     @State private var shortsPresentation: ShortsPresentation?
+    @State private var channelDestination: ChannelDestination?
     @State private var showSignIn = false
     @State private var showError = false
 
@@ -30,6 +31,13 @@ public struct BrowseView: View {
         .toolbar { sectionPicker }
         .navigationDestination(item: $selectedVideo) { video in
             PlayerView(video: video)
+        }
+        .navigationDestination(item: $channelDestination) { dest in
+            ChannelView(channelId: dest.channelId)
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .openChannel)) { note in
+            guard let channelId = note.userInfo?["channelId"] as? String, !channelId.isEmpty else { return }
+            channelDestination = ChannelDestination(channelId: channelId)
         }
         .alert("Error", isPresented: $showError, presenting: vm.error) { _ in
             Button("Retry") { vm.loadContent(refresh: true) }
@@ -209,7 +217,7 @@ struct VideoRowSection: View {
 
     var body: some View {
         ScrollView(.horizontal, showsIndicators: false) {
-            LazyHStack(spacing: 12) {
+            HStack(alignment: .top, spacing: 12) {
                 ForEach(videos) { video in
                     VideoCardView(video: video, compact: false)
                         .frame(width: 220)

@@ -21,6 +21,7 @@ public struct PlayerView: View {
     @State private var showQualityPicker = false
     @State private var slideOffset: CGFloat = 0
     @State private var isTransitioning = false
+    @State private var channelDestination: ChannelDestination?
 
     public init(video: Video) {
         self.video = video
@@ -53,6 +54,7 @@ public struct PlayerView: View {
                         else { withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) { slideOffset = 0 } }
                     },
                     onTap: { vm.showControls() },
+                    onTwoFingerTap: { vm.toggleStatsForNerds() },
                     onPanChanged: { dx in
                         guard !isTransitioning else { return }
                         if (dx < 0 && vm.hasNext) || (dx > 0 && vm.hasPrevious) {
@@ -93,6 +95,13 @@ public struct PlayerView: View {
 
                 // SponsorBlock skip toast
                 sponsorSkipToast
+
+                // Stats for Nerds overlay (toggled by two-finger tap)
+                if vm.statsForNerdsVisible {
+                    StatsForNerdsOverlay(snapshot: vm.statsSnapshot)
+                        .transition(.opacity)
+                        .animation(.easeInOut(duration: 0.2), value: vm.statsForNerdsVisible)
+                }
             }
             .offset(x: slideOffset)
         }
@@ -121,6 +130,9 @@ public struct PlayerView: View {
         }
         .sheet(isPresented: $showQualityPicker) {
             qualityPickerSheet
+        }
+        .navigationDestination(item: $channelDestination) { dest in
+            ChannelView(channelId: dest.channelId)
         }
     }
 
@@ -166,10 +178,19 @@ public struct PlayerView: View {
                         .foregroundStyle(.white)
                         .lineLimit(1)
                         .accessibilityIdentifier("player.titleLabel")
-                    Text(vm.playerInfo?.video.channelTitle ?? video.channelTitle)
-                        .font(.subheadline)
-                        .foregroundStyle(.white.opacity(0.8))
-                        .lineLimit(1)
+                    let channelId = vm.playerInfo?.video.channelId ?? video.channelId
+                    let channelTitle = vm.playerInfo?.video.channelTitle ?? video.channelTitle
+                    Button {
+                        guard let cid = channelId, !cid.isEmpty else { return }
+                        channelDestination = ChannelDestination(channelId: cid)
+                    } label: {
+                        Text(channelTitle)
+                            .font(.subheadline)
+                            .foregroundStyle(.white.opacity(0.8))
+                            .lineLimit(1)
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(channelId == nil || channelId?.isEmpty == true)
                 }
                 Spacer()
                 // Speed picker button
@@ -269,11 +290,39 @@ public struct PlayerView: View {
                     .buttonStyle(.plain)
                     .disabled(!vm.hasPrevious || vm.isLoading)
 
+                    // Previous chapter button — only present when the video has chapters
+                    if !vm.chapters.isEmpty {
+                        Button {
+                            vm.skipToPreviousChapter()
+                        } label: {
+                            Image(systemName: AppSymbol.previousChapter)
+                                .font(.system(size: 18))
+                                .foregroundStyle(vm.hasPreviousChapter && !vm.isLoading ? .white : .white.opacity(0.3))
+                        }
+                        .buttonStyle(.plain)
+                        .disabled(!vm.hasPreviousChapter || vm.isLoading)
+                        .accessibilityIdentifier("player.prevChapterBtn")
+                    }
+
                     Text(formatDuration(vm.currentTime))
                         .padding(.leading, 6)
                     Spacer()
                     Text(formatDuration(vm.duration))
                         .padding(.trailing, 6)
+
+                    // Next chapter button — only present when the video has chapters
+                    if !vm.chapters.isEmpty {
+                        Button {
+                            vm.skipToNextChapter()
+                        } label: {
+                            Image(systemName: AppSymbol.nextChapter)
+                                .font(.system(size: 18))
+                                .foregroundStyle(vm.hasNextChapter && !vm.isLoading ? .white : .white.opacity(0.3))
+                        }
+                        .buttonStyle(.plain)
+                        .disabled(!vm.hasNextChapter || vm.isLoading)
+                        .accessibilityIdentifier("player.nextChapterBtn")
+                    }
 
                     // Next video button
                     Button {
@@ -516,6 +565,49 @@ public struct PlayerView: View {
     }
 }
 
+// MARK: - StatsForNerdsOverlay
+
+struct StatsForNerdsOverlay: View {
+    let snapshot: StatsForNerdsSnapshot
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 5) {
+            row("Video ID",         snapshot.videoId)
+            row("Resolution",       snapshot.fps > 0
+                    ? "\(snapshot.displayResolution) @ \(snapshot.fps) fps"
+                    : snapshot.displayResolution)
+            row("Codec",            snapshot.codec)
+            row("Nominal Bitrate",  snapshot.nominalBitrate)
+            row("Connection Speed", snapshot.observedBitrate)
+            row("Dropped Frames",   "\(snapshot.droppedFrames)")
+            row("Stalls",           "\(snapshot.stalls)")
+            Text("Two-finger tap to dismiss")
+                .foregroundStyle(.white.opacity(0.4))
+                .font(.system(.caption2, design: .monospaced))
+                .padding(.top, 4)
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 10)
+        .background(.black.opacity(0.72))
+        .clipShape(RoundedRectangle(cornerRadius: 10))
+        .padding(.horizontal, 20)
+        .padding(.top, 30)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .allowsHitTesting(false)
+    }
+
+    private func row(_ key: String, _ value: String) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 8) {
+            Text(key)
+                .foregroundStyle(.white.opacity(0.55))
+                .frame(minWidth: 130, alignment: .leading)
+            Text(value.isEmpty ? "—" : value)
+                .foregroundStyle(.white)
+        }
+        .font(.system(.caption, design: .monospaced))
+    }
+}
+
 // MARK: - AVPlayerLayerView
 
 #if os(iOS)
@@ -553,6 +645,7 @@ private struct SwipeGestureOverlay: UIViewRepresentable {
     var onSwipeLeft:      () -> Void
     var onSwipeRight:     () -> Void
     var onTap:            () -> Void
+    var onTwoFingerTap:   () -> Void = {}
     var onPanChanged:     ((CGFloat) -> Void)?
     var onSwipeCancelled: (() -> Void)?
 
@@ -572,6 +665,12 @@ private struct SwipeGestureOverlay: UIViewRepresentable {
         tap.cancelsTouchesInView = false
         tap.require(toFail: pan)
         view.addGestureRecognizer(tap)
+
+        let twoFingerTap = UITapGestureRecognizer(target: context.coordinator,
+                                                   action: #selector(Coordinator.handleTwoFingerTap))
+        twoFingerTap.numberOfTouchesRequired = 2
+        twoFingerTap.cancelsTouchesInView = false
+        view.addGestureRecognizer(twoFingerTap)
 
         return view
     }
@@ -605,6 +704,7 @@ private struct SwipeGestureOverlay: UIViewRepresentable {
         }
 
         @objc func handleTap() { parent.onTap() }
+        @objc func handleTwoFingerTap() { parent.onTwoFingerTap() }
     }
 }
 #endif

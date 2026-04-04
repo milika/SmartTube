@@ -21,6 +21,7 @@ public struct HomeView: View {
     @State private var selectedSection: BrowseSection = BrowseSection.allSections[0]
     @State private var selectedVideo: Video?
     @State private var shortsPresentation: ShortsPresentation?
+    @State private var channelDestination: ChannelDestination?
     @State private var showSignIn = false
 
     private var visibleSections: [BrowseSection] {
@@ -41,6 +42,9 @@ public struct HomeView: View {
                 .navigationDestination(item: $selectedVideo) { video in
                     PlayerView(video: video)
                 }
+                .navigationDestination(item: $channelDestination) { dest in
+                    ChannelView(channelId: dest.channelId)
+                }
         }
         #if os(iOS)
         .toolbar(.hidden, for: .navigationBar)
@@ -49,6 +53,10 @@ public struct HomeView: View {
             ShortsPlayerView(videos: target.videos, startIndex: target.startIndex)
         }
         .sheet(isPresented: $showSignIn) { SignInView() }
+        .onReceive(NotificationCenter.default.publisher(for: .openChannel)) { note in
+            guard let channelId = note.userInfo?["channelId"] as? String, !channelId.isEmpty else { return }
+            channelDestination = ChannelDestination(channelId: channelId)
+        }
         .onChange(of: visibleSections) { _, newSections in
             if !newSections.contains(selectedSection), let first = newSections.first {
                 selectedSection = first
@@ -118,7 +126,7 @@ public struct HomeView: View {
 
     private var homeShelves: some View {
         ScrollView {
-            LazyVStack(alignment: .leading, spacing: 28) {
+            VStack(alignment: .leading, spacing: 28) {
                 ForEach(homeVM.sections) { state in
                     if state.isLoading || !state.videos.isEmpty {
                         shelfView(state: state)
@@ -153,7 +161,7 @@ public struct HomeView: View {
                 shelfPlaceholder
             } else {
                 ScrollView(.horizontal, showsIndicators: false) {
-                    LazyHStack(spacing: 16) {
+                    HStack(alignment: .top, spacing: 16) {
                         ForEach(state.videos) { video in
                             VideoCardView(video: video)
                                 .frame(width: 240)
