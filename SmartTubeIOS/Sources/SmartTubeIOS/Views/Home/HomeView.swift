@@ -64,7 +64,13 @@ public struct HomeView: View {
         }
         .task(id: auth.accessToken) {
             await homeVM.updateAuthToken(auth.accessToken)
-            await sectionVM.updateAuthToken(auth.accessToken)
+            // Only reload the section feed when it is actually displayed;
+            // on the Home chip the feed is hidden so just update the token.
+            if selectedSection.type == .home {
+                await sectionVM.setAuthToken(auth.accessToken)
+            } else {
+                await sectionVM.updateAuthToken(auth.accessToken)
+            }
         }
     }
 
@@ -161,7 +167,7 @@ public struct HomeView: View {
                 shelfPlaceholder
             } else {
                 ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(alignment: .top, spacing: 16) {
+                    LazyHStack(alignment: .top, spacing: 16) {
                         ForEach(state.videos) { video in
                             VideoCardView(video: video)
                                 .frame(width: 240)

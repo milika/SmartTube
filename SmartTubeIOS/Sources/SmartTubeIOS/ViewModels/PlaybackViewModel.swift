@@ -188,26 +188,21 @@ public final class PlaybackViewModel {
 
             // Build player item — preferredStreamURL is guaranteed non-nil here because
             // parsePlayerInfo throws APIError.unavailable when streamingData is absent.
-            //
-            // If the user has set a max resolution (preferredQuality != .auto), select the
-            // best available direct-URL format at or below that height instead of the
-            // adaptive HLS/DASH stream.
-            let resolvedURL: URL
-            if settings.preferredQuality != .auto,
-               let capped = Self.bestFormat(for: settings.preferredQuality, from: availableFormats),
-               let fmtURL = capped.url {
-                selectedFormat = capped
-                resolvedURL = fmtURL
-                playerLog.notice("Quality cap \(settings.preferredQuality.rawValue, privacy: .public) → \(capped.qualityLabel, privacy: .public)")
-            } else {
-                guard let url = info.preferredStreamURL else {
-                    playerLog.error("❌ No stream URL after successful parse (should not happen)")
-                    throw APIError.decodingError("No stream URL")
-                }
-                resolvedURL = url
+            guard let streamURL = info.preferredStreamURL else {
+                playerLog.error("❌ No stream URL after successful parse (should not happen)")
+                throw APIError.decodingError("No stream URL")
             }
-            playerLog.notice("Starting AVPlayer with: \(resolvedURL.absoluteString.prefix(120), privacy: .public)")
-            let item = AVPlayerItem(url: resolvedURL)
+            playerLog.notice("Starting AVPlayer with: \(streamURL.absoluteString.prefix(120), privacy: .public)")
+            let item = AVPlayerItem(url: streamURL)
+            // Apply resolution cap using preferredMaximumResolution on the HLS adaptive stream.
+            // This avoids HTTP 403 errors that occur when playing video-only adaptive URLs directly.
+            if settings.preferredQuality != .auto, let maxH = settings.preferredQuality.maxHeight {
+                let h = CGFloat(maxH)
+                item.preferredMaximumResolution = CGSize(width: h * 4, height: h)
+                selectedFormat = availableFormats.first { $0.height <= maxH }
+                let qualityLabel = settings.preferredQuality.rawValue
+                playerLog.notice("Quality cap \(qualityLabel, privacy: .public) via preferredMaximumResolution")
+            }
             // Observe item status using async/await (withCheckedContinuation is not needed
             // here since we only need to react to status changes, not await them).
             itemObserverTask?.cancel()
@@ -413,59 +408,17 @@ public final class PlaybackViewModel {
         }
     }
 
-    /// Switch to a specific quality format. Pass `nil` to return to Auto (HLS / preferred stream).
+    /// Switch to a specific quality. Pass `nil` to return to Auto (no resolution cap).
+    /// Sets `preferredMaximumResolution` on the active HLS item instead of switching to a
+    /// direct adaptive URL — avoids HTTP 403 errors from video-only adaptive streams.
     public func selectFormat(_ format: VideoFormat?) {
         selectedFormat = format
-        let url: URL
-        if let format {
-            guard let fmtURL = format.url else { return }
-            url = fmtURL
+        if let h = format.map({ CGFloat($0.height) }), h > 0 {
+            player.currentItem?.preferredMaximumResolution = CGSize(width: h * 4, height: h)
         } else {
-            guard let autoURL = playerInfo?.preferredStreamURL else { return }
-            url = autoURL
+            player.currentItem?.preferredMaximumResolution = .zero
         }
-        let resumePosition = currentTime
-        savedPositionToRestore = resumePosition > 0 ? resumePosition : nil
-        let item = AVPlayerItem(url: url)
-        itemObserverTask?.cancel()
-        itemObserverTask = Task { [weak self] in
-            for await status in item.statusStream {
-                guard let self, !Task.isCancelled else { return }
-                switch status {
-                case .readyToPlay:
-                    if let pos = self.savedPositionToRestore, pos > 0 {
-                        self.savedPositionToRestore = nil
-                        self.seek(to: pos)
-                    }
-                case .failed:
-                    self.error = item.error
-                case .unknown: break
-                @unknown default: break
-                }
-            }
-        }
-        endObserverTask?.cancel()
-        endObserverTask = Task { [weak self] in
-            let notifications = NotificationCenter.default.notifications(
-                named: AVPlayerItem.didPlayToEndTimeNotification, object: item
-            )
-            for await _ in notifications {
-                guard let self, !Task.isCancelled else { return }
-                self.handlePlaybackEnd()
-            }
-        }
-        player.replaceCurrentItem(with: item)
-        player.play()
-        isPlaying = true
         playerLog.notice("Quality → \(format?.qualityLabel ?? "Auto", privacy: .public)")
-    }
-
-    /// Returns the highest-quality format whose height is at or below the cap defined
-    /// by `quality`. Returns `nil` when `quality` is `.auto` or no suitable format exists.
-    private static func bestFormat(for quality: AppSettings.VideoQuality, from formats: [VideoFormat]) -> VideoFormat? {
-        guard let maxH = quality.maxHeight else { return nil }
-        // formats is already sorted descending by height/fps/bitrate from deduplicatedVideoFormats
-        return formats.first { $0.height <= maxH }
     }
 
     private static func deduplicatedVideoFormats(_ formats: [VideoFormat]) -> [VideoFormat] {
