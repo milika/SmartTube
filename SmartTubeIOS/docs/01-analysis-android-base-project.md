@@ -1,4 +1,9 @@
-# Android SmartTube Base Project — Analysis
+# Android SmartTube Base Project — Historical Archive
+
+> **This is an archived reference document.** It describes the Android SmartTube architecture as it existed during the initial iOS development phase. It is preserved here for InnerTube API cross-reference (e.g. endpoint behavior, client contexts, credential scraping patterns). Do not treat it as a living spec.  
+> For current iOS architecture, see [02-analysis-ios-project.md](02-analysis-ios-project.md) and [project.md](project.md).
+
+---
 
 ## Architecture Overview
 

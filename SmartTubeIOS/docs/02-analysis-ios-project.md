@@ -44,30 +44,30 @@ public actor InnerTubeAPI {
 - All methods are `async throws`
 - No RxJava/Combine — pure async/await
 
-### 2. ObservableObject ViewModels
+### 2. @Observable ViewModels
 
 ```swift
-@MainActor public final class BrowseViewModel: ObservableObject {
-    @Published var videoGroups: [VideoGroup] = []
-    @Published var isLoading = false
+@MainActor public final class BrowseViewModel {
+    var videoGroups: [VideoGroup] = []
+    var isLoading = false
     private let api = InnerTubeAPI()
     
     func loadContent(for section: BrowseSection?, refresh: Bool) { ... }
 }
 ```
 
-### 3. EnvironmentObject Dependency Injection
+### 3. Environment Dependency Injection
 
 ```swift
 // SmartTubeApp.swift
-@StateObject private var authService = AuthService()
-@StateObject private var browseViewModel = BrowseViewModel()
+@State private var authService = AuthService()
+@State private var browseViewModel = BrowseViewModel()
 
 var body: some Scene {
     WindowGroup {
         RootView()
-            .environmentObject(authService)
-            .environmentObject(browseViewModel)
+            .environment(authService)
+            .environment(browseViewModel)
             .onChange(of: authService.accessToken) { _, newToken in
                 Task { await browseViewModel.updateAuthToken(newToken) }
             }
@@ -75,9 +75,9 @@ var body: some Scene {
 }
 ```
 
-### 4. UserDefaults Persistence
+### 4. Keychain / UserDefaults Persistence
 
-- `AuthService` stores tokens in UserDefaults (keys: `st_access_token`, `st_refresh_token`, `st_token_expiry`, `st_account_name`, `st_avatar_url`)
+- `AuthService` stores OAuth tokens in Keychain (`kSecClassGenericPassword`, service `com.smarttube.auth`, keys `st_*`)
 - `SettingsStore` stores JSON-encoded `AppSettings` in UserDefaults (key: `smarttube_app_settings`)
 
 ---
@@ -125,25 +125,24 @@ var body: some Scene {
 
 ## API Configuration (iOS)
 
-### Client Contexts (matches Android)
+### Client Contexts
 | Client | Name | Version | Use Case | Base URL |
 |--------|------|---------|----------|----------|
 | WEB | `"WEB"` | `2.20260206.01.00` | Browse, search, home | `www.youtube.com/youtubei/v1` |
 | iOS | `"iOS"` | `20.11.6` | Stream URLs (HLS) | `youtubei.googleapis.com/youtubei/v1` |
-| TVHTML5 | `"TVHTML5"` | `7.20230405.08.01` | Account info only | `youtubei.googleapis.com/youtubei/v1` |
+| TVHTML5 | `"TVHTML5"` | `7.20230405.08.01` | Authenticated browse, account info | `youtubei.googleapis.com/youtubei/v1` |
 
-### API Keys (aligned to Android)
+### API Keys
 | Key | Value | Use |
 |-----|-------|-----|
 | WEB | `AIzaSyAO_FJ2SlqU8Q4STEHLGCilw_Y9_11qcW8` | All unauthenticated requests (`?key=`) |
-| TV | `AIzaSyDCU8hByM-4DrUqRUYnGn-3llEO78bcxq8` | **Not used** — `API_KEY_OLD` in Android; Bearer token replaces key when authenticated |
+| TV | `AIzaSyDCU8hByM-4DrUqRUYnGn-3llEO78bcxq8` | **Not used** — Bearer token replaces key when authenticated |
 
-### OAuth (matches Android)
-- Same Device Authorization Grant (RFC 8628)
-- Same credential scraping from `youtube.com/tv` base.js
-- Same fallback credentials
-- **Difference:** iOS scope is `"http://gdata.youtube.com https://www.googleapis.com/auth/youtube-paid-content"`, Android uses similar
-- **Difference:** iOS sign-in URL is `youtube.com/activate`, Android uses `yt.be/activate`
+### OAuth
+- Device Authorization Grant (RFC 8628)
+- Credentials scraped at runtime from `youtube.com/tv` base.js; bundled fallback credentials kept up to date
+- Scope: `"http://gdata.youtube.com https://www.googleapis.com/auth/youtube-paid-content"`
+- Sign-in URL: `yt.be/activate`
 
 ---
 
@@ -259,5 +258,3 @@ public struct AppSettings: Codable {
 4. Poll `https://oauth2.googleapis.com/token` (grant_type: `http://oauth.net/grant_type/device/1.0`)
 5. On success → store tokens → fetch user info via TVHTML5 `/account/accounts`
 6. Token refresh via `validAccessToken()` → POST `/token?grant_type=refresh_token`
-
-**Critical issue:** iOS sends `browse` requests (subscriptions, history) using **WEB client context on `www.youtube.com`** with Bearer token — but according to RULES.md, authenticated InnerTube requests should use **TVHTML5 client on `youtubei.googleapis.com`** with TV API key.

@@ -7,7 +7,7 @@
 
 ## What is this project?
 
-**SmartTubeIOS** is an iOS/macOS port of the Android [SmartTube](https://github.com/yuliskov/SmartTube) app — a YouTube client focused on ad-free playback, SponsorBlock, and a clean TV/mobile UI. The iOS implementation is built from scratch in Swift using SwiftUI and Swift Concurrency, mirroring the architecture and API behavior of the Android base project while adopting modern Apple platform idioms.
+**SmartTubeIOS** is a native iOS/macOS YouTube client focused on ad-free playback, SponsorBlock, and a clean mobile/desktop UI. Built from scratch in Swift using SwiftUI and Swift Concurrency, it shares the same YouTube InnerTube API integration and feature goals as the Android-based [SmartTube](https://github.com/yuliskov/SmartTube) app, adapted with idiomatic Apple platform patterns.
 
 ---
 
@@ -63,15 +63,15 @@ SmartTubeIOS/
 
 ## Authentication design
 
-The device authorization grant (RFC 8628) mirrors Android's `YTSignInPresenter` exactly:
+The device authorization grant (RFC 8628):
 
 1. Scrape `youtube.com/tv` → find `id="base-js"` → fetch the kabuki script → extract `clientId` / `clientSecret` (actor: `YouTubeClientCredentialsFetcher`)
 2. `POST /oauth2/device/code` with `client_id`, `client_secret`, `scope` → receive `user_code` + `verification_uri`
-3. Show `user_code` on screen; show `https://yt.be/activate` (matches Android's `SIGN_IN_URL`)
+3. Show `user_code` and `https://yt.be/activate` on screen
 4. Generate and display a QR code encoding the verification URL with `?user_code=` pre-filled (CoreImage, zero dependencies)
 5. Poll `POST /oauth2/token` every `interval` seconds until approved or expired
 
-**Key rule:** Authenticated InnerTube requests use the **TVHTML5 client context** on `youtubei.googleapis.com` with **no API key** — the Bearer token replaces the key. Unauthenticated requests append `?key=WEB_KEY`. The TV key is dead code (Android's `API_KEY_OLD`) and is never sent.
+**Key rule:** Authenticated InnerTube requests use the **TVHTML5 client context** on `youtubei.googleapis.com` with **no API key** — the Bearer token replaces the key. Unauthenticated requests append `?key=WEB_KEY`. The TV key (`AIzaSyDCU8...`) is dead code and is never sent.
 
 **Account info fetch:** Uses `POST youtubei.googleapis.com/youtubei/v1/account/accounts` with TVHTML5 context — NOT `/oauth2/v3/userinfo` or YouTube Data API v3 (the TV OAuth client `861556708454` does not have Data API v3 enabled).
 
@@ -96,10 +96,10 @@ The early bug where `URLSession.default.httpAdditionalHeaders` leaked WEB client
 ## Work completed
 
 ### Phase 0 — Critical auth fixes (complete)
-- ✅ Authenticated browse uses TVHTML5 `postTV()` — aligns with Android's `RetrofitOkHttpHelper`
-- ✅ Sign-in URL changed to `yt.be/activate` (matches Android `SIGN_IN_URL`)
-- ✅ Global `URLSession` header leak fixed — headers are now per-request
-- ✅ `client_secret` added to device/code request body (was missing)
+- ✅ Authenticated browse uses TVHTML5 `postTV()` on `youtubei.googleapis.com`
+- ✅ Sign-in URL is `yt.be/activate`
+- ✅ All `URLSession` headers are per-request (no shared session state)
+- ✅ `client_secret` included in device/code request body
 
 ### Phase 1 — Core feature parity (complete)
 - ✅ **Watch position tracking** (`VideoStateStore`) — persists per-video position in UserDefaults; restores on next play; prunes to 1,000 entries; mirrors Android's `VideoStateService` behavior (ignores < 5 s, > 95%)
@@ -168,11 +168,12 @@ Shorts, Music, Gaming, News, Live, Sports are implemented in `InnerTubeAPI` (`fe
 
 | File | Content |
 |------|---------|
-| [01-analysis-android-base-project.md](01-analysis-android-base-project.md) | Deep dive into Android SmartTube architecture, presenters, services |
-| [02-analysis-ios-project.md](02-analysis-ios-project.md) | Analysis of the iOS project structure and patterns |
-| [03-comparison-android-vs-ios.md](03-comparison-android-vs-ios.md) | Side-by-side diff of every behavioral difference found |
-| [04-implementation-plan.md](04-implementation-plan.md) | Phase-by-phase plan; completed phases have detailed "how it was done" notes |
-| [05-migration-new-code-rules.md](05-migration-new-code-rules.md) | Migration plan for Swift 6, `@Observable`, and security rules |
-| [android-repos.md](android-repos.md) | Links to original Android repos and submodules |
+| [02-analysis-ios-project.md](02-analysis-ios-project.md) | iOS project structure, patterns, and API configuration |
+| [04-implementation-plan.md](04-implementation-plan.md) | Phase-by-phase feature plan; completed phases include "how it was done" notes |
+| [05-migration-new-code-rules.md](05-migration-new-code-rules.md) | Migration plan for Swift 6, `@Observable`, and security hardening |
 | [../RULES.md](../RULES.md) | Hard rules for agent and contributor behavior |
 | [../CHANGELOG.md](../CHANGELOG.md) | Per-release changelog |
+| **Archive** | |
+| [01-analysis-android-base-project.md](01-analysis-android-base-project.md) | *(Archive)* Android SmartTube architecture deep-dive — useful for InnerTube API reference |
+| [03-comparison-android-vs-ios.md](03-comparison-android-vs-ios.md) | *(Archive)* Original Android-vs-iOS gap analysis — many gaps listed are now closed |
+| [android-repos.md](android-repos.md) | *(Archive)* Links to Android repos for InnerTube/API cross-reference |

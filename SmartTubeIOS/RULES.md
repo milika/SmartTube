@@ -18,10 +18,10 @@
 
 ## OAuth / authentication (`AuthService`)
 - The device authorization grant uses the **YouTube TV client credentials** scraped from `youtube.com/tv`
-- The `id="base-js"` element in the TV HTML points to the kabuki `/m=base` script that contains `clientId`/`clientSecret` — match Android's `AppInfo.java` regex exactly: `id="base-js" src="([^"]+)"`
+- The `id="base-js"` element in the TV HTML points to the kabuki `/m=base` script that contains `clientId`/`clientSecret` — use the regex `id="base-js" src="([^"]+)"`
 - The fallback credentials (`YouTubeClientCredentialsFetcher.fallback`) must be kept up to date with the live `client_id` from `base-js`
 - **Do not** call `/oauth2/v3/userinfo` or `youtube/v3/channels` for account info — the TV OAuth credentials (`861556708454`) do not have YouTube Data API v3 enabled; use `POST youtubei.googleapis.com/youtubei/v1/account/accounts` with the TVHTML5 client context instead
-- **Authenticated InnerTube requests** (subscriptions, history) must use the **TVHTML5 client context** on `youtubei.googleapis.com` with **no API key** — the OAuth Bearer token replaces the key, matching Android's `RetrofitOkHttpHelper` behavior (`authHeaders` non-empty → skip key, apply Bearer). Unauthenticated requests append `?key=AIzaSyAO_FJ2SlqU8Q4STEHLGCilw_Y9_11qcW8` (WEB key). The TV key (`AIzaSyDCU8hByM-4DrUqRUYnGn-3llEO78bcxq8`) is defined in Android as `API_KEY_OLD` and is never used. The WEB client on `www.youtube.com` rejects OAuth Bearer tokens (returns 400).
+- **Authenticated InnerTube requests** (subscriptions, history) must use the **TVHTML5 client context** on `youtubei.googleapis.com` with **no API key** — the OAuth Bearer token replaces the key (`authToken != nil` → omit `?key=`, attach Bearer header). Unauthenticated requests append `?key=AIzaSyAO_FJ2SlqU8Q4STEHLGCilw_Y9_11qcW8` (WEB key). The TV key (`AIzaSyDCU8hByM-4DrUqRUYnGn-3llEO78bcxq8`) is dead code and is never used. The WEB client on `www.youtube.com` rejects OAuth Bearer tokens (returns 400).
 - Tokens are stored in `UserDefaults` (keyed with `st_*` prefixes); migrate to Keychain before any public release
 
 ## Project structure

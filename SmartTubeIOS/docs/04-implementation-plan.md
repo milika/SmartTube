@@ -1,47 +1,36 @@
-# Implementation Plan — Sync iOS to Android Base Project
+# Implementation Plan — SmartTubeIOS Feature Development
 
-> **Status key:** ✅ Done · 🔲 Not started · 🚧 Partial
+> **Status key:** ✅ Done · 🔲 Not started · 🛧 Partial
 
 ## Guiding Principles
 
-1. **Do NOT invent new methodology** — follow the Android project's patterns
-2. **Use existing project conventions** — Swift actors, async/await, ObservableObject, EnvironmentObject
-3. **Priority by impact** — fix broken things first, then add missing features
-4. **Incremental** — each phase is independently shippable
+1. **Use existing project conventions** — Swift actors, async/await, `@Observable`, `@Environment`
+2. **Priority by impact** — fix broken things first, then add missing features
+3. **Incremental** — each phase is independently shippable
 
 ---
 
-## Phase 0 — Critical Fixes (Auth is broken) ✅ COMPLETE
+## Phase 0 — Critical Fixes (Auth was broken) ✅ COMPLETE
 
-> These issues prevent core functionality from working correctly.
+> These issues prevented core functionality from working correctly.
 
-### 0.1 Fix authenticated browse requests (CRITICAL) ✅
-**Problem:** iOS sends auth'd browse requests (subscriptions, history, playlists) via WEB client on `www.youtube.com` with OAuth Bearer token. Per RULES.md and Android's architecture, the WEB endpoint **rejects OAuth tokens (returns 400)**.
+### 0.1 Fix authenticated browse requests ✅
+**Problem:** Authenticated browse requests (subscriptions, history, playlists) were sent via WEB client on `www.youtube.com` with an OAuth Bearer token — the WEB endpoint rejects OAuth tokens with HTTP 400.
 
-**Android approach:** Auth'd browse requests use TVHTML5 client context on `youtubei.googleapis.com` — **no `?key=` param** when Bearer token is present (Android's `RetrofitOkHttpHelper`: `authHeaders` non-empty → skip key, apply Bearer headers only). Unauthenticated calls use the WEB key. The TV key (`AIzaSyDCU8...`) is `API_KEY_OLD` in Android and never used.
-
-**Fix:**
-- In `InnerTubeAPI.swift`, add a new `tvClientContext` (TVHTML5) and a `postTV()` method that:
-  - Uses `youtubei.googleapis.com/youtubei/v1` base URL
-  - Sends `Authorization: Bearer {token}` when authenticated, **no `?key=`**
-  - Sends `?key=WEB_KEY` when unauthenticated
-  - Uses TVHTML5 client context
-- Update `fetchSubscriptions()`, `fetchHistory()`, `fetchUserPlaylists()`, `fetchPlaylistVideos()` to use `postTV()` when `authToken` is set
-
-**Files:** `InnerTubeAPI.swift`
+**Fix:** Authenticated browse requests use the TVHTML5 client context on `youtubei.googleapis.com` with no `?key=` param (Bearer token replaces the key). Unauthenticated calls use the WEB key.
 
 **How it was done:**
-Added `tvClientContext` constant to `InnerTubeAPI`. Removed `tvApiKey` — TV key is dead code in Android (`API_KEY_OLD`). Added `postTV(endpoint:body:)` that routes to `youtubei.googleapis.com` with TVHTML5 client/version headers and a `Bearer` auth header. Key logic: `?key=WEB_KEY` only when `authToken == nil` (Bearer replaces key when present). All auth-gated browse methods (`fetchSubscriptions`, `fetchHistory`, `fetchUserPlaylists`, `fetchPlaylistVideos`) and personalised home call `postTV` when `authToken != nil`. `AuthService.fetchUserInfo()` also drops `?key=` since it always has a Bearer token.
+Added `tvClientContext` constant to `InnerTubeAPI`. The TV API key is dead code and never used. Added `postTV(endpoint:body:)` that routes to `youtubei.googleapis.com` with TVHTML5 client/version headers and a `Bearer` auth header. Key logic: `?key=WEB_KEY` only when `authToken == nil` (Bearer replaces key when present). All auth-gated browse methods (`fetchSubscriptions`, `fetchHistory`, `fetchUserPlaylists`, `fetchPlaylistVideos`) and personalised home call `postTV` when `authToken != nil`. `AuthService.fetchUserInfo()` also drops `?key=` since it always has a Bearer token.
 
-### 0.2 Fix sign-in URL to match Android ✅
-**Problem:** iOS shows `youtube.com/activate`, Android uses `yt.be/activate`.
+### 0.2 Fix sign-in URL ✅
+**Problem:** The sign-in screen showed `youtube.com/activate`; the correct short URL is `yt.be/activate`.
 
 **Fix:** Change `verificationURL` fallback and device code response handling to prefer `yt.be/activate`.
 
 **Files:** `AuthService.swift`
 
 **How it was done:**
-Changed the hardcoded fallback in `ActivationInfo` from `"https://www.youtube.com/activate"` to `"https://yt.be/activate"` to match Android's `YTSignInPresenter.SIGN_IN_URL`.
+Changed the hardcoded fallback in `ActivationInfo` from `"https://www.youtube.com/activate"` to `"https://yt.be/activate"`.
 
 ### 0.3 Fix URLSession global headers leaking into player requests ✅
 **Problem:** `InnerTubeAPI.init()` sets global `URLSessionConfiguration` headers (`X-YouTube-Client-Name: 1`, WEB version) that leak into iOS player requests (which should use client name `5`).
@@ -54,7 +43,7 @@ Changed the hardcoded fallback in `ActivationInfo` from `"https://www.youtube.co
 Removed all `URLSessionConfiguration.default.httpAdditionalHeaders` assignments from `init()`. All client-specific headers (`X-YouTube-Client-Name`, `X-YouTube-Client-Version`, `Origin`, `User-Agent`) are now set per-request inside each of the three networking methods: `post()`, `postPlayer()`, and `postTV()`.
 
 ### 0.4 Add client_secret to device/code request ✅
-**Problem:** iOS `requestDeviceCode()` does not send `client_secret`. Android sends it.
+**Problem:** `requestDeviceCode()` was missing `client_secret` in the request body. The OAuth server requires it.
 
 **Fix:** Add `client_secret` to the device/code form-encoded body.
 
@@ -65,12 +54,10 @@ Added `"client_secret=\(credentials.clientSecret)"` to the form body string in `
 
 ---
 
-## Phase 1 — Core Feature Parity ✅ COMPLETE
+## Phase 1 — Core Features ✅ COMPLETE
 
-> Align core features with Android behavior.
-
-### 1.1 Watch position tracking (VideoStateService equivalent) ✅
-**Android:** `VideoStateService` persists per-video watch position and percent watched. `VideoStateController` saves on pause/destroy and restores on load.
+### 1.1 Watch position tracking ✅
+**Goal:** Persist per-video watch position and percent watched; restore on next play.
 
 **Implementation:**
 - Create `VideoStateStore` (similar to `SettingsStore`) that persists `[videoId: (positionSeconds, percentWatched, timestamp)]` in UserDefaults (or a local JSON file)
@@ -80,13 +67,13 @@ Added `"client_secret=\(credentials.clientSecret)"` to the form body string in `
 **Files:** New `VideoStateStore.swift`, modify `PlaybackViewModel.swift`, `Video.swift`
 
 **How it was done:**
-Created `Sources/SmartTubeIOSCore/VideoStateStore.swift` — a `final class` singleton with a serial `DispatchQueue` for thread-safety. Stores a `[String: State]` dictionary in `UserDefaults` key `st_video_states` encoded as JSON. Does not persist positions < 5 s or > 95% (mirrors Android's `RESTORE_POSITION_PERCENTS`). Auto-prunes to 1,000 entries by oldest timestamp. In `PlaybackViewModel`:
+Created `Sources/SmartTubeIOSCore/VideoStateStore.swift` — a `final class` singleton with a serial `DispatchQueue` for thread-safety. Stores a `[String: State]` dictionary in `UserDefaults` key `st_video_states` encoded as JSON. Does not persist positions < 5 s or > 95%. Auto-prunes to 1,000 entries by oldest timestamp. In `PlaybackViewModel`:
 - `loadAsync()` calls `VideoStateStore.shared.state(for: video.id)` after player info loads; stores the position in `savedPositionToRestore`.
 - The `AVPlayerItem.status` observer seeks to `savedPositionToRestore` on `.readyToPlay` (so the item is buffered enough to seek accurately).
 - `stop()` calls `VideoStateStore.shared.save(videoId:position:duration:)`.
 
-### 1.2 Home feed — multi-row layout (TYPE_ROW) ✅
-**Android:** Home feed returns multiple `MediaGroup`s, each displayed as a horizontal row with a title.
+### 1.2 Home feed — multi-row layout ✅
+**Goal:** Parse home feed into named horizontal rows rather than a flat grid.
 
 **Implementation:**
 - Parse top-level groups from the `/browse` response (each `richSectionRenderer` or `shelfRenderer` is a group)
@@ -98,8 +85,8 @@ Created `Sources/SmartTubeIOSCore/VideoStateStore.swift` — a `final class` sin
 **How it was done:**
 Added `VideoGroup.Layout` enum (`.grid`, `.row`) and a `layout` property (default `.grid`) to `VideoGroup`. Added `fetchHomeRows(continuationToken:)` to `InnerTubeAPI` — calls `/browse` with `FEwhat_to_watch` and parses each `richShelfRenderer` into a separate `VideoGroup(layout: .row)` via `parseVideoGroupRows()`. Continuation token from `continuationItemRenderer` is attached to the last row. `BrowseViewModel.fetchSection(.home)` now calls `fetchHomeRows()` and assigns the full `[VideoGroup]` array. `BrowseViewModel.fetchNextPage(.home)` calls `fetchHomeRows(continuationToken:)` and appends rows. `BrowseView` checks `group.layout == .row` and renders a new `VideoRowSection` (horizontal `LazyHStack` scroller at 220 pt card width) instead of `VideoGridSection`.
 
-### 1.3 Related videos via metadata (not search) ✅
-**Android:** `SuggestionsController` loads related videos from `MediaItemMetadata` (returned by the `/next` endpoint alongside the player info).
+### 1.3 Related videos via metadata ✅
+**Goal:** Load related videos from the `/next` endpoint rather than a fallback keyword search.
 
 **Implementation:**
 - Add `fetchNextInfo(videoId:)` method calling `/next` endpoint with WEB client
@@ -112,7 +99,7 @@ Added `VideoGroup.Layout` enum (`.grid`, `.row`) and a `layout` property (defaul
 Added `fetchNextInfo(videoId:) async throws -> [Video]` to `InnerTubeAPI`. Posts to the WEB `/next` endpoint with the `videoId`. Parses `compactVideoRenderer` objects anywhere in the response tree via a recursive `parseRelatedVideos(from:)` walker; returns up to all found (caller trims to 25). `PlaybackViewModel.loadAsync()` now calls `fetchNextInfo` first; falls back to `search(query: info.video.title)` if the result is empty (e.g. network restriction). Self-video is filtered out of results.
 
 ### 1.4 Search filters ✅
-**Android:** `SearchPresenter` supports `uploadDate | duration | type | features | sorting` as bitwise OR options passed to `getSearchObserve()`.
+**Goal:** Support sort order, upload date, type, and duration filter axes.
 
 **Files:** `InnerTubeAPI.swift`, `SearchViewModel.swift`, `SearchView.swift`, new `SearchFilter` model
 
@@ -135,7 +122,7 @@ Added `SearchFilter` struct to `SmartTubeIOSCore` with four filter axes:
 - `SearchFilterSheet` — a `.sheet` with inline Pickers for each filter axis, plus Apply / Cancel / Reset toolbar buttons.
 
 ### 1.5 Video context menu (long-press) ✅
-**Android:** `VideoMenuPresenter` shows a rich context menu on long-press with options like Play, Add to Queue, Open Channel, Share, Block Channel.
+**Goal:** Long-press on a video card shows a context menu with Share and Open Channel actions.
 
 **Implementation:**
 - Add `.contextMenu` modifier to `VideoCardView`
@@ -152,14 +139,14 @@ Added a `.contextMenu` modifier wrapping both `gridLayout` and `compactLayout` v
 
 ## Phase 2 — Missing Browse Sections
 
-> Add browse sections that Android supports but iOS doesn't.
+> Add browse sections that were absent from the initial release.
 
 ### 2.1 Add missing browse sections
-Add support for these sections matching Android's `initRowAndGridMapping()`:
+Add support for additional feed sections:
 
 | Section | Browse ID / Method | Layout |
 |---------|-------------------|--------|
-| Shorts | `FEshorts` / `getShortsObserve()` | Grid |
+| Shorts | `FEshorts` / `fetchShorts()` | Grid |
 | Music | Music browse | Row |
 | Gaming | Gaming browse | Row |
 | News | News browse | Row |

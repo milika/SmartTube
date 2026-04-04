@@ -1,8 +1,8 @@
-# Comparison: Android Base vs iOS Implementation
+# Comparison: Android Base vs iOS — Historical Archive
 
-## Summary
-
-The iOS port covers the core functionality but diverges from the Android project's methodology in several important areas. This document catalogs every discrepancy.
+> **This document was written during the initial porting phase and reflects the state at that time.**  
+> The iOS project has since diverged significantly and now follows its own patterns. Many of the "gaps" and "differences" listed here have been closed. Consult [project.md](project.md) and [02-analysis-ios-project.md](02-analysis-ios-project.md) for the current state.  
+> Preserved here for InnerTube API cross-reference only.
 
 ---
 
