@@ -29,6 +29,7 @@ public final class BrowseViewModel {
 
     private let api: InnerTubeAPI
     private var fetchTask: Task<Void, Never>?
+    private var enrichTask: Task<Void, Never>?
 
     public init(api: InnerTubeAPI = InnerTubeAPI(), initialSection: BrowseSection? = nil) {
         self.api = api
@@ -77,6 +78,8 @@ public final class BrowseViewModel {
         if refresh {
             videoGroups = []
             subscribedChannels = []
+            enrichTask?.cancel()
+            enrichTask = nil
         }
         fetchTask?.cancel()
         fetchTask = Task { await fetchSection(target) }
@@ -170,6 +173,12 @@ public final class BrowseViewModel {
                     let chCount = subscribedChannels.count
                     let authReq = isAuthRequired
                     browseLog.notice("channels state set: subscribedChannels=\(chCount, privacy: .public) isAuthRequired=\(authReq, privacy: .public)")
+                    // Background-enrich avatars — the guide/params approaches yield no thumbnails;
+                    // fetch each channel's About tab concurrently to get the avatar URL.
+                    if !channels.isEmpty {
+                        enrichTask?.cancel()
+                        enrichTask = Task { await self.enrichChannelAvatars() }
+                    }
                 }
 
             case .shorts:
@@ -271,5 +280,50 @@ public final class BrowseViewModel {
             videoGroups[0].videos.append(contentsOf: group.videos)
             videoGroups[0].nextPageToken = group.nextPageToken
         }
+    }
+
+    // MARK: - Channel avatar enrichment
+
+    /// Concurrently fetches the avatar thumbnail URL for each subscribed channel and
+    /// patches it into `subscribedChannels` as results arrive.
+    ///
+    /// The TV subscription feed only returns video tiles (no channel avatars), so we
+    /// fetch each channel's About tab to get the avatar URL. Requests are fired
+    /// concurrently. The task is cancelled automatically when the user leaves the
+    /// Channels section (enrichTask?.cancel() in loadContent).
+    private func enrichChannelAvatars() async {
+        let snapshot = subscribedChannels
+        guard !snapshot.isEmpty else { return }
+        let missing = snapshot.filter { $0.thumbnailURL == nil }
+        guard !missing.isEmpty else { return }
+        browseLog.notice("enrichChannelAvatars: fetching avatars for \(missing.count, privacy: .public) channels")
+
+        let apiRef = api
+        let indexByID: [String: Int] = Dictionary(
+            uniqueKeysWithValues: snapshot.enumerated().map { ($1.id, $0) }
+        )
+
+        await withTaskGroup(of: (String, URL?).self) { group in
+            for channel in missing {
+                guard !Task.isCancelled else { break }
+                let channelId = channel.id
+                group.addTask {
+                    let url = try? await apiRef.fetchChannelThumbnailURL(channelId: channelId)
+                    return (channelId, url)
+                }
+            }
+            for await (channelId, thumbURL) in group {
+                guard !Task.isCancelled else { break }
+                guard let thumbURL,
+                      let idx = indexByID[channelId],
+                      idx < self.subscribedChannels.count
+                else { continue }
+                self.subscribedChannels[idx].thumbnailURL = thumbURL
+            }
+        }
+
+        let finalCount = self.subscribedChannels.filter { $0.thumbnailURL != nil }.count
+        let total = self.subscribedChannels.count
+        browseLog.notice("enrichChannelAvatars done: \(finalCount, privacy: .public)/\(total, privacy: .public) have avatars")
     }
 }

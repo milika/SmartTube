@@ -19,13 +19,9 @@ public struct BrowseView: View {
 
     public var body: some View {
         Group {
-            if vm.isLoading && vm.videoGroups.isEmpty && vm.subscribedChannels.isEmpty {
+            if vm.isLoading && vm.videoGroups.isEmpty {
                 ProgressView("Loading…")
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else if vm.currentSection.type == .channels && !vm.subscribedChannels.isEmpty {
-                ChannelListView(channels: vm.subscribedChannels) { channel in
-                    channelDestination = ChannelDestination(channelId: channel.id)
-                }
             } else if vm.videoGroups.isEmpty && !vm.isLoading {
                 emptyState
             } else {
@@ -58,14 +54,7 @@ public struct BrowseView: View {
         }
         .sheet(isPresented: $showSignIn) { SignInView() }
         .onAppear {
-            // For .channels the content list is in subscribedChannels, not videoGroups.
-            // Guard against both so we don't trigger a reload (and clear state) when
-            // the section already has data.
-            let hasContent = !vm.videoGroups.isEmpty
-                || (vm.currentSection.type == .channels && !vm.subscribedChannels.isEmpty)
-            if !hasContent && !vm.isLoading {
-                vm.loadContent()
-            }
+            if vm.videoGroups.isEmpty { vm.loadContent() }
         }
         .refreshable { vm.loadContent(refresh: true) }
     }

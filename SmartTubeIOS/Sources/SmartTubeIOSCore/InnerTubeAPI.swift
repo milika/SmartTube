@@ -142,27 +142,22 @@ public actor InnerTubeAPI {
     /// Fetches the list of channels the authenticated user subscribes to (requires auth).
     ///
     /// Strategy:
-    ///  1. TV client `FEsubscriptions` + `params:"EgIQAQ=="` — the "Channels" tab —
-    ///     returns channelRenderer items with avatar thumbnails and subscriber counts.
-    ///     The WEB client cannot be used here: our Bearer token is TV-device-code scoped
-    ///     and is rejected by the WEB endpoint (www.youtube.com), causing an anonymous
-    ///     response that contains no user-specific data.
-    ///  2. If that yields no channels, fall back to parsing unique channels from the default
+    ///  1. `/guide` endpoint with TV client + auth — returns the TV sidebar guide which
+    ///     includes every subscribed channel with avatar thumbnail URLs via guideEntryRenderer.
+    ///  2. If that yields no channels, fall back to parsing unique channels from the
     ///     TVHTML5 video-tile subscription feed (channel IDs + names, no avatars).
     public func fetchSubscribedChannels() async throws -> [Channel] {
-        // Primary: TV client channels tab (authenticated, so our Bearer token is accepted)
-        var tvChBody = makeBody(client: tvClientContext)
-        tvChBody["browseId"] = "FEsubscriptions"
-        tvChBody["params"] = "EgIQAQ=="
-        let tvChData = try await postTV(endpoint: "browse", body: tvChBody)
-        let topKeys = Array(tvChData.keys.sorted().prefix(8))
-        tubeLog.notice("fetchSubscribedChannels TV+params top-level keys: \(topKeys, privacy: .public)")
-        let tvChChannels = parseChannelRenderers(from: tvChData)
-        tubeLog.notice("fetchSubscribedChannels TV+params → \(tvChChannels.count, privacy: .public) channels")
-        if !tvChChannels.isEmpty { return tvChChannels }
+        // Primary: TV guide sidebar — includes subscribed channels with avatar thumbnails
+        let guideBody = makeBody(client: tvClientContext)
+        let guideData = try await postTV(endpoint: "guide", body: guideBody)
+        let guideKeys = Array(guideData.keys.sorted().prefix(8))
+        tubeLog.notice("fetchSubscribedChannels guide top-level keys: \(guideKeys, privacy: .public)")
+        let guideChannels = parseGuideChannels(from: guideData)
+        tubeLog.notice("fetchSubscribedChannels guide → \(guideChannels.count, privacy: .public) channels")
+        if !guideChannels.isEmpty { return guideChannels }
 
         // Fallback: TV subscription video-tile feed — extract unique channels (no avatars)
-        tubeLog.notice("fetchSubscribedChannels: TV+params returned 0 — falling back to video tile parse")
+        tubeLog.notice("fetchSubscribedChannels: guide returned 0 — falling back to video tile parse")
         var tvBody = makeBody(client: tvClientContext)
         tvBody["browseId"] = "FEsubscriptions"
         let tvData = try await postTV(endpoint: "browse", body: tvBody)
@@ -259,6 +254,26 @@ public actor InnerTubeAPI {
         tubeLog.notice("fetchChannel browseId=\(resolvedId, privacy: .public)")
         let data = try await post(endpoint: "browse", body: body)
         return try parseChannel(from: data, channelId: resolvedId)
+    }
+
+    /// Lightweight channel thumbnail fetch.
+    /// Requests the About tab (params `EgVhYm91dA==`) which returns only channel
+    /// metadata (no video grid), making the response much smaller than a full channel page.
+    /// Used by BrowseViewModel.enrichChannelAvatars() to patch avatar URLs into the
+    /// channel list after the initial fast tile-based load.
+    public func fetchChannelThumbnailURL(channelId: String) async throws -> URL? {
+        let resolvedId: String
+        if channelId.hasPrefix("@") {
+            resolvedId = try await resolveChannelHandle(channelId)
+        } else {
+            resolvedId = channelId
+        }
+        var body = makeBody(client: webClientContext)
+        body["browseId"] = resolvedId
+        body["params"] = "EgVhYm91dA=="  // About tab — header only, no video grid
+        let data = try await post(endpoint: "browse", body: body)
+        let (channel, _) = try parseChannel(from: data, channelId: resolvedId)
+        return channel.thumbnailURL
     }
 
     /// Resolves a YouTube `@handle` to the canonical `UC…` channel ID using the
@@ -1419,6 +1434,78 @@ public actor InnerTubeAPI {
         return PlayerInfo(video: video, formats: formats, hlsURL: hlsURL, dashURL: dashURL)
     }
 
+    // MARK: – Guide channels parser (/guide endpoint)
+    //
+    // The TV guide sidebar returns guideEntryRenderer items inside
+    // guideSubscriptionsSectionRenderer which carry:
+    //   navigationEndpoint.browseEndpoint.browseId  → channel ID
+    //   formattedTitle / title                       → channel name
+    //   thumbnail.thumbnails                         → avatar URL
+    private func parseGuideChannels(from json: [String: Any]) -> [Channel] {
+        var channels: [Channel] = []
+        var seen = Set<String>()
+        var firstEntryDumped = false
+
+        func walk(_ obj: Any) {
+            if let dict = obj as? [String: Any] {
+                if let entry = dict["guideEntryRenderer"] as? [String: Any] {
+                    let browseEndpoint = (entry["navigationEndpoint"] as? [String: Any])?["browseEndpoint"] as? [String: Any]
+                    let channelId = browseEndpoint?["browseId"] as? String
+
+                    // Dump the first entry that has a browseId (channel entry) regardless of thumbnail
+                    if !firstEntryDumped, let channelId, !channelId.isEmpty {
+                        firstEntryDumped = true
+                        let allKeys = entry.keys.sorted()
+                        tubeLog.notice("guideEntryRenderer (channel) keys: \(allKeys, privacy: .public)")
+                        if let data = try? JSONSerialization.data(withJSONObject: entry, options: [.sortedKeys]),
+                           let str = String(data: data, encoding: .utf8) {
+                            tubeLog.notice("guideEntryRenderer (channel) JSON: \(String(str.prefix(1500)), privacy: .public)")
+                        }
+                    }
+
+                    guard let channelId, !channelId.isEmpty else { return }
+
+                    let title = (entry["formattedTitle"] as? [String: Any]).flatMap { extractText($0) }
+                        ?? entry["title"] as? String
+                        ?? ""
+
+                    // Try several known thumbnail paths in the TV guide
+                    let thumbURL: URL? = {
+                        // Standard path
+                        if let url = ((entry["thumbnail"] as? [String: Any])?["thumbnails"] as? [[String: Any]])?
+                            .last.flatMap({ $0["url"] as? String }).flatMap({ URL(string: $0) }) { return url }
+                        // thumbnailDetails path
+                        if let url = ((entry["thumbnailDetails"] as? [String: Any])?["thumbnails"] as? [[String: Any]])?
+                            .last.flatMap({ $0["url"] as? String }).flatMap({ URL(string: $0) }) { return url }
+                        // Icon path
+                        if let iconDict = entry["icon"] as? [String: Any],
+                           let thumbs = iconDict["thumbnails"] as? [[String: Any]],
+                           let urlStr = thumbs.last?["url"] as? String,
+                           let url = URL(string: urlStr) { return url }
+                        return nil
+                    }()
+
+                    // Only add channel-looking browseIds (UC... or @handle) — skip Home/Trending/etc.
+                    guard channelId.hasPrefix("UC") || channelId.hasPrefix("@") else { return }
+
+                    let channel = Channel(id: channelId, title: title, thumbnailURL: thumbURL)
+                    if seen.insert(channelId).inserted {
+                        channels.append(channel)
+                    }
+                    return
+                }
+                for value in dict.values { walk(value) }
+            } else if let arr = obj as? [Any] {
+                for item in arr { walk(item) }
+            }
+        }
+
+        walk(json)
+        let withThumbs = channels.filter { $0.thumbnailURL != nil }.count
+        tubeLog.notice("parseGuideChannels → \(channels.count, privacy: .public) channels, \(withThumbs, privacy: .public) with thumbnail")
+        return channels
+    }
+
     // MARK: – Channel renderer parser (TV/WEB client subscriptions "Channels" tab)
     //
     // Handles channelRenderer, gridChannelRenderer, compactChannelRenderer, and
@@ -1577,12 +1664,22 @@ public actor InnerTubeAPI {
             return Channel(id: channelId, title: channelTitle)
         }
 
+        var tileDumped = false
         func walk(_ obj: Any) {
             if let dict = obj as? [String: Any] {
-                if let tile = dict["tileRenderer"] as? [String: Any],
-                   let channel = channelFromTile(tile) {
-                    if seen.insert(channel.id).inserted {
-                        channels.append(channel)
+                if let tile = dict["tileRenderer"] as? [String: Any] {
+                    // Dump the first tile to reveal its full structure
+                    if !tileDumped {
+                        tileDumped = true
+                        if let data = try? JSONSerialization.data(withJSONObject: tile, options: [.sortedKeys]),
+                           let str = String(data: data, encoding: .utf8) {
+                            tubeLog.notice("parseSubscribedChannels first tileRenderer JSON: \(String(str.prefix(2000)), privacy: .public)")
+                        }
+                    }
+                    if let channel = channelFromTile(tile) {
+                        if seen.insert(channel.id).inserted {
+                            channels.append(channel)
+                        }
                     }
                     return
                 }

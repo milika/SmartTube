@@ -538,6 +538,12 @@ public final class PlaybackViewModel {
     public func beginScrubbing() {
         isScrubbing = true
         scrubTime = currentTime
+        // Keep the controls overlay alive for the entire scrub so the Slider is
+        // never removed mid-drag. If the overlay disappears while the finger is
+        // still held down, SwiftUI's Slider never fires onEditingChanged(false),
+        // commitScrub() is skipped, and isScrubbing stays true permanently —
+        // permanently disabling SwipeGestureOverlay pan/tap gestures.
+        controlsTimer?.cancel()
     }
 
     /// Called on every incremental slider position update while dragging.
