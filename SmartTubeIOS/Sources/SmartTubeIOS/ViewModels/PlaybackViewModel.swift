@@ -88,7 +88,7 @@ public final class PlaybackViewModel {
     /// Timestamp of the last commitScrub(). Used to ignore the spurious
     /// beginScrubbing() that SwiftUI's Slider fires immediately after commitScrub
     /// causes a binding re-evaluation and the slider thumb re-positions itself.
-    private var lastCommitScrubTime: Date = .distantPast
+    var lastCommitScrubTime: Date = .distantPast
     /// Debounce task for preview seeks while dragging the slider.
     /// Fires a seek after the thumb has been held still for 300 ms.
     private var seekDebounceTask: Task<Void, Never>?
@@ -547,11 +547,11 @@ public final class PlaybackViewModel {
         // Guard against the spurious onEditingChanged(true) that SwiftUI's Slider
         // fires right after commitScrub() triggers a binding re-evaluation.
         let sinceCommit = Date.now.timeIntervalSince(lastCommitScrubTime)
-        guard sinceCommit > 0.3 else {
-            playerLog.debug("[scrub] beginScrubbing IGNORED (spurious, \(sinceCommit, format: .fixed(precision: 3))s since commit)")
+        guard sinceCommit > 0.5 else {
+            playerLog.debug("[scrub] beginScrubbing IGNORED (spurious, \(sinceCommit, format: .fixed(precision: 3))s since commit — threshold=0.5s)")
             return
         }
-        playerLog.debug("[scrub] beginScrubbing at \(self.currentTime, format: .fixed(precision: 1))s — isScrubbing=\(self.isScrubbing, privacy: .public) controlsVisible=\(self.controlsVisible, privacy: .public)")
+        playerLog.debug("[scrub] beginScrubbing at \(self.currentTime, format: .fixed(precision: 1))s — sinceCommit=\(sinceCommit, format: .fixed(precision: 3))s isScrubbing=\(self.isScrubbing, privacy: .public) controlsVisible=\(self.controlsVisible, privacy: .public)")
         seekDebounceTask?.cancel()
         isScrubbing = true
         scrubTime = currentTime
@@ -560,18 +560,9 @@ public final class PlaybackViewModel {
 
     /// Called on every incremental slider position update while dragging.
     /// Only updates the local `scrubTime` — does NOT seek AVPlayer, preventing
-    /// rapid-seek stalls.
+    /// rapid-seek stalls. Seeking happens only on `commitScrub`.
     public func updateScrub(to time: TimeInterval) {
         scrubTime = time
-        // Preview seek: if the thumb stays still for 300 ms while dragging,
-        // seek AVPlayer to that position without waiting for finger-up.
-        seekDebounceTask?.cancel()
-        seekDebounceTask = Task { [weak self] in
-            try? await Task.sleep(for: .milliseconds(300))
-            guard let self, !Task.isCancelled, self.isScrubbing else { return }
-            playerLog.debug("[scrub] debounce seek to \(self.scrubTime, format: .fixed(precision: 1))s")
-            self.seek(to: self.scrubTime)
-        }
     }
 
     /// Called when the user releases the slider. Issues a single precise seek.
@@ -646,11 +637,18 @@ public final class PlaybackViewModel {
         controlsTimer = Task {
             try? await Task.sleep(for: .seconds(4))
             playerLog.debug("[controls] timer fired — isCancelled=\(Task.isCancelled, privacy: .public) isScrubbing=\(self.isScrubbing, privacy: .public)")
-            if !Task.isCancelled, !self.isScrubbing {
+            guard !Task.isCancelled else {
+                playerLog.debug("[controls] hide suppressed (cancelled)")
+                return
+            }
+            if !self.isScrubbing {
                 playerLog.debug("[controls] hiding controls")
                 self.controlsVisible = false
             } else {
-                playerLog.debug("[controls] hide suppressed (scrubbing or cancelled)")
+                // Still scrubbing — commitScrub will call showControls when the user
+                // lifts their finger, but reschedule as a safety net for edge cases.
+                playerLog.debug("[controls] hide suppressed (still scrubbing) — rescheduling")
+                self.scheduleControlsHide()
             }
         }
     }

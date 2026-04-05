@@ -1,9 +1,12 @@
 import SwiftUI
 import AVFoundation
 import SmartTubeIOSCore
+import os
 #if canImport(UIKit)
 import UIKit
 #endif
+
+private let swipeLog = Logger(subsystem: appSubsystem, category: "Player")
 
 // MARK: - PlayerView
 //
@@ -46,11 +49,13 @@ public struct PlayerView: View {
                 // Uses UIKit-level UIPanGestureRecognizer so it fires above AVPlayerLayer.
                 SwipeGestureOverlay(
                     onSwipeLeft: {
+                        swipeLog.debug("[swipe-overlay] onSwipeLeft — isTransitioning=\(isTransitioning) isScrubbing=\(vm.isScrubbing) controlsVisible=\(vm.controlsVisible) hasNext=\(vm.hasNext)")
                         guard !isTransitioning else { return }
                         if vm.hasNext { performHorizontalTransition(direction: -1, screenWidth: geo.size.width) { vm.playNext() } }
                         else { withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) { slideOffset = 0 } }
                     },
                     onSwipeRight: {
+                        swipeLog.debug("[swipe-overlay] onSwipeRight — isTransitioning=\(isTransitioning) isScrubbing=\(vm.isScrubbing) controlsVisible=\(vm.controlsVisible) hasPrevious=\(vm.hasPrevious)")
                         guard !isTransitioning else { return }
                         if vm.hasPrevious { performHorizontalTransition(direction: 1, screenWidth: geo.size.width) { vm.playPrevious() } }
                         else { withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) { slideOffset = 0 } }
@@ -68,10 +73,8 @@ public struct PlayerView: View {
                     onSwipeCancelled: {
                         withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) { slideOffset = 0 }
                     },
-                    // Disable when controls are visible so the Slider widget can claim
-                    // touches uncontested. The controls overlay's .simultaneousGesture
-                    // handles swipe navigation while controls are on screen.
-                    isEnabled: !vm.isScrubbing && !vm.controlsVisible
+                    // Disabled during scrubbing so the Slider can claim touches uncontested.
+                    isEnabled: !vm.isScrubbing
                 )
                 .ignoresSafeArea()
                 .accessibilityHidden(true)
@@ -404,24 +407,8 @@ public struct PlayerView: View {
                 startPoint: .top,
                 endPoint: .bottom
             )
-        )
-        // Allow swipe navigation even when the controls overlay is on screen.
-        // .simultaneousGesture fires alongside button taps so seek/pause controls
-        // remain interactive while horizontal swipes still drive prev/next.
-        .simultaneousGesture(
-            DragGesture(minimumDistance: 50, coordinateSpace: .global)
-                .onEnded { value in
-                    guard !isTransitioning, !vm.isScrubbing else { return }
-                    let dx = value.translation.width
-                    guard abs(dx) > abs(value.translation.height) else { return }
-                    if dx < 0 {
-                        if vm.hasNext { performHorizontalTransition(direction: -1, screenWidth: size.width) { vm.playNext() } }
-                        else { withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) { slideOffset = 0 } }
-                    } else {
-                        if vm.hasPrevious { performHorizontalTransition(direction: 1, screenWidth: size.width) { vm.playPrevious() } }
-                        else { withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) { slideOffset = 0 } }
-                    }
-                }
+            .contentShape(Rectangle())
+            .onTapGesture { vm.controlsVisible = false }
         )
     }
 
@@ -446,23 +433,53 @@ public struct PlayerView: View {
     }
 
     private var progressBar: some View {
-        Slider(
-            value: Binding(
-                get: {
-                    let t = vm.isScrubbing ? vm.scrubTime : vm.currentTime
-                    return vm.duration > 0 ? t / vm.duration : 0
-                },
-                set: { vm.updateScrub(to: $0 * vm.duration) }
-            ),
-            in: 0...1,
-            onEditingChanged: { editing in
-                if editing { vm.beginScrubbing() } else { vm.commitScrub() }
+        ZStack(alignment: .bottom) {
+            // Visible background track for the unfilled portion
+            Capsule()
+                .fill(Color.white.opacity(0.35))
+                .frame(height: 4)
+                .padding(.horizontal, 20)
+
+            Slider(
+                value: Binding(
+                    get: {
+                        let t = vm.isScrubbing ? vm.scrubTime : vm.currentTime
+                        return vm.duration > 0 ? t / vm.duration : 0
+                    },
+                    set: { vm.updateScrub(to: $0 * vm.duration) }
+                ),
+                in: 0...1,
+                onEditingChanged: { editing in
+                    if editing { vm.beginScrubbing() } else { vm.commitScrub() }
+                }
+            )
+            .tint(.red)
+            .padding(.horizontal, 20)
+            .overlay(sponsorBlockMarkers)
+            .overlay(chapterMarkers)
+
+            // Scrub-time tooltip: shown only while dragging, floats above the thumb
+            if vm.isScrubbing && vm.duration > 0 {
+                GeometryReader { geo in
+                    let hPad: CGFloat = 20
+                    let trackW = geo.size.width - hPad * 2
+                    let fraction = vm.scrubTime / vm.duration
+                    let thumbX = hPad + trackW * CGFloat(fraction)
+                    let labelW: CGFloat = 64
+                    let clampedX = min(max(thumbX, hPad + labelW / 2), geo.size.width - hPad - labelW / 2)
+
+                    Text(formatDuration(vm.scrubTime))
+                        .font(.caption.monospacedDigit())
+                        .fontWeight(.semibold)
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(.black.opacity(0.7), in: RoundedRectangle(cornerRadius: 6))
+                        .frame(width: labelW)
+                        .position(x: clampedX, y: geo.size.height / 2 - 30)
+                }
             }
-        )
-        .tint(.red)
-        .padding(.horizontal, 20)
-        .overlay(sponsorBlockMarkers)
-        .overlay(chapterMarkers)
+        }
     }
 
     // Chapter tick marks on the progress bar — small white notches at each chapter boundary.
