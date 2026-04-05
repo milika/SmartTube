@@ -22,6 +22,8 @@ public struct PlayerView: View {
     @State private var slideOffset: CGFloat = 0
     @State private var isTransitioning = false
     @State private var channelDestination: ChannelDestination?
+    @State private var downloadService = VideoDownloadService()
+    @State private var downloadAlertItem: DownloadAlertItem?
 
     public init(video: Video) {
         self.video = video
@@ -113,14 +115,20 @@ public struct PlayerView: View {
         #endif
         // Always-visible title badge so XCUITest can read the current video title
         // without waiting for the controls overlay to be shown.
+        // Also provides an always-accessible back button for UI automation.
         .overlay(alignment: .topLeading) {
-            Text(vm.playerInfo?.video.title ?? video.title)
-                .font(.caption)
-                .foregroundStyle(.white.opacity(0.01))   // visually invisible, accessible
-                .accessibilityIdentifier("player.titleLabel")
-                .padding(.top, 60)
-                .padding(.leading, 20)
-                .allowsHitTesting(false)
+            HStack(spacing: 0) {
+                Button { withAnimation(.none) { dismiss() } } label: {
+                    Color.clear.frame(width: 60, height: 60)
+                }
+                .accessibilityIdentifier("player.backButton")
+                Text(vm.playerInfo?.video.title ?? video.title)
+                    .font(.caption)
+                    .foregroundStyle(.white.opacity(0.01))   // visually invisible, accessible
+                    .accessibilityIdentifier("player.titleLabel")
+                    .allowsHitTesting(false)
+            }
+            .padding(.top, 60)
         }
         .onAppear  { vm.load(video: video); vm.setPlaybackSpeed(store.settings.playbackSpeed); vm.updateSettings(store.settings); vm.updateAuthToken(authService.accessToken) }
         .onDisappear { vm.stop() }
@@ -133,6 +141,22 @@ public struct PlayerView: View {
         }
         .navigationDestination(item: $channelDestination) { dest in
             ChannelView(channelId: dest.channelId)
+        }
+        .onChange(of: downloadService.state) { _, newState in
+            switch newState {
+            case .done:
+                let title = vm.playerInfo?.video.title ?? video.title
+                downloadAlertItem = DownloadAlertItem(title: "Saved to Gallery", message: "\"\(title)\" has been saved to your Photos library.")
+                downloadService.reset()
+            case .failed(let reason):
+                downloadAlertItem = DownloadAlertItem(title: "Download Failed", message: reason)
+                downloadService.reset()
+            default:
+                break
+            }
+        }
+        .alert(item: $downloadAlertItem) { item in
+            Alert(title: Text(item.title), message: Text(item.message), dismissButton: .default(Text("OK")))
         }
     }
 
@@ -164,7 +188,7 @@ public struct PlayerView: View {
         VStack {
             // Top bar: back + title
             HStack {
-                Button { dismiss() } label: {
+                Button { withAnimation(.none) { dismiss() } } label: {
                     Image(systemName: AppSymbol.chevronLeft)
                         .font(.title2)
                         .foregroundStyle(.white)
@@ -172,6 +196,7 @@ public struct PlayerView: View {
                         .background(.black.opacity(0.4))
                         .clipShape(Circle())
                 }
+                .accessibilityIdentifier("player.backButton")
                 VStack(alignment: .leading, spacing: 2) {
                     Text(vm.playerInfo?.video.title ?? video.title)
                         .font(.headline)
@@ -245,6 +270,33 @@ public struct PlayerView: View {
                             .clipShape(Circle())
                     }
                     .buttonStyle(.plain)
+                }
+                // Share / Download menu
+                Menu {
+                    let currentVideo = vm.playerInfo?.video ?? video
+                    if let shareURL = URL(string: "https://www.youtube.com/watch?v=\(currentVideo.id)") {
+                        ShareLink(item: shareURL) {
+                            Label("Share", systemImage: AppSymbol.share)
+                        }
+                    }
+                    Button {
+                        downloadService.updateAuthToken(authService.accessToken)
+                        downloadService.download(video: currentVideo)
+                    } label: {
+                        if downloadService.state.isActive {
+                            Label("Downloading…", systemImage: AppSymbol.download)
+                        } else {
+                            Label("Download to Gallery", systemImage: AppSymbol.download)
+                        }
+                    }
+                    .disabled(downloadService.state.isActive)
+                } label: {
+                    Image(systemName: "ellipsis")
+                        .font(.system(size: 18))
+                        .foregroundStyle(.white)
+                        .padding(8)
+                        .background(.black.opacity(0.4))
+                        .clipShape(Circle())
                 }
             }
             .padding(.horizontal, 20)
@@ -478,6 +530,7 @@ public struct PlayerView: View {
             .clipShape(RoundedRectangle(cornerRadius: 10))
         }
         .padding()
+        .accessibilityIdentifier("player.errorBanner")
     }
 
     // MARK: - Quality picker sheet
@@ -500,6 +553,7 @@ public struct PlayerView: View {
                                 .foregroundStyle(Color.accentColor)
                         }
                     }
+                    .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
                 ForEach(vm.availableFormats) { fmt in
@@ -517,6 +571,7 @@ public struct PlayerView: View {
                                     .foregroundStyle(Color.accentColor)
                             }
                         }
+                        .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
                 }
@@ -555,6 +610,7 @@ public struct PlayerView: View {
                                     .foregroundStyle(Color.accentColor)
                             }
                         }
+                        .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
                 }

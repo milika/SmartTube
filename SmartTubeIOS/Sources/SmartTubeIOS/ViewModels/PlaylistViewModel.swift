@@ -31,6 +31,11 @@ public final class PlaylistViewModel {
     }
 
     public func load(playlistId: String, refresh: Bool = false) {
+        // If the same playlist is already loaded and no refresh was requested,
+        // do nothing — this preserves scroll position when navigating back.
+        if !refresh && self.playlistId == playlistId && !videos.isEmpty {
+            return
+        }
         if refresh || self.playlistId != playlistId {
             self.playlistId = playlistId
             videos = []

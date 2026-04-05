@@ -14,6 +14,8 @@ public struct BrowseView: View {
     @State private var channelDestination: ChannelDestination?
     @State private var showSignIn = false
     @State private var showError = false
+    /// ID of the tapped video, saved before push; used to restore scroll on back-nav.
+    @State private var scrollIDSaved: String?
 
     public init() {}
 
@@ -62,77 +64,100 @@ public struct BrowseView: View {
     // MARK: - Subviews
 
     private var content: some View {
-        ScrollView {
-            LazyVStack(alignment: .leading, spacing: 0) {
-                if vm.isAuthRequired && !auth.isSignedIn {
-                    guestBanner
-                }
-                ForEach(vm.videoGroups) { group in
-                    if let title = group.title, !title.isEmpty {
-                        Text(title)
-                            .font(.headline)
-                            .padding(.horizontal)
-                            .padding(.top, 16)
-                            .padding(.bottom, 4)
-                    }
-                    if group.layout == .row {
-                        VideoRowSection(videos: group.videos, onSelect: { selectVideo($0, from: group.videos) })
-                    } else if settings.settings.compactThumbnails {
-                        ForEach(group.videos) { video in
+        let rowGroups  = vm.videoGroups.filter { $0.layout == .row }
+        let gridVideos = vm.videoGroups.filter { $0.layout != .row }.flatMap(\.videos)
+        return ScrollViewReader { proxy in
+            ScrollView {
+                if settings.settings.compactThumbnails {
+                    VStack(alignment: .leading, spacing: 0) {
+                        if vm.isAuthRequired && !auth.isSignedIn { guestBanner }
+                        ForEach(rowGroups) { group in
+                            if let title = group.title, !title.isEmpty {
+                                Text(title)
+                                    .font(.headline)
+                                    .padding(.horizontal)
+                                    .padding(.top, 16)
+                                    .padding(.bottom, 4)
+                            }
+                            VideoRowSection(videos: group.videos, onSelect: { selectVideo($0, from: group.videos) })
+                        }
+                        ForEach(gridVideos) { video in
                             VideoCardView(video: video, compact: true)
                                 .padding(.horizontal)
                                 .padding(.vertical, 6)
+                                .id(video.id)
                                 .accessibilityIdentifier("video.card.\(video.id)")
-                                .onTapGesture { selectVideo(video, from: group.videos) }
+                                .onTapGesture { selectVideo(video, from: gridVideos) }
                                 .onAppear {
-                                    if video.id == group.videos.last?.id {
+                                    if video.id == gridVideos.last?.id {
                                         vm.loadMoreIfNeeded(lastVideo: video)
                                     }
                                 }
                             Divider().padding(.horizontal)
                         }
-                    } else {
-                        // Grid mode: pairs as HStack rows so each row is a truly lazy LazyVStack item
-                        ForEach(Array(stride(from: 0, to: group.videos.count, by: 2)), id: \.self) { idx in
+                        if vm.isLoading {
+                            ProgressView().frame(maxWidth: .infinity).padding()
+                        }
+                    }
+                } else {
+                    VStack(alignment: .leading, spacing: 0) {
+                        if vm.isAuthRequired && !auth.isSignedIn { guestBanner }
+                        ForEach(rowGroups) { group in
+                            if let title = group.title, !title.isEmpty {
+                                Text(title)
+                                    .font(.headline)
+                                    .padding(.horizontal)
+                                    .padding(.top, 16)
+                                    .padding(.bottom, 4)
+                            }
+                            VideoRowSection(videos: group.videos, onSelect: { selectVideo($0, from: group.videos) })
+                        }
+                        ForEach(Array(stride(from: 0, to: gridVideos.count, by: 2)), id: \.self) { idx in
                             HStack(alignment: .top, spacing: 12) {
-                                let v1 = group.videos[idx]
+                                let v1 = gridVideos[idx]
                                 VideoCardView(video: v1, compact: false)
                                     .frame(maxWidth: .infinity)
                                     .accessibilityIdentifier("video.card.\(v1.id)")
-                                    .onTapGesture { selectVideo(v1, from: group.videos) }
-                                if idx + 1 < group.videos.count {
-                                    let v2 = group.videos[idx + 1]
+                                    .onTapGesture { selectVideo(v1, from: gridVideos) }
+                                if idx + 1 < gridVideos.count {
+                                    let v2 = gridVideos[idx + 1]
                                     VideoCardView(video: v2, compact: false)
                                         .frame(maxWidth: .infinity)
                                         .accessibilityIdentifier("video.card.\(v2.id)")
-                                        .onTapGesture { selectVideo(v2, from: group.videos) }
+                                        .onTapGesture { selectVideo(v2, from: gridVideos) }
                                 } else {
                                     Color.clear.frame(maxWidth: .infinity)
                                 }
                             }
+                            .id(gridVideos[idx].id)
                             .padding(.horizontal, 12)
                             .padding(.vertical, 6)
                             .onAppear {
-                                if idx + 2 >= group.videos.count, let last = group.videos.last {
+                                if idx + 2 >= gridVideos.count, let last = gridVideos.last {
                                     vm.loadMoreIfNeeded(lastVideo: last)
                                 }
                             }
                         }
                         .padding(.vertical, 2)
+                        if vm.isLoading {
+                            ProgressView().frame(maxWidth: .infinity).padding()
+                        }
                     }
                 }
-                if vm.isLoading {
-                    ProgressView()
-                        .frame(maxWidth: .infinity)
-                        .padding()
+            }
+            .onChange(of: selectedVideo) { old, new in
+                if old != nil && new == nil, let saved = scrollIDSaved {
+                    Task {
+                        try? await Task.sleep(for: .milliseconds(350))
+                        proxy.scrollTo(saved, anchor: .top)
+                    }
                 }
             }
         }
     }
 
-    // MARK: - Video selection
-
     private func selectVideo(_ video: Video, from groupVideos: [Video]) {
+        scrollIDSaved = video.id   // save tapped video ID for scroll restoration
         if video.isShort {
             let shorts = groupVideos.filter { $0.isShort }
             let idx = shorts.firstIndex(where: { $0.id == video.id }) ?? 0

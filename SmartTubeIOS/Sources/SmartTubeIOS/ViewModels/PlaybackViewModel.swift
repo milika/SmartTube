@@ -78,6 +78,8 @@ public final class PlaybackViewModel {
 
     public let player = AVPlayer()
     nonisolated(unsafe) private var timeObserver: Any?
+    /// Prevents infinite retry loops: set once the first fallback attempt has been made.
+    private var hasRetriedPlayback: Bool = false
     private var itemObserverTask: Task<Void, Never>?
     private var endObserverTask: Task<Void, Never>?
     private var controlsTimer: Task<Void, Never>?
@@ -129,6 +131,7 @@ public final class PlaybackViewModel {
         }
         currentVideo = video
         hasPrevious = !history.isEmpty
+        hasRetriedPlayback = false
         Task { await loadAsync(video: video) }
     }
 
@@ -226,7 +229,13 @@ public final class PlaybackViewModel {
                     case .failed:
                         let err = item.error.map { "\($0)" } ?? "nil"
                         playerLog.error("❌ AVPlayerItem failed: \(err, privacy: .public)")
-                        self.error = item.error
+                        if !self.hasRetriedPlayback, let video = self.currentVideo {
+                            self.hasRetriedPlayback = true
+                            playerLog.notice("Retrying playback with authenticated TV client for \(video.id, privacy: .public)")
+                            Task { await self.retryWithFallbackPlayer(video: video, originalError: item.error) }
+                        } else {
+                            self.error = item.error
+                        }
                     case .unknown:
                         playerLog.notice("AVPlayerItem status: unknown (loading)")
                     @unknown default:
@@ -259,6 +268,51 @@ public final class PlaybackViewModel {
         } catch {
             playerLog.error("❌ loadAsync error: \(String(describing: error), privacy: .public)")
             self.error = error
+        }
+    }
+
+    // MARK: - Playback fallback
+
+    /// Called when the primary iOS-client HLS stream fails to open.
+    /// Retries using the authenticated TV client, which may return a different
+    /// HLS manifest (e.g. without Dolby / multi-audio headers that the simulator
+    /// can't handle). Shows the original error if the fallback also fails.
+    private func retryWithFallbackPlayer(video: Video, originalError: Error?) async {
+        do {
+            let fallbackInfo = try await api.fetchPlayerInfoAuthenticated(videoId: video.id)
+            guard let fallbackURL = fallbackInfo.preferredStreamURL else {
+                playerLog.error("❌ Fallback player: no stream URL")
+                self.error = originalError
+                return
+            }
+            playerLog.notice("Fallback stream URL: \(fallbackURL.absoluteString.prefix(120), privacy: .public)")
+            let fallbackItem = AVPlayerItem(url: fallbackURL)
+            itemObserverTask?.cancel()
+            itemObserverTask = Task { [weak self] in
+                for await status in fallbackItem.statusStream {
+                    guard let self, !Task.isCancelled else { return }
+                    switch status {
+                    case .readyToPlay:
+                        playerLog.notice("✅ Fallback AVPlayerItem readyToPlay")
+                        if let pos = self.savedPositionToRestore, pos > 0 {
+                            self.savedPositionToRestore = nil
+                            self.seek(to: pos)
+                        }
+                    case .failed:
+                        let err = fallbackItem.error.map { "\($0)" } ?? "nil"
+                        playerLog.error("❌ Fallback AVPlayerItem failed: \(err, privacy: .public)")
+                        self.error = fallbackItem.error ?? originalError
+                    case .unknown:
+                        break
+                    @unknown default:
+                        break
+                    }
+                }
+            }
+            player.replaceCurrentItem(with: fallbackItem)
+        } catch {
+            playerLog.error("❌ Fallback player fetch failed: \(String(describing: error), privacy: .public)")
+            self.error = originalError
         }
     }
 

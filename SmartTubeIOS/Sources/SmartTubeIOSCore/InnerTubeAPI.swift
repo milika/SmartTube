@@ -1359,6 +1359,15 @@ public actor InnerTubeAPI {
         if let f = streamingData?["adaptiveFormats"] as? [[String: Any]] {
             formats += parseFormats(f)
         }
+        // Remove exact-duplicate entries that appear when a video has many audio tracks
+        // (e.g. multi-language uploads return the same itag repeated for each language
+        // variant, all with distinct URLs). Keep unique by URL string; fall back to
+        // index-based dedup for formats without a URL.
+        var seen = Set<String>()
+        formats = formats.filter { fmt in
+            let key = fmt.url?.absoluteString ?? "\(fmt.mimeType)-\(fmt.label)-\(fmt.bitrate ?? 0)"
+            return seen.insert(key).inserted
+        }
 
         let hlsURL = (streamingData?["hlsManifestUrl"] as? String).flatMap { URL(string: $0) }
         let dashURL = (streamingData?["dashManifestUrl"] as? String).flatMap { URL(string: $0) }

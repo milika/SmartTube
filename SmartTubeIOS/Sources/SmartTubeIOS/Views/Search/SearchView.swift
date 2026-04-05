@@ -185,6 +185,7 @@ public struct SearchView: View {
                             }
                             .buttonStyle(.plain)
                         }
+                        .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
                 }

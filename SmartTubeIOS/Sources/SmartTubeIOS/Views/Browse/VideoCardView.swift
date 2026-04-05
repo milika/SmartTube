@@ -207,14 +207,6 @@ public struct VideoCardView: View {
     }
 }
 
-// MARK: - DownloadAlertItem
-
-private struct DownloadAlertItem: Identifiable {
-    let id = UUID()
-    let title: String
-    let message: String
-}
-
 // MARK: - Preview
 
 #if DEBUG

@@ -28,6 +28,15 @@ struct ChannelDestination: Identifiable, Hashable {
 /// Sized to produce ~2 columns on iPhone and more on larger screens.
 let videoGridColumns = [GridItem(.adaptive(minimum: 160, maximum: 200), spacing: 12)]
 
+// MARK: - DownloadAlertItem
+
+/// Shared alert payload used by views that trigger video downloads.
+struct DownloadAlertItem: Identifiable {
+    let id = UUID()
+    let title: String
+    let message: String
+}
+
 // MARK: - AppSymbol
 //
 // Single source of truth for SF Symbol names used across the app.

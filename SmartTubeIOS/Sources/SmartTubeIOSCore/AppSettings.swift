@@ -70,14 +70,14 @@ public struct AppSettings: Codable {
 
     public enum VideoQuality: String, Codable, CaseIterable, Sendable {
         case auto  = "auto"
-        case q144  = "144p"
-        case q240  = "240p"
-        case q360  = "360p"
-        case q480  = "480p"
-        case q720  = "720p"
-        case q1080 = "1080p"
-        case q1440 = "1440p"
         case q2160 = "2160p"
+        case q1440 = "1440p"
+        case q1080 = "1080p"
+        case q720  = "720p"
+        case q480  = "480p"
+        case q360  = "360p"
+        case q240  = "240p"
+        case q144  = "144p"
 
         /// The maximum pixel height corresponding to this quality level.
         /// Returns `nil` for `.auto` (no cap).

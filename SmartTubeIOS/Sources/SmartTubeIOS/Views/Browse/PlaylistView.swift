@@ -15,6 +15,8 @@ public struct PlaylistView: View {
     @State private var vm = PlaylistViewModel()
     @State private var selectedVideo: Video?
     @State private var channelDestination: ChannelDestination?
+    /// ID of the tapped video; used to restore scroll position after back navigation.
+    @State private var scrollIDSaved: String?
 
     public init(playlistId: String, playlistTitle: String) {
         self.playlistId = playlistId
@@ -58,35 +60,53 @@ public struct PlaylistView: View {
     }
 
     private var content: some View {
-        ScrollView {
-            if store.settings.compactThumbnails {
-                LazyVStack(spacing: 0) {
-                    ForEach(vm.videos) { video in
-                        VideoCardView(video: video, compact: true)
-                            .padding(.horizontal)
-                            .padding(.vertical, 6)
-                            .onTapGesture { selectedVideo = video }
-                        Divider().padding(.horizontal)
+        ScrollViewReader { proxy in
+            ScrollView {
+                if store.settings.compactThumbnails {
+                    VStack(spacing: 0) {
+                        ForEach(vm.videos) { video in
+                            VideoCardView(video: video, compact: true)
+                                .padding(.horizontal)
+                                .padding(.vertical, 6)
+                                .id(video.id)
+                                .onTapGesture {
+                                    scrollIDSaved = video.id
+                                    selectedVideo = video
+                                }
+                            Divider().padding(.horizontal)
+                        }
+                        if vm.isLoading {
+                            ProgressView().frame(maxWidth: .infinity).padding()
+                        }
                     }
+                } else {
+                    LazyVGrid(columns: videoGridColumns, spacing: 12) {
+                        ForEach(vm.videos) { video in
+                            VideoCardView(video: video, compact: false)
+                                .id(video.id)
+                                .onTapGesture {
+                                    scrollIDSaved = video.id
+                                    selectedVideo = video
+                                }
+                        }
+                    }
+                    .padding(.horizontal)
+                    .padding(.vertical, 8)
                     if vm.isLoading {
                         ProgressView().frame(maxWidth: .infinity).padding()
                     }
                 }
-            } else {
-                LazyVGrid(columns: videoGridColumns, spacing: 12) {
-                    ForEach(vm.videos) { video in
-                        VideoCardView(video: video, compact: false)
-                            .onTapGesture { selectedVideo = video }
+            }
+            .onChange(of: selectedVideo) { old, new in
+                if old != nil && new == nil, let saved = scrollIDSaved {
+                    Task {
+                        try? await Task.sleep(for: .milliseconds(350))
+                        proxy.scrollTo(saved, anchor: .top)
                     }
                 }
-                .padding(.horizontal)
-                .padding(.vertical, 8)
-                if vm.isLoading {
-                    ProgressView().frame(maxWidth: .infinity).padding()
-                }
             }
+            .refreshable { vm.load(playlistId: playlistId, refresh: true) }
         }
-        .refreshable { vm.load(playlistId: playlistId, refresh: true) }
     }
 
     private var emptyState: some View {

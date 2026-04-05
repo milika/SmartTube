@@ -4,6 +4,9 @@ import Photos
 import Observation
 import os
 import SmartTubeIOSCore
+#if canImport(ActivityKit)
+@preconcurrency import ActivityKit
+#endif
 
 private let downloadLog = Logger(subsystem: appSubsystem, category: "Download")
 
@@ -42,6 +45,11 @@ public final class VideoDownloadService {
     private let api: InnerTubeAPI
     private var downloadTask: Task<Void, Never>?
 
+    #if canImport(ActivityKit)
+    @available(iOS 16.1, *)
+    private var liveActivity: Activity<DownloadActivityAttributes>?
+    #endif
+
     /// URLSession used for all YouTube CDN downloads.
     /// httpAdditionalHeaders cannot override User-Agent on iOS — must use URLRequest.setValue.
     private static let cdnSession = URLSession(configuration: .default)
@@ -79,6 +87,11 @@ public final class VideoDownloadService {
     public func download(video: Video) {
         guard !state.isActive else { return }
         state = .fetching
+        #if canImport(ActivityKit)
+        if #available(iOS 16.1, *) {
+            startLiveActivity(video: video)
+        }
+        #endif
         downloadTask = Task { await performDownload(video: video) }
     }
 
@@ -90,21 +103,80 @@ public final class VideoDownloadService {
 
     // MARK: - Private implementation
 
+    // MARK: Live Activity helpers
+
+    #if canImport(ActivityKit)
+    @available(iOS 16.1, *)
+    private func startLiveActivity(video: Video) {
+        guard ActivityAuthorizationInfo().areActivitiesEnabled else { return }
+        let attrs = DownloadActivityAttributes(videoTitle: video.title)
+        let state = DownloadActivityAttributes.DownloadContentState(progress: 0, phase: .fetching)
+        do {
+            liveActivity = try Activity<DownloadActivityAttributes>.request(
+                attributes: attrs,
+                content: .init(state: state, staleDate: nil),
+                pushType: nil
+            )
+        } catch {
+            downloadLog.notice("[download] Live Activity unavailable: \(error.localizedDescription, privacy: .public)")
+        }
+    }
+
+    @available(iOS 16.1, *)
+    private func updateLiveActivity(phase: DownloadActivityAttributes.DownloadContentState.Phase,
+                                    progress: Double = 0) async {
+        guard let activity = liveActivity else { return }
+        let newState = DownloadActivityAttributes.DownloadContentState(progress: progress, phase: phase)
+        // Activity<T> is a Sendable struct; dispatch the await via a nonisolated helper to
+        // satisfy Swift 6 region isolation — the value is safely copied out of the @MainActor region.
+        await Self.sendActivityUpdate(activity, state: newState)
+    }
+
+    @available(iOS 16.1, *)
+    private func endLiveActivity(phase: DownloadActivityAttributes.DownloadContentState.Phase) async {
+        guard let activity = liveActivity else { return }
+        let finalState = DownloadActivityAttributes.DownloadContentState(progress: 1, phase: phase)
+        liveActivity = nil  // nil out on @MainActor before sending the value across the boundary
+        await Self.sendActivityEnd(activity, state: finalState)
+    }
+
+    /// Dispatches `Activity.update` from a nonisolated context.
+    /// `Activity<T>` is a `Sendable` struct so transferring it via `sending` is safe.
+    @available(iOS 16.1, *)
+    nonisolated private static func sendActivityUpdate(
+        _ activity: sending Activity<DownloadActivityAttributes>,
+        state: DownloadActivityAttributes.DownloadContentState
+    ) async {
+        await activity.update(ActivityContent(state: state, staleDate: nil))
+    }
+
+    /// Dispatches `Activity.end` from a nonisolated context. See `sendActivityUpdate` for rationale.
+    @available(iOS 16.1, *)
+    nonisolated private static func sendActivityEnd(
+        _ activity: sending Activity<DownloadActivityAttributes>,
+        state: DownloadActivityAttributes.DownloadContentState
+    ) async {
+        await activity.end(ActivityContent(state: state, staleDate: nil), dismissalPolicy: .after(.now + 4))
+    }
+    #endif
+
+    // MARK: Download orchestration
+
     private func performDownload(video: Video) async {
         do {
-            // Attempt 1: Web client — returns muxed itag 18/22 MP4 for most public videos.
-            // Attempt 2: Authenticated TV client — for membership/age-restricted videos.
-            // Attempt 3: iOS client HLS export via AVAssetExportSession — universal fallback.
             guard await requestPhotoAddAccess() else {
                 state = .failed("Photo library access is required to save the video")
+                #if canImport(ActivityKit)
+                if #available(iOS 16.1, *) { await endLiveActivity(phase: .failed) }
+                #endif
                 return
             }
 
             if let tempURL = await tryDirectDownload(videoId: video.id) {
-                // YouTube's muxed MP4 often has the moov atom at the end (non-fast-start),
-                // which causes PHPhotosErrorDomain 3302. Passthrough-remux rewrites the
-                // container with moov-at-front without re-encoding any codec data.
                 downloadLog.notice("[download] remuxing for Photos compatibility")
+                #if canImport(ActivityKit)
+                if #available(iOS 16.1, *) { await updateLiveActivity(phase: .saving, progress: 1) }
+                #endif
                 let photosURL = try await passthroughRemux(inputURL: tempURL, videoId: video.id, suffix: "muxed")
                 try? FileManager.default.removeItem(at: tempURL)
                 state = .saving
@@ -112,12 +184,16 @@ public final class VideoDownloadService {
                 try? FileManager.default.removeItem(at: photosURL)
                 downloadLog.notice("[download] ✅ saved to Photos \(video.id, privacy: .public)")
                 state = .done
+                #if canImport(ActivityKit)
+                if #available(iOS 16.1, *) { await endLiveActivity(phase: .done) }
+                #endif
                 return
             }
 
-            // All direct download attempts failed — merge best adaptive video+audio streams.
-            // Use the Android client: c=ANDROID adaptive URLs are reliably downloadable.
             downloadLog.notice("[download] direct download failed, trying adaptive merge fallback")
+            #if canImport(ActivityKit)
+            if #available(iOS 16.1, *) { await updateLiveActivity(phase: .downloading, progress: 0.1) }
+            #endif
             let androidInfo = try await api.fetchPlayerInfoAndroid(videoId: video.id)
             downloadLog.notice("[download] adaptive fallback formats=\(androidInfo.formats.count, privacy: .public)")
             for (i, fmt) in androidInfo.formats.enumerated() {
@@ -127,6 +203,9 @@ public final class VideoDownloadService {
                   let audioURL = androidInfo.bestAdaptiveAudioURL else {
                 downloadLog.error("[download] ❌ no adaptive video/audio streams found")
                 state = .failed("No downloadable stream found for this video")
+                #if canImport(ActivityKit)
+                if #available(iOS 16.1, *) { await endLiveActivity(phase: .failed) }
+                #endif
                 return
             }
             downloadLog.notice("[download] merging adaptive videoURL prefix=\(videoURL.absoluteString.prefix(60), privacy: .public)")
@@ -135,15 +214,27 @@ public final class VideoDownloadService {
             let mergedURL = try await mergeAdaptiveStreams(videoURL: videoURL, audioURL: audioURL, videoId: video.id,
                                                           userAgent: InnerTubeClients.Android.userAgent)
             state = .saving
+            #if canImport(ActivityKit)
+            if #available(iOS 16.1, *) { await updateLiveActivity(phase: .saving, progress: 1) }
+            #endif
             try await saveToPhotoLibrary(fileURL: mergedURL)
             try? FileManager.default.removeItem(at: mergedURL)
             downloadLog.notice("[download] ✅ adaptive merge saved to Photos \(video.id, privacy: .public)")
             state = .done
+            #if canImport(ActivityKit)
+            if #available(iOS 16.1, *) { await endLiveActivity(phase: .done) }
+            #endif
         } catch is CancellationError {
             state = .idle
+            #if canImport(ActivityKit)
+            if #available(iOS 16.1, *) { await endLiveActivity(phase: .failed) }
+            #endif
         } catch {
             downloadLog.error("[download] ❌ failed: \(error.localizedDescription, privacy: .public)")
             state = .failed(error.localizedDescription)
+            #if canImport(ActivityKit)
+            if #available(iOS 16.1, *) { await endLiveActivity(phase: .failed) }
+            #endif
         }
     }
 
@@ -173,6 +264,9 @@ public final class VideoDownloadService {
             }
             downloadLog.notice("[download] \(label, privacy: .public) ✅ muxed URL found, downloading")
             state = .downloading(progress: 0)
+            #if canImport(ActivityKit)
+            if #available(iOS 16.1, *) { await updateLiveActivity(phase: .downloading, progress: 0) }
+            #endif
             if let tempURL = try? await downloadToTemp(url: muxedURL, videoId: videoId, userAgent: clientUA) {
                 let size = (try? FileManager.default.attributesOfItem(atPath: tempURL.path)[.size] as? Int) ?? 0
                 downloadLog.notice("[download] \(label, privacy: .public) download complete bytes=\(size, privacy: .public)")
