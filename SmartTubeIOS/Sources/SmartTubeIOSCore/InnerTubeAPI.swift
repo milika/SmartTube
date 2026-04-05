@@ -882,7 +882,7 @@ public actor InnerTubeAPI {
                     switch statusStr {
                     case "LIKE":    found = .like
                     case "DISLIKE": found = .dislike
-                    default:        found = .none
+                    default:        found = LikeStatus.none
                     }
                     return
                 }
@@ -894,7 +894,7 @@ public actor InnerTubeAPI {
                     let disliked = (seg["dislikeButton"] as? [String: Any])
                         .flatMap { $0["toggleButtonRenderer"] as? [String: Any] }
                         .flatMap { $0["isToggled"] as? Bool } ?? false
-                    found = liked ? .like : disliked ? .dislike : .none
+                    found = liked ? .like : disliked ? .dislike : LikeStatus.none
                     return
                 }
                 for value in dict.values { walk(value) }

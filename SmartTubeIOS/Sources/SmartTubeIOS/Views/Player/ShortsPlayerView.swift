@@ -457,7 +457,7 @@ private struct SwipeGestureOverlay: UIViewRepresentable {
 
         init(_ parent: SwipeGestureOverlay) { self.parent = parent }
 
-        @objc func handlePan(_ gr: UIPanGestureRecognizer) {
+        @MainActor @objc func handlePan(_ gr: UIPanGestureRecognizer) {
             let t = gr.translation(in: gr.view)
             switch gr.state {
             case .changed:
@@ -475,8 +475,8 @@ private struct SwipeGestureOverlay: UIViewRepresentable {
             }
         }
 
-        @objc func handleTap() { parent.onTap() }
-        @objc func handleTwoFingerTap() { parent.onTwoFingerTap() }
+        @MainActor @objc func handleTap() { parent.onTap() }
+        @MainActor @objc func handleTwoFingerTap() { parent.onTwoFingerTap() }
     }
 }
 #endif

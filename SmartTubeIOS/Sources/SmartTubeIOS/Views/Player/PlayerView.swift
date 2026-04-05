@@ -22,6 +22,7 @@ public struct PlayerView: View {
     @Environment(AuthService.self) private var authService
     @State private var showSpeedPicker = false
     @State private var showQualityPicker = false
+    @State private var showMoreMenu = false
     @State private var slideOffset: CGFloat = 0
     @State private var isTransitioning = false
     @State private var channelDestination: ChannelDestination?
@@ -74,7 +75,9 @@ public struct PlayerView: View {
                         withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) { slideOffset = 0 }
                     },
                     // Disabled during scrubbing so the Slider can claim touches uncontested.
-                    isEnabled: !vm.isScrubbing
+                    // Also disabled when controls are visible so SwiftUI buttons (Menu, etc.)
+                    // receive touches directly without UIKit gesture interference.
+                    isEnabled: !vm.isScrubbing && !vm.controlsVisible
                 )
                 .ignoresSafeArea()
                 .accessibilityHidden(true)
@@ -125,7 +128,7 @@ public struct PlayerView: View {
         // Also provides an always-accessible back button for UI automation.
         .overlay(alignment: .topLeading) {
             HStack(spacing: 0) {
-                Button { withAnimation(.none) { dismiss() } } label: {
+                Button { vm.stop(); withAnimation(.none) { dismiss() } } label: {
                     Color.clear.frame(width: 60, height: 60)
                 }
                 .accessibilityIdentifier("player.backButton")
@@ -139,16 +142,40 @@ public struct PlayerView: View {
         }
         .onAppear {
             swipeLog.notice("[PlayerView] onAppear id=\(video.id, privacy: .public)")
-            vm.load(video: video)
+            if vm.currentVideoId == video.id {
+                // Spurious appear (e.g. a sheet/ShareLink temporarily covered us) — just resume.
+                vm.resume()
+            } else {
+                vm.load(video: video)
+            }
             vm.setPlaybackSpeed(store.settings.playbackSpeed)
             vm.updateSettings(store.settings)
             vm.updateAuthToken(authService.accessToken)
         }
         .onDisappear {
             swipeLog.notice("[PlayerView] onDisappear id=\(video.id, privacy: .public)")
-            vm.stop()
+            // Only suspend (pause + save position) — a full stop() is called by the
+            // dismiss buttons so the player is torn down only on intentional back navigation.
+            vm.suspend()
         }
         .onChange(of: authService.accessToken) { _, newToken in vm.updateAuthToken(newToken) }
+        .onChange(of: showMoreMenu) { _, val in
+            swipeLog.notice("[menu] showMoreMenu changed → \(val, privacy: .public) controlsVisible=\(vm.controlsVisible, privacy: .public)")
+        }
+        .confirmationDialog("Options", isPresented: $showMoreMenu) {
+            let currentVideo = vm.playerInfo?.video ?? video
+            if let shareURL = URL(string: "https://www.youtube.com/watch?v=\(currentVideo.id)") {
+                ShareLink(item: shareURL) {
+                    Label("Share", systemImage: AppSymbol.share)
+                }
+            }
+            Button(downloadService.state.isActive ? "Downloading…" : "Download to Gallery") {
+                downloadService.updateAuthToken(authService.accessToken)
+                downloadService.download(video: currentVideo)
+            }
+            .disabled(downloadService.state.isActive)
+            Button("Cancel", role: .cancel) {}
+        }
         .sheet(isPresented: $showSpeedPicker) {
             speedPickerSheet
         }
@@ -204,7 +231,7 @@ public struct PlayerView: View {
         VStack {
             // Top bar: back + title
             HStack {
-                Button { withAnimation(.none) { dismiss() } } label: {
+                Button { vm.stop(); withAnimation(.none) { dismiss() } } label: {
                     Image(systemName: AppSymbol.chevronLeft)
                         .font(.title2)
                         .foregroundStyle(.white)
@@ -288,24 +315,9 @@ public struct PlayerView: View {
                     .buttonStyle(.plain)
                 }
                 // Share / Download menu
-                Menu {
-                    let currentVideo = vm.playerInfo?.video ?? video
-                    if let shareURL = URL(string: "https://www.youtube.com/watch?v=\(currentVideo.id)") {
-                        ShareLink(item: shareURL) {
-                            Label("Share", systemImage: AppSymbol.share)
-                        }
-                    }
-                    Button {
-                        downloadService.updateAuthToken(authService.accessToken)
-                        downloadService.download(video: currentVideo)
-                    } label: {
-                        if downloadService.state.isActive {
-                            Label("Downloading…", systemImage: AppSymbol.download)
-                        } else {
-                            Label("Download to Gallery", systemImage: AppSymbol.download)
-                        }
-                    }
-                    .disabled(downloadService.state.isActive)
+                Button {
+                    swipeLog.notice("[menu] ... button tapped — controlsVisible=\(vm.controlsVisible, privacy: .public) showMoreMenu=\(showMoreMenu, privacy: .public)")
+                    showMoreMenu = true
                 } label: {
                     Image(systemName: "ellipsis")
                         .font(.system(size: 18))
@@ -314,6 +326,7 @@ public struct PlayerView: View {
                         .background(.black.opacity(0.4))
                         .clipShape(Circle())
                 }
+                .buttonStyle(.plain)
             }
             .padding(.horizontal, 20)
             .padding(.top, max(safeAreaInsets.top, 20))
@@ -417,6 +430,10 @@ public struct PlayerView: View {
                 endPoint: .bottom
             )
             .contentShape(Rectangle())
+            .onTapGesture {
+                swipeLog.notice("[menu] gradient background tap — controlsVisible=\(vm.controlsVisible, privacy: .public)")
+                vm.toggleControls()
+            }
         )
     }
 
@@ -787,7 +804,7 @@ private struct SwipeGestureOverlay: UIViewRepresentable {
 
         init(_ parent: SwipeGestureOverlay) { self.parent = parent }
 
-        @objc func handlePan(_ gr: UIPanGestureRecognizer) {
+        @MainActor @objc func handlePan(_ gr: UIPanGestureRecognizer) {
             let t = gr.translation(in: gr.view)
             switch gr.state {
             case .changed:
@@ -805,8 +822,8 @@ private struct SwipeGestureOverlay: UIViewRepresentable {
             }
         }
 
-        @objc func handleTap() { parent.onTap() }
-        @objc func handleTwoFingerTap() { parent.onTwoFingerTap() }
+        @MainActor @objc func handleTap() { parent.onTap() }
+        @MainActor @objc func handleTwoFingerTap() { parent.onTwoFingerTap() }
     }
 }
 #endif

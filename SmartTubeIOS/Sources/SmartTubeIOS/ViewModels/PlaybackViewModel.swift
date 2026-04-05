@@ -77,7 +77,7 @@ public final class PlaybackViewModel {
     // MARK: - AVPlayer
 
     public let player = AVPlayer()
-    nonisolated(unsafe) private var timeObserver: Any?
+    nonisolated private var timeObserver: Any?
     /// Prevents infinite retry loops: set once the first fallback attempt has been made.
     private var hasRetriedPlayback: Bool = false
     private var itemObserverTask: Task<Void, Never>?
@@ -92,6 +92,8 @@ public final class PlaybackViewModel {
     /// Debounce task for preview seeks while dragging the slider.
     /// Fires a seek after the thumb has been held still for 300 ms.
     private var seekDebounceTask: Task<Void, Never>?
+    /// Tracks the in-flight loadAsync so it can be cancelled if load() is called again.
+    private var loadTask: Task<Void, Never>?
 
     // MARK: - Dependencies
 
@@ -119,8 +121,16 @@ public final class PlaybackViewModel {
 
     // MARK: - Load video
 
+    /// The ID of the video currently loaded (or being loaded). Exposed so PlayerView
+    /// can detect spurious onAppear/onDisappear cycles (e.g. when a ShareLink sheet
+    /// temporarily covers the player) and skip unnecessary reloads.
+    public var currentVideoId: String? { currentVideo?.id }
+
     public func load(video: Video) {
         playerLog.notice("[load] load() called — id=\(video.id, privacy: .public) currentVideo=\(self.currentVideo?.id ?? "nil", privacy: .public) isLoading=\(self.isLoading)")
+        // Cancel any previous in-flight load so we never have two concurrent API
+        // fetches for the same (or different) video running at the same time.
+        loadTask?.cancel()
         // Stop and clear the current item immediately so the previous frame
         // is not visible while the next video is loading.
         player.pause()
@@ -141,7 +151,38 @@ public final class PlaybackViewModel {
         currentVideo = video
         hasPrevious = !history.isEmpty
         hasRetriedPlayback = false
-        Task { await loadAsync(video: video) }
+        loadTask = Task { await loadAsync(video: video) }
+    }
+
+    /// Pauses playback and saves the watch position without tearing down the AVPlayerItem.
+    /// Called when the PlayerView temporarily disappears (e.g. a sheet slides over it).
+    /// Use `resume()` to restart playback, or `load(video:)` to switch videos.
+    public func suspend() {
+        playerLog.notice("[suspend] suspend() called — currentVideo=\(self.currentVideo?.id ?? "nil", privacy: .public) currentTime=\(Int(self.currentTime))s")
+        if let videoId = playerInfo?.video.id, duration > 0 {
+            let pos = self.currentTime
+            let dur = self.duration
+            Task {
+                await VideoStateStore.shared.save(videoId: videoId, position: pos, duration: dur)
+                playerLog.notice("Saved position \(Int(pos), privacy: .public)s for \(videoId, privacy: .public)")
+            }
+        }
+        player.pause()
+        isPlaying = false
+        controlsTimer?.cancel()
+    }
+
+    /// Resumes playback after a `suspend()`. If the player has no current item
+    /// (e.g. `stop()` was called), this is a no-op — use `load(video:)` instead.
+    public func resume() {
+        guard player.currentItem != nil else {
+            playerLog.notice("[resume] no item — skipping resume")
+            return
+        }
+        playerLog.notice("[resume] resume() called — currentVideo=\(self.currentVideo?.id ?? "nil", privacy: .public)")
+        player.play()
+        isPlaying = true
+        showControls()
     }
 
     private func loadAsync(video: Video) async {
@@ -633,6 +674,7 @@ public final class PlaybackViewModel {
     }
 
     public func toggleControls() {
+        playerLog.notice("[controls] toggleControls — controlsVisible=\(self.controlsVisible, privacy: .public)")
         if controlsVisible {
             controlsTimer?.cancel()
             controlsVisible = false
