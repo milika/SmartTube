@@ -85,6 +85,13 @@ public final class PlaybackViewModel {
     private var controlsTimer: Task<Void, Never>?
     /// Position to seek to once the AVPlayerItem is ready.
     private var savedPositionToRestore: TimeInterval? = nil
+    /// Timestamp of the last commitScrub(). Used to ignore the spurious
+    /// beginScrubbing() that SwiftUI's Slider fires immediately after commitScrub
+    /// causes a binding re-evaluation and the slider thumb re-positions itself.
+    private var lastCommitScrubTime: Date = .distantPast
+    /// Debounce task for preview seeks while dragging the slider.
+    /// Fires a seek after the thumb has been held still for 300 ms.
+    private var seekDebounceTask: Task<Void, Never>?
 
     // MARK: - Dependencies
 
@@ -122,7 +129,8 @@ public final class PlaybackViewModel {
         duration = 0
         controlsVisible = false
         controlsTimer?.cancel()
-        likeStatus = .none
+        seekDebounceTask?.cancel()
+        isScrubbing = false
         chapters = []
 
         // Push the currently playing video onto the history stack before switching
@@ -536,14 +544,18 @@ public final class PlaybackViewModel {
 
     /// Called when the user starts dragging the progress slider.
     public func beginScrubbing() {
+        // Guard against the spurious onEditingChanged(true) that SwiftUI's Slider
+        // fires right after commitScrub() triggers a binding re-evaluation.
+        let sinceCommit = Date.now.timeIntervalSince(lastCommitScrubTime)
+        guard sinceCommit > 0.3 else {
+            playerLog.debug("[scrub] beginScrubbing IGNORED (spurious, \(sinceCommit, format: .fixed(precision: 3))s since commit)")
+            return
+        }
+        playerLog.debug("[scrub] beginScrubbing at \(self.currentTime, format: .fixed(precision: 1))s — isScrubbing=\(self.isScrubbing, privacy: .public) controlsVisible=\(self.controlsVisible, privacy: .public)")
+        seekDebounceTask?.cancel()
         isScrubbing = true
         scrubTime = currentTime
-        // Keep the controls overlay alive for the entire scrub so the Slider is
-        // never removed mid-drag. If the overlay disappears while the finger is
-        // still held down, SwiftUI's Slider never fires onEditingChanged(false),
-        // commitScrub() is skipped, and isScrubbing stays true permanently —
-        // permanently disabling SwipeGestureOverlay pan/tap gestures.
-        controlsTimer?.cancel()
+        playerLog.debug("[scrub] beginScrubbing done — isScrubbing=\(self.isScrubbing, privacy: .public)")
     }
 
     /// Called on every incremental slider position update while dragging.
@@ -551,15 +563,38 @@ public final class PlaybackViewModel {
     /// rapid-seek stalls.
     public func updateScrub(to time: TimeInterval) {
         scrubTime = time
+        // Preview seek: if the thumb stays still for 300 ms while dragging,
+        // seek AVPlayer to that position without waiting for finger-up.
+        seekDebounceTask?.cancel()
+        seekDebounceTask = Task { [weak self] in
+            try? await Task.sleep(for: .milliseconds(300))
+            guard let self, !Task.isCancelled, self.isScrubbing else { return }
+            playerLog.debug("[scrub] debounce seek to \(self.scrubTime, format: .fixed(precision: 1))s")
+            self.seek(to: self.scrubTime)
+        }
     }
 
     /// Called when the user releases the slider. Issues a single precise seek.
     public func commitScrub() {
+        // SwiftUI's Slider fires onEditingChanged(false) on initialization (when the
+        // view first renders), before the user has ever touched it. Guard here so that
+        // spurious call doesn't (a) call showControls() at load time, or (b) poison
+        // lastCommitScrubTime and block the user's first real scrub attempt via the
+        // debounce guard in beginScrubbing().
+        guard isScrubbing else { return }
+        seekDebounceTask?.cancel()  // release-seek supersedes any pending debounce
         let target = scrubTime
+        playerLog.debug("[scrub] commitScrub to \(target, format: .fixed(precision: 1))s — isScrubbing=\(self.isScrubbing, privacy: .public) controlsVisible=\(self.controlsVisible, privacy: .public)")
+        lastCommitScrubTime = .now
         isScrubbing = false
         seek(to: target)
+        showControls()
+        playerLog.debug("[scrub] commitScrub done — isScrubbing=\(self.isScrubbing, privacy: .public) controlsVisible=\(self.controlsVisible, privacy: .public)")
     }
 
+    /// Issues a seek to the given time. Does NOT show controls — callers that
+    /// want the overlay to appear (user-initiated gestures) must call
+    /// `showControls()` themselves after this.
     public func seek(to time: TimeInterval) {
         player.seek(
             to: CMTime(seconds: time, preferredTimescale: 600),
@@ -568,17 +603,18 @@ public final class PlaybackViewModel {
         ) { [weak self] _ in
             Task { @MainActor [weak self] in self?.currentTime = time }
         }
-        showControls()
     }
 
     public func seekRelative(seconds: TimeInterval) {
         seek(to: max(0, currentTime + seconds))
+        showControls()
     }
 
     /// Seek to the start of the next chapter.
     public func skipToNextChapter() {
         guard let next = chapters.first(where: { $0.startTime > currentTime }) else { return }
         seek(to: next.startTime)
+        showControls()
     }
 
     /// Seek to the start of the current chapter (if >3 s in) or to the previous chapter.
@@ -589,6 +625,7 @@ public final class PlaybackViewModel {
         } else if let prev = chapters.last(where: { $0.startTime < current.startTime }) {
             seek(to: prev.startTime)
         }
+        showControls()
     }
 
     public func setPlaybackSpeed(_ speed: Double) {
@@ -598,16 +635,22 @@ public final class PlaybackViewModel {
     // MARK: - Controls visibility
 
     public func showControls() {
+        playerLog.debug("[controls] showControls — isScrubbing=\(self.isScrubbing, privacy: .public)")
         controlsVisible = true
         scheduleControlsHide()
     }
 
     private func scheduleControlsHide() {
+        playerLog.debug("[controls] scheduleControlsHide — resetting 4s timer, isScrubbing=\(self.isScrubbing, privacy: .public)")
         controlsTimer?.cancel()
         controlsTimer = Task {
             try? await Task.sleep(for: .seconds(4))
-            if !Task.isCancelled {
+            playerLog.debug("[controls] timer fired — isCancelled=\(Task.isCancelled, privacy: .public) isScrubbing=\(self.isScrubbing, privacy: .public)")
+            if !Task.isCancelled, !self.isScrubbing {
+                playerLog.debug("[controls] hiding controls")
                 self.controlsVisible = false
+            } else {
+                playerLog.debug("[controls] hide suppressed (scrubbing or cancelled)")
             }
         }
     }
@@ -650,6 +693,7 @@ public final class PlaybackViewModel {
         guard let seg = currentToastSegment else { return }
         seek(to: seg.end)
         currentToastSegment = nil
+        showControls()
     }
 
     // MARK: - Time observer
@@ -661,8 +705,12 @@ public final class PlaybackViewModel {
             let seconds = time.seconds
             Task { @MainActor [weak self] in
                 guard let self else { return }
-                // Don't overwrite the slider position while the user is scrubbing.
-                if !self.isScrubbing { self.currentTime = seconds }
+                // Don't overwrite the slider position or trigger SponsorBlock auto-seeks
+                // while the user is scrubbing. Auto-seeks call seek() → showControls() →
+                // scheduleControlsHide(), which cancels and restarts the 4 s hide-timer
+                // every 0.5 s, preventing controls from ever auto-hiding post-scrub.
+                guard !self.isScrubbing else { return }
+                self.currentTime = seconds
                 self.checkSponsorSkip(at: seconds)
                 if self.statsForNerdsVisible { self.updateStatsSnapshot() }
             }
@@ -688,6 +736,7 @@ public final class PlaybackViewModel {
         UIApplication.shared.isIdleTimerDisabled = false
         #endif
         controlsTimer?.cancel()
+        seekDebounceTask?.cancel()
     }
 }
 

@@ -68,7 +68,10 @@ public struct PlayerView: View {
                     onSwipeCancelled: {
                         withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) { slideOffset = 0 }
                     },
-                    isEnabled: !vm.isScrubbing
+                    // Disable when controls are visible so the Slider widget can claim
+                    // touches uncontested. The controls overlay's .simultaneousGesture
+                    // handles swipe navigation while controls are on screen.
+                    isEnabled: !vm.isScrubbing && !vm.controlsVisible
                 )
                 .ignoresSafeArea()
                 .accessibilityHidden(true)
