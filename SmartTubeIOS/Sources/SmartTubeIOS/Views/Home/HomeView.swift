@@ -63,13 +63,12 @@ public struct HomeView: View {
         }
         .task(id: auth.accessToken) {
             await homeVM.updateAuthToken(auth.accessToken)
-            // Only reload the section feed when it is actually displayed;
-            // on the Home chip the feed is hidden so just update the token.
-            if selectedSection.type == .home {
-                await sectionVM.setAuthToken(auth.accessToken)
-            } else {
-                await sectionVM.updateAuthToken(auth.accessToken)
-            }
+            // Always use setAuthToken here — the task's only job is to forward the
+            // credential to the API layer. Content loading is driven by chip selection
+            // (sectionVM.select) and chipButton's onTapGesture, not by token changes.
+            // Using updateAuthToken here caused a spurious loadContent(refresh:true)
+            // whenever the task raced with an ongoing section fetch.
+            await sectionVM.setAuthToken(auth.accessToken)
         }
     }
 
@@ -220,9 +219,13 @@ public struct HomeView: View {
 
     @ViewBuilder
     private var sectionFeed: some View {
-        if sectionVM.isLoading && sectionVM.videoGroups.isEmpty {
+        if sectionVM.isLoading && sectionVM.videoGroups.isEmpty && sectionVM.subscribedChannels.isEmpty {
             ProgressView()
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
+        } else if sectionVM.currentSection.type == .channels && !sectionVM.subscribedChannels.isEmpty {
+            ChannelListView(channels: sectionVM.subscribedChannels) { channel in
+                channelDestination = ChannelDestination(channelId: channel.id)
+            }
         } else if sectionVM.videoGroups.isEmpty && !sectionVM.isLoading {
             feedEmptyState
         } else {
