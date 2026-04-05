@@ -13,7 +13,7 @@ mcp_xcode_GetBuildLog(
 mcp_xcode_GetBuildLog(
   tabIdentifier: "<tab>",
   severity: "warning",
-  glob: "**/MyFeature/**"
+  glob: "**/UITests/**"
 )
 
 // Filter by message content:
@@ -31,9 +31,8 @@ mcp_xcode_GetBuildLog(
 MCP has no xcresult tool. After a CLI `xcodebuild test` run, parse the result:
 
 ```bash
-# The DerivedData folder is named after the package (e.g., Modules-<hash>),
-# NOT after the workspace. Using the wrong folder returns empty summaries.
-XCRESULT=$(ls -t ~/Library/Developer/Xcode/DerivedData/Modules-*/Logs/Test/*.xcresult \
+# DerivedData for SmartTubeApp is named SmartTube-<hash>
+XCRESULT=$(ls -t ~/Library/Developer/Xcode/DerivedData/SmartTube-*/Logs/Test/*.xcresult \
   2>/dev/null | head -1)
 
 # Step 1: get testsRef
@@ -68,5 +67,4 @@ for grp in d.get('summaries', {}).get('_values', []):
 "
 ```
 
-⚠️ Always use `--legacy`; omitting it returns a different schema with missing fields.  
-⚠️ Always use the `Modules-<hash>` DerivedData folder — **not** the workspace folder. The workspace folder returns empty `ActionTestPlanRunSummaries`.
+⚠️ Always use `--legacy`; omitting it returns a different schema with missing fields.

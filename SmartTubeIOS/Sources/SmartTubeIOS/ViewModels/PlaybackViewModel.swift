@@ -40,6 +40,13 @@ public final class PlaybackViewModel {
     public private(set) var statsForNerdsVisible: Bool = false
     public private(set) var statsSnapshot: StatsForNerdsSnapshot = .empty
 
+    /// True while the user is dragging the progress slider.
+    /// The time observer skips `currentTime` updates while this is set so the
+    /// slider thumb doesn't jump back to the real playhead mid-scrub.
+    public private(set) var isScrubbing: Bool = false
+    /// Position tracked during a scrub drag; committed to AVPlayer on release.
+    public private(set) var scrubTime: TimeInterval = 0
+
     /// The chapter whose start time is closest-but-not-greater-than `currentTime`.
     /// Nil when no chapters are available or the video hasn't started.
     public var currentChapter: Chapter? {
@@ -471,8 +478,34 @@ public final class PlaybackViewModel {
         showControls()
     }
 
+    // MARK: - Scrubbing (slider drag)
+
+    /// Called when the user starts dragging the progress slider.
+    public func beginScrubbing() {
+        isScrubbing = true
+        scrubTime = currentTime
+    }
+
+    /// Called on every incremental slider position update while dragging.
+    /// Only updates the local `scrubTime` — does NOT seek AVPlayer, preventing
+    /// rapid-seek stalls.
+    public func updateScrub(to time: TimeInterval) {
+        scrubTime = time
+    }
+
+    /// Called when the user releases the slider. Issues a single precise seek.
+    public func commitScrub() {
+        let target = scrubTime
+        isScrubbing = false
+        seek(to: target)
+    }
+
     public func seek(to time: TimeInterval) {
-        player.seek(to: CMTime(seconds: time, preferredTimescale: 600)) { [weak self] _ in
+        player.seek(
+            to: CMTime(seconds: time, preferredTimescale: 600),
+            toleranceBefore: .zero,
+            toleranceAfter: .zero
+        ) { [weak self] _ in
             Task { @MainActor [weak self] in self?.currentTime = time }
         }
         showControls()
@@ -568,7 +601,8 @@ public final class PlaybackViewModel {
             let seconds = time.seconds
             Task { @MainActor [weak self] in
                 guard let self else { return }
-                self.currentTime = seconds
+                // Don't overwrite the slider position while the user is scrubbing.
+                if !self.isScrubbing { self.currentTime = seconds }
                 self.checkSponsorSkip(at: seconds)
                 if self.statsForNerdsVisible { self.updateStatsSnapshot() }
             }

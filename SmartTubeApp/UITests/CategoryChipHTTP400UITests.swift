@@ -90,36 +90,42 @@ final class CategoryChipHTTP400UITests: XCTestCase {
 
     // MARK: - Chip interaction helpers
 
-    /// Resets the chip bar to its leading edge, scrolls proportionally to
-    /// bring the `chipIndex`-th chip into view, then taps it.
-    ///
-    /// Scrolling uses coordinates relative to `chipBar` so the gestures always
-    /// land on the correct element regardless of its vertical position on screen.
+    /// Scrolls the chip bar until `name` is fully on screen, then taps it.
+    /// Uses `chip.frame` (does not throw for off-screen elements) to decide
+    /// which direction to scroll, avoiding the hittability check that throws
+    /// for partially clipped elements.
     /// Returns `false` if the chip button doesn't exist in the current settings.
     @discardableResult
     private func tapChip(named name: String, in chipBar: XCUIElement, chipIndex: Int) -> Bool {
         let chip = chipBar.buttons[name]
         guard chip.waitForExistence(timeout: 3) else { return false }
 
-        // Coordinates relative to chipBar (not the whole app).
-        let near  = chipBar.coordinate(withNormalizedOffset: CGVector(dx: 0.1, dy: 0.5))
-        let far   = chipBar.coordinate(withNormalizedOffset: CGVector(dx: 0.9, dy: 0.5))
+        let screenWidth = app.windows.firstMatch.frame.width
+        let near = chipBar.coordinate(withNormalizedOffset: CGVector(dx: 0.15, dy: 0.5))
+        let far  = chipBar.coordinate(withNormalizedOffset: CGVector(dx: 0.85, dy: 0.5))
 
-        // 3 right-swipes to reach the leading edge.
-        for _ in 0..<3 { near.press(forDuration: 0.05, thenDragTo: far) }
-
-        // Left-swipes to reveal the target chip (~2 chips revealed per swipe).
-        let scrollCount = chipIndex / 2
-        for _ in 0..<scrollCount { far.press(forDuration: 0.05, thenDragTo: near) }
+        // Scroll until the chip is fully inside the visible screen bounds.
+        // chip.frame returns the on-screen CGRect without triggering a
+        // hittability assertion, so it is safe for off-screen elements.
+        for _ in 0..<8 {
+            let frame = chip.frame
+            if frame.origin.x >= 4 && frame.maxX <= screenWidth - 4 { break }
+            if frame.origin.x < 4 {
+                // Chip is off-screen to the left — drag left→right to reveal it.
+                near.press(forDuration: 0.05, thenDragTo: far)
+            } else {
+                // Chip is off-screen to the right — drag right→left to reveal it.
+                far.press(forDuration: 0.05, thenDragTo: near)
+            }
+        }
 
         guard chip.exists else { return false }
         chip.tap()
         return true
     }
 
-    /// Waits a fixed interval for the InnerTube request to complete.
-    /// A fixed sleep avoids XCTest snapshot timeouts that occur when querying
-    /// the accessibility tree during an active view-hierarchy transition.
+    /// Waits a fixed 5 s interval for the InnerTube request triggered by the
+    /// chip tap to complete and for the view to settle before asserting.
     private func waitForFeedToSettle() {
         Thread.sleep(forTimeInterval: 5)
     }

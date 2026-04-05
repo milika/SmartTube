@@ -1,19 +1,17 @@
 ---
 name: ios-uitest
 description: >
-  Expert guidance on iOS UI Test authoring, execution, and debugging for this
-  SwiftPM-based multi-brand workspace. Use when: (1) writing or fixing XCUITest
-  code, (2) running UI tests via MCP Xcode tools, (3) diagnosing flaky or failing
-  UI tests, (4) reading build output and errors, (5) managing simulator state for
-  E2E scenarios, (6) hooking UI tests into CI (fastlane/xctestplan).
+  Expert guidance on iOS UI Test authoring, execution, and debugging for the
+  SmartTube iOS project. Use when: (1) writing or fixing XCUITest code,
+  (2) running UI tests via MCP Xcode tools, (3) diagnosing flaky or failing
+  UI tests, (4) reading build output and errors, (5) managing simulator state.
 compatibility: >
   Requires MCP Xcode tools (mcp_xcode_*) for primary workflow. CLI fallbacks via
-  run_in_terminal for simulator state, xcresult parsing, and non-active test plans.
-  Designed for this SwiftPM monorepo (BetssonAll.xcworkspace / Modules/Package.swift).
+  run_in_terminal for simulator state and xcresult parsing.
+  Project: SmartTube.xcworkspace (SmartTubeApp + SmartTubeIOS SwiftPM package).
 allowed-tools: Read Grep Glob Shell Write BuildProject RunAllTests RunSomeTests GetTestList GetBuildLog XcodeListWindows XcodeRead XcodeUpdate XcodeWrite XcodeGrep XcodeGlob XcodeLS XcodeRefreshCodeIssuesInFile XcodeListNavigatorIssues
 metadata:
-  author: betsson
-  version: "1.1"
+  version: "1.2"
 ---
 
 # iOS UI Test Skill
@@ -34,13 +32,12 @@ perform (simulator state, xcresult parsing, test plans not active in Xcode).
 ## Agent Behavior Contract (Always Follow These Rules)
 
 1. **Resolve `tabIdentifier` first.** Every MCP Xcode tool requires it. Call `mcp_xcode_XcodeListWindows()` at the start of every session and reuse the result.
-2. **Run tests from `Modules/`**, never from the workspace root. The workspace root bleeds unrelated package errors and produces `** TEST FAILED **` even when the target passes.
-3. **Never use `swift test`.** Use `xcodebuild` or MCP tools — `swift test` fails with macOS platform errors for this package.
-4. **Get exact test identifiers from `GetTestList`.** Do not guess `testIdentifier` format. Copy it verbatim from the tool output.
-5. **Reset the simulator keychain before UI tests on a fresh boot.** Omitting it causes a silent crash at startup with no test error output.
-6. **Do not infer auth state from `.exists` or `.isHittable` on always-present buttons.** Both return `true` regardless of login state. Use the tap-and-observe strategy (references/authoring-patterns.md §6.2).
-7. **Use deadline polling loops for timer-driven features**, not a single `waitForExistence(timeout:)`. Cover the full trigger + retrigger + jitter window.
-8. **Plan for 3–6 execution cycles** before a new E2E test is stable. Each cycle typically surfaces a different class of failure (Section 8).
+2. **Get exact test identifiers from `GetTestList`.** Do not guess `testIdentifier` format. Copy it verbatim from the tool output.
+3. **New UI test files must be registered in `project.pbxproj`.** SmartTubeUITests is a classic Xcode target — SwiftPM auto-discovery does not apply (see Section 9).
+4. **After editing `project.pbxproj`, always run `xcodebuild clean` before rebuilding.** Xcode may serve a stale cached binary otherwise.
+5. **Never use `Process` or `Pipe` in UI test files.** They are macOS-only. Use UI-observable signals (alerts, labels) to detect errors instead.
+6. **Use `element.frame` to check visibility before tapping.** Calling `.isHittable` or `.tap()` on a partially off-screen element throws "Activation point invalid".
+7. **Plan for 3–6 execution cycles** before a new E2E test is stable. Each cycle typically surfaces a different class of failure (Section 8).
 
 ---
 
@@ -60,25 +57,23 @@ Load these files as needed for the specific task at hand:
 ## 1. Repository Structure (UI Tests)
 
 ```
-Modules/
-  TESTING/
-    BetssonArgentinaUITests/
-      RealityCheckUITests.swift
-      BetssonArgentinaUITests.xctestplan    ← active test plan (sets location scenario)
-  PAM/
-    ResponsibleGaming/
-      Tests/
-        ResponsibleGamingTests/             ← Unit tests run via UnitTests.xctestplan
-          .../TimeIntervalDrivenExecutorTests.swift
-BetssonAll.xcworkspace                      ← workspace for full-app schemes
-Modules/Package.swift                       ← SwiftPM package with all test targets
-Modules/UnitTests.xctestplan               ← test plan for unit tests
-Modules/IntegrationTests.xctestplan
+SmartTube.xcworkspace
+SmartTubeApp/
+  SmartTubeApp.xcodeproj/
+    project.pbxproj             ← UI test Swift files MUST be registered here
+  UITests/
+    CategoryChipHTTP400UITests.swift
+    PlayerNavigationUITests.swift
+    PlaylistsNavigationUITests.swift
+    ShortsNavigationUITests.swift
+SmartTubeIOS/
+  Package.swift                 ← SwiftPM package (SmartTubeIOS + SmartTubeIOSCore)
+  Tests/SmartTubeIOSTests/      ← unit/integration tests
 ```
 
-UI test targets live inside the `Modules` SwiftPM package.
-Unit test targets also live inside `Modules`.
-The full-app `BetssonAll.xcworkspace` is **not used** to run these tests.
+The `SmartTubeUITests` target is a **classic Xcode target** (not SwiftPM).
+New UI test files must be manually registered in `project.pbxproj` (see Section 9).
+The `SmartTubeIOS` unit tests are SwiftPM-managed and do not need `project.pbxproj` registration.
 
 ---
 
@@ -201,7 +196,7 @@ mcp_xcode_XcodeGrep(
 ```
 mcp_xcode_XcodeLS(
   tabIdentifier: "<tab>",
-  path: "Modules/TESTING",
+  path: "SmartTubeApp/UITests",
   recursive: false
 )
 ```
@@ -214,26 +209,17 @@ Use `run_in_terminal` only when MCP cannot do the job:
 
 | Situation | Why MCP can't | CLI fallback |
 |---|---|---|
-| Run tests from a **non-active** test plan | `RunSomeTests`/`RunAllTests` bind to active plan | `cd Modules && xcodebuild test -testPlan <Name>` |
-| Simulator state (boot, GPS, keychain) | No MCP tool for `simctl` | `xcrun simctl ...` — see [references/simulator.md](references/simulator.md) |
+| Clean build after `project.pbxproj` edit | MCP build may use stale cache | `xcodebuild clean -project SmartTubeApp/SmartTubeApp.xcodeproj -scheme SmartTube` |
+| Simulator state (boot, keychain) | No MCP tool for `simctl` | `xcrun simctl ...` — see [references/simulator.md](references/simulator.md) |
 | Parse xcresult for per-test pass/fail | No MCP xcresult tool | `xcresulttool` + `python3` — see [references/read-results.md](references/read-results.md) |
-| Stream live app logs during a test | No MCP log stream | `xcrun simctl spawn ... log stream` — see [references/debugging.md](references/debugging.md) |
+| Stream live app logs during a test | No MCP log stream | `xcrun simctl spawn booted log stream` — see [references/debugging.md](references/debugging.md) |
 
-### CLI: Run tests from a specific test plan
+### CLI: Clean build
 ```bash
-cd Modules && xcodebuild test \\
-  -scheme Modules \\
-  -destination "platform=iOS Simulator,id=$(xcrun simctl list devices | grep Booted | grep -oE '[A-F0-9-]{36}' | head -1)" \\
-  -testPlan <TestPlanName> \\
-  -only-testing:<TargetName>/<SuiteName>/test_foo \\
-  -skipPackagePluginValidation \\
-  CODE_SIGNING_ALLOWED=NO
+cd /Users/milikadelic/SmartTube/SmartTubeApp
+xcodebuild clean -project SmartTubeApp.xcodeproj -scheme SmartTube
+# Then rebuild via mcp_xcode_BuildProject
 ```
-
-⚠️ Always `cd Modules/` before running xcodebuild.
-Running from the workspace root leaks build errors from unrelated packages and
-produces `** TEST FAILED **` even when the target tests are fine.
-⚠️ Never use `swift test` — fails with macOS platform errors for this package.
 
 ---
 
@@ -241,29 +227,27 @@ produces `** TEST FAILED **` even when the target tests are fine.
 
 | Need | Use |
 |---|---|
-| Verify timing logic with parametrized intervals (e.g., 1min–1hour sweep) | Unit test + mock timer |
-| Verify that popup actually appears on screen | UI test |
+| Verify InnerTube parsing logic | Unit test (SmartTubeIOSTests) |
+| Verify a network error surfaces as a UI alert | UI test |
 | Verify business logic in isolation | Unit test |
-| Verify E2E user flows (login → RC popup) | UI test |
-| Verify jurisdiction switching logic | Unit test |
-
-For timer-driven features, shorten the production intervals to test-safe values
-(e.g., `retriggerInterval = 30`, `investigationInterval = 10`) so the test
-completes in under 2 minutes. Mark these overrides `// ⚠️ TEMP` and remove them
-after the test phase. See [references/authoring-patterns.md](references/authoring-patterns.md) Section 9 for the TEMP pattern.
+| Verify E2E navigation flows | UI test |
+| Verify a chip/tab triggers the correct feed | UI test |
 
 ---
 
-## 5. CI / Fastlane Integration
+## 5. Running UI Tests Outside MCP
 
-CI uses `xcodebuild` directly (MCP Xcode is not available in CI). The flags
-applied locally also apply in CI:
-- `-skipPackagePluginValidation` — required for non-interactive builds
-- `CODE_SIGNING_ALLOWED=NO` — required for simulator destinations
-- Run from `Modules/` directory for unit/UI tests targeting the SwiftPM package
+When running from the terminal directly:
+```bash
+cd /Users/milikadelic/SmartTube/SmartTubeApp
+xcodebuild test \
+  -project SmartTubeApp.xcodeproj \
+  -scheme SmartTube \
+  -destination "platform=iOS Simulator,id=$(xcrun simctl list devices | grep Booted | grep -oE '[A-F0-9-]{36}' | head -1)" \
+  CODE_SIGNING_ALLOWED=NO
+```
 
-Test plans are referenced in `FastfileBuildAndTest`. Changing which plan runs
-requires editing that file, not a scheme change.
+Prefer `mcp_xcode_RunSomeTests` — it is faster and surfaces results directly.
 
 ---
 
@@ -272,57 +256,49 @@ requires editing that file, not a scheme change.
 | Anti-pattern | Why | Fix |
 |---|---|---|
 | Using `run_in_terminal` to read/write Swift files | Fragile, bypasses Xcode | `mcp_xcode_XcodeRead` / `mcp_xcode_XcodeUpdate` |
+| Using `Process` in a UI test file | `Process` is macOS-only; UI test targets compile for iOS | Use UI-observable signals instead (alerts, accessibility elements) |
+| `element.tap()` on a partially off-screen element | XCTest internally calls `isHittable` and throws "Activation point invalid" | Scroll element fully into view first using container-relative coordinates |
+| Calling `element.isHittable` on a partially off-screen element | Throws "Activation point invalid and no suggested hit points" for clipped elements | Use `element.frame` to determine visibility, then scroll before tapping |
+| Complex descendant-traversal predicate inside `XCTNSPredicateExpectation` closure | `BEGINSWITH` queries in a polling closure trigger XCTest snapshot timeouts during view transitions | Use `element.waitForExistence(timeout:)` on a single known element, or a fixed `Thread.sleep` |
+| Scrolling a horizontal chip bar using app-level screen coordinates | Gestures may land outside the bar and interact with other elements | Use container-relative coordinates: `chipBar.coordinate(withNormalizedOffset: CGVector(dx:, dy:))` |
+| Asserting HTTP-layer errors via OS log in a UI test | `Process`/`Pipe` are macOS-only | Assert the UI signal that the error produces instead (e.g. an alert) |
 | Calling any MCP tool without `tabIdentifier` | All tools require it — will error | Always call `XcodeListWindows` first |
 | Copying a `testIdentifier` by guessing | Format must be exact | Get it from `GetTestList` output |
-| `RunSomeTests` for a test not in the active plan | MCP is bound to active plan | `xcodebuild test -only-testing:` CLI fallback |
-| `xcodebuild` from workspace root for Modules tests | Unrelated package errors bleed in → `** TEST FAILED **` | Run from `Modules/` |
-| `swift test` for Modules package | macOS platform errors | Use `xcodebuild` |
-| `element.exists` on always-present header buttons to infer auth state | True in both logged-in and logged-out states | Tap-and-observe strategy |
-| Single `waitForExistence(timeout: N)` for timer-driven features | No recovery if a blocking modal appears mid-wait | Deadline polling loop |
-| Dismissing all alerts as "blockers" | May dismiss the very alert being tested | Check if alert IS the expected element first |
-| Skipping keychain reset before UI tests on a fresh simulator | Silent crash at app startup, no test error shown | `xcrun simctl keychain "$SIM_UDID" reset` |
-| Reading xcresult from the workspace DerivedData folder | Empty `ActionTestPlanRunSummaries` | Use the `Modules-<hash>` DerivedData folder |
-| `xcresulttool` without `--legacy` | Different schema, fields missing | Always include `--legacy` |
+| Not running `xcodebuild clean` after `project.pbxproj` edits | Xcode may use cached binary where the new test doesn't exist | Run `xcodebuild clean -project SmartTubeApp.xcodeproj -scheme SmartTube` |
 
 ---
 
 ## 7. Quick Triage — Test Failure Symptom → Fix
 
-Fast-path lookup for the most common failures. Full fix details are in the referenced files.
+Fast-path lookup for the most common failures.
 
 | Symptom | Likely cause | Fix |
 |---|---|---|
-| App crashes silently at startup, no test error shown | Stale keychain on fresh simulator | `xcrun simctl keychain "$SIM_UDID" reset` (simulator.md) |
-| `** TEST FAILED **` with no individual test errors | Running `xcodebuild` from workspace root | `cd Modules/` first (Section 3) |
 | MCP tool call errors with `tabIdentifier` missing | `tabIdentifier` not resolved | Call `mcp_xcode_XcodeListWindows()` at session start (Section 2) |
 | Test not found / wrong identifier | Guessed `testIdentifier` format | Copy exact value from `mcp_xcode_GetTestList` (Section 2) |
-| `RunSomeTests` silently skips the test | Test not in active test plan | Use `xcodebuild test -testPlan` CLI fallback (Section 3) |
-| Login detection always takes wrong branch | Using `.exists`/`.isHittable` on a header button | Tap-and-observe strategy (authoring-patterns.md §6.2) |
-| Feature element never found | Wrong element type (`buttons` vs `otherElements`) | Custom VCs → `app.otherElements`; verify with `XcodeGrep` (authoring-patterns.md §6.3) |
-| Timer-driven popup never appears in test | `waitForExistence` too short, no retry | Deadline polling loop with blocker dismissal (authoring-patterns.md §6.3) |
-| Test accidentally dismisses the popup it's asserting | Treating target alert as a "blocker" | Check if alert IS the expected element first (authoring-patterns.md §6.4) |
-| Post-login assertion fails intermittently | Welcome/onboarding modal blocks the view | Dismiss post-action modal before asserting (authoring-patterns.md §6.6) |
-| `xcresult` summary is empty or fields missing | Reading wrong DerivedData folder or missing `--legacy` | Use `Modules-<hash>` folder; always pass `--legacy` (read-results.md) |
-| `osascript` fails to type into simulator | `osascript` cannot reach simulator UI | Use `typeText(_:)` in XCUITest (debugging.md) |
-| `log stream` exits with code 143 | Normal SIGTERM on app termination | Not an error — ignore exit code 143 (debugging.md) |
-| Build errors from unrelated packages bleed in | Running `xcodebuild` from workspace root | `cd Modules/` (Section 3) |
-| `swift test` fails with macOS platform errors | Wrong command for this package | Use `xcodebuild` instead (Section 3) |
+| `RunSomeTests` returns `state: "not run"` with no error | Xcode using cached binary after `project.pbxproj` edit | `xcodebuild clean`, then rebuild (Section 3) |
+| Build succeeds but new test class missing from `GetTestList` | Stale cached binary | `xcodebuild clean -project SmartTubeApp.xcodeproj -scheme SmartTube` |
+| `Process` type not found in UI test | `Process` is macOS-only | Replace with UI-observable signal (alert/label) — see Section 11 |
+| "Activation point invalid" on chip/button tap | Element partially off-screen; `element.tap()` throws | Use `element.frame` loop to scroll into view (authoring-patterns.md §scroll) |
+| XCTest snapshot timeout in predicate closure | Descendant query (`BEGINSWITH`) inside `XCTNSPredicateExpectation` during view transition | Use `waitForExistence` on a single element or `Thread.sleep` |
+| Error alert appears after tapping a category chip | HTTP error from InnerTube for that feed | Check the InnerTube logs for the browse ID / client context |
+| `osascript` fails to type into simulator | `osascript` operates on macOS UI, not simulator | Use `typeText(_:)` in XCUITest |
+| `log stream` exits with code 143 | Normal SIGTERM on app termination | Not an error — ignore exit code 143 |
 
 ---
 
 ## 8. Iterative UI Test Development Expectation
 
-A new E2E UI test rarely passes on the first run. Plan for **3–6 execution cycles**
+A new E2E UI test rarely passes on the first run. Plan for **3–5 execution cycles**
 before a test is stable. Each cycle surfaces a different class of failure:
 
 | Cycle | Typical failure | Fix |
 |---|---|---|
-| 1 | App crash at startup | Keychain reset, simulator state |
-| 2 | Post-launch modal blocks the test flow | Dismiss startup dialogs |
-| 3 | Login detection produces wrong branch | Tap-and-observe strategy |
-| 4 | Feature element never found (wrong type/ID) | `app.otherElements` vs `app.buttons`; add accessibility ID |
-| 5 | Test accidentally dismisses the feature being asserted | Check if alert is target before dismissing |
-| 6 | Intermittent: blocking modal appears mid-poll | Add blocker dismissal inside poll loop |
+| 1 | Build error (e.g. macOS-only API, missing `project.pbxproj` entry) | Fix compile error, register file, clean build |
+| 2 | `RunSomeTests` returns `not run` | `xcodebuild clean`, verify `GetTestList` shows the test |
+| 3 | Element interaction throws (off-screen, snapshot timeout) | Use `element.frame` scroll loop; use `Thread.sleep` instead of predicate wait |
+| 4 | False pass or false fail due to view transition timing | Add/increase `waitForFeedToSettle` interval |
+| 5 | Intermittent failure on slow network | Increase network wait timeout |
 
 **Practical workflow:**
 1. Write minimal test, run once, read the failure
@@ -334,22 +310,32 @@ before a test is stable. Each cycle surfaces a different class of failure:
 
 ## 9. Adding New UI Test Files
 
-All UI test targets in this repo are declared in `Package.swift` files (SwiftPM).
-`project.pbxproj` is **not** involved for these targets — do not attempt to register
-files there.
+The `SmartTubeUITests` target is a **classic Xcode target**. New files in `SmartTubeApp/UITests/`
+must be manually registered in `project.pbxproj` with four entries:
 
-**SwiftPM default source discovery applies:** When a `testTarget` in `Package.swift`
-does not specify an explicit `sources` list, SwiftPM automatically includes all `.swift`
-files found under the target's directory. No manual registration is required.
+```
+// 1. PBXBuildFile — links the file into the build phase
+<BUILD_UUID> /* MyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = <FILE_UUID> /* MyTests.swift */; };
 
-**To add a new `*UITests.swift` file:**
-1. Place the file inside the existing target directory (e.g. `Sources/<TargetName>/`).
-2. Verify the containing `Package.swift` has a `testTarget` (or `.testTarget`) entry
-   for that directory — no `sources` parameter needed unless the target already uses one.
-3. Build to confirm SwiftPM picks it up: `mcp_xcode_BuildProject(tabIdentifier:)`
+// 2. PBXFileReference — declares the file on disk
+<FILE_UUID> /* MyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MyTests.swift; sourceTree = "<group>"; };
 
-If the target uses an explicit `sources` list, append the new filename to that list in
-`Package.swift`.
+// 3. UITests group children — makes it appear in the navigator
+<FILE_UUID> /* MyTests.swift */,
+
+// 4. PBXSourcesBuildPhase files list — compiles it
+<BUILD_UUID> /* MyTests.swift in Sources */,
+```
+
+Use unique hex IDs (e.g. `F4A5B6C7D8E9F0A1B2C3D4E5`). Copy a neighbour entry and
+change the UUIDs and filename — the format must match exactly.
+
+After editing `project.pbxproj`:
+1. Run `xcodebuild clean -project SmartTubeApp/SmartTubeApp.xcodeproj -scheme SmartTube`
+2. `mcp_xcode_BuildProject(tabIdentifier:)` — verify compilation
+3. `mcp_xcode_GetTestList(tabIdentifier:)` — verify the new test appears
+
+⚠️ If a build succeeds but the test still shows as `not run`, run `xcodebuild clean` and rebuild.
 
 ---
 
@@ -360,8 +346,117 @@ If the target uses an explicit `sources` list, append the new filename to that l
 - [ ] No build errors: `mcp_xcode_GetBuildLog(tabIdentifier:, severity: "error")`
 - [ ] Test identifiers verified: `mcp_xcode_GetTestList(tabIdentifier:)`
 - [ ] Simulator booted: `xcrun simctl list devices | grep Booted`
-- [ ] Keychain reset: `xcrun simctl keychain "$SIM_UDID" reset`
-- [ ] GPS location set (if jurisdiction-sensitive)
-- [ ] Test intervals short (≤60s investigation, ≤30s retrigger for timer tests)
-- [ ] Test account credentials valid for target environment
 - [ ] Accessibility IDs set on all queried elements
+
+---
+
+## 11. Patterns from SmartTube Category-Chip HTTP Error Test
+
+Learned from writing and stabilising `CategoryChipHTTP400UITests`. Apply these
+patterns to any test involving a horizontal scroll container, network requests,
+or error-state detection without direct log access.
+
+### 11.1 Detecting HTTP errors without OS log access
+
+UI test targets compile for iOS — `Process`, `Pipe`, and `xcrun simctl log stream`
+are **not available**. To assert that an HTTP error did NOT occur:
+
+1. Find the UI signal the app already produces for errors — in SmartTube,
+   `BrowseViewModel` sets `vm.error` which `BrowseView` renders as an `alert("Error", ...)`.
+2. Assert that signal is **absent** after each action.
+
+```swift
+let errorAlert = app.alerts["Error"]
+XCTAssertFalse(
+    errorAlert.exists,
+    "An Error alert appeared — HTTP error returned for the '\(chipName)' chip"
+)
+// Dismiss if present so test can continue
+if errorAlert.exists { errorAlert.buttons.firstMatch.tap() }
+```
+
+This pattern works for any network-backed view that surfaces errors via alerts,
+empty-state text, or accessibility-identified labels.
+
+### 11.2 Scrolling a horizontal chip/tab bar reliably
+
+Use **chip-bar-relative coordinates** for all scroll gestures. App-level screen
+coordinates are fragile because the bar's vertical position varies by device.
+
+```swift
+// Coordinates pinned to chipBar, not the full app
+let near = chipBar.coordinate(withNormalizedOffset: CGVector(dx: 0.15, dy: 0.5))
+let far  = chipBar.coordinate(withNormalizedOffset: CGVector(dx: 0.85, dy: 0.5))
+
+// Scroll right → reveals leading chips
+near.press(forDuration: 0.05, thenDragTo: far)
+
+// Scroll left → reveals trailing chips
+far.press(forDuration: 0.05, thenDragTo: near)
+```
+
+### 11.3 Tapping a chip that may be partially off-screen
+
+Do NOT use `element.isHittable` or `element.tap()` before the element is fully
+on-screen — both throw "Activation point invalid" for clipped elements.
+
+Instead, use `element.frame` (safe for off-screen elements — does not throw) to
+decide the scroll direction, then tap only when in-bounds:
+
+```swift
+let screenWidth = app.windows.firstMatch.frame.width
+for _ in 0..<8 {
+    let frame = chip.frame
+    guard frame.origin.x < 4 || frame.maxX > screenWidth - 4 else { break }
+    if frame.origin.x < 4 {
+        near.press(forDuration: 0.05, thenDragTo: far)  // scroll right
+    } else {
+        far.press(forDuration: 0.05, thenDragTo: near)  // scroll left
+    }
+}
+chip.tap()  // now safely on screen
+```
+
+### 11.4 Waiting for a network-triggered view to settle
+
+Avoid complex `XCTNSPredicateExpectation` closures that traverse descendants
+(e.g. `BEGINSWITH 'video.card.'`) — these trigger XCTest snapshot timeouts
+during active view-hierarchy transitions.
+
+For network tests where a fixed upper-bound wait is acceptable, a `Thread.sleep`
+is the most reliable option:
+
+```swift
+private func waitForFeedToSettle() {
+    Thread.sleep(forTimeInterval: 5)
+}
+```
+
+For tests where you want to proceed as soon as content is ready, use
+`waitForExistence` on a **single, already-materialised** element (not a query
+that must traverse the whole tree):
+
+```swift
+let spinner = app.activityIndicators.firstMatch
+if spinner.waitForExistence(timeout: 3) {
+    let gone = NSPredicate(format: "exists == false")
+    _ = XCTWaiter().wait(
+        for: [XCTNSPredicateExpectation(predicate: gone, object: spinner)],
+        timeout: 15
+    )
+}
+```
+
+### 11.5 Registering a file in a classic Xcode target (project.pbxproj)
+
+See Section 9 — Classic Xcode targets for the four-entry registration template.
+Key lesson: after editing `project.pbxproj`, always run `xcodebuild clean` before
+rebuilding. Xcode may otherwise serve a stale cached binary where the new test
+method does not exist, causing `RunSomeTests` to return `state: "not run"` with
+no error message.
+
+```bash
+xcodebuild clean -project SmartTubeApp/SmartTubeApp.xcodeproj -scheme SmartTube
+```
+
+Then rebuild via `mcp_xcode_BuildProject` before running tests.

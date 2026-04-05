@@ -392,10 +392,16 @@ public struct PlayerView: View {
     private var progressBar: some View {
         Slider(
             value: Binding(
-                get: { vm.duration > 0 ? vm.currentTime / vm.duration : 0 },
-                set: { vm.seek(to: $0 * vm.duration) }
+                get: {
+                    let t = vm.isScrubbing ? vm.scrubTime : vm.currentTime
+                    return vm.duration > 0 ? t / vm.duration : 0
+                },
+                set: { vm.updateScrub(to: $0 * vm.duration) }
             ),
-            in: 0...1
+            in: 0...1,
+            onEditingChanged: { editing in
+                if editing { vm.beginScrubbing() } else { vm.commitScrub() }
+            }
         )
         .tint(.red)
         .padding(.horizontal, 20)

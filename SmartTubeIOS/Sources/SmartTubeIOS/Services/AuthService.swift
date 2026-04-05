@@ -438,7 +438,14 @@ public final class AuthService {
         }
         accountName      = keychainGet(key: accountKey)
         accountAvatarURL = keychainGet(key: avatarKey).flatMap { URL(string: $0) }
-        isSignedIn       = accessToken != nil
+        // If the stored access token has already expired, clear it so that
+        // view observers (e.g. HomeView.task(id: auth.accessToken)) don't fire
+        // API requests with a stale token. scheduleProactiveRefresh() will
+        // obtain a fresh token and set accessToken once it succeeds.
+        if let expiry = tokenExpiry, expiry <= Date() {
+            accessToken = nil
+        }
+        isSignedIn       = accessToken != nil || refreshToken != nil
         if isSignedIn { scheduleProactiveRefresh() }
     }
 
