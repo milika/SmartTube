@@ -60,7 +60,7 @@ public struct PlayerView: View {
                         if vm.hasPrevious { performHorizontalTransition(direction: 1, screenWidth: geo.size.width) { vm.playPrevious() } }
                         else { withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) { slideOffset = 0 } }
                     },
-                    onTap: { vm.showControls() },
+                    onTap: { vm.toggleControls() },
                     onTwoFingerTap: { vm.toggleStatsForNerds() },
                     onPanChanged: { dx in
                         guard !isTransitioning else { return }
@@ -137,8 +137,17 @@ public struct PlayerView: View {
             }
             .padding(.top, 60)
         }
-        .onAppear  { vm.load(video: video); vm.setPlaybackSpeed(store.settings.playbackSpeed); vm.updateSettings(store.settings); vm.updateAuthToken(authService.accessToken) }
-        .onDisappear { vm.stop() }
+        .onAppear {
+            swipeLog.notice("[PlayerView] onAppear id=\(video.id, privacy: .public)")
+            vm.load(video: video)
+            vm.setPlaybackSpeed(store.settings.playbackSpeed)
+            vm.updateSettings(store.settings)
+            vm.updateAuthToken(authService.accessToken)
+        }
+        .onDisappear {
+            swipeLog.notice("[PlayerView] onDisappear id=\(video.id, privacy: .public)")
+            vm.stop()
+        }
         .onChange(of: authService.accessToken) { _, newToken in vm.updateAuthToken(newToken) }
         .sheet(isPresented: $showSpeedPicker) {
             speedPickerSheet
@@ -408,7 +417,6 @@ public struct PlayerView: View {
                 endPoint: .bottom
             )
             .contentShape(Rectangle())
-            .onTapGesture { vm.controlsVisible = false }
         )
     }
 
@@ -433,38 +441,14 @@ public struct PlayerView: View {
     }
 
     private var progressBar: some View {
-        ZStack(alignment: .bottom) {
-            // Visible background track for the unfilled portion
-            Capsule()
-                .fill(Color.white.opacity(0.35))
-                .frame(height: 4)
-                .padding(.horizontal, 20)
-
-            Slider(
-                value: Binding(
-                    get: {
-                        let t = vm.isScrubbing ? vm.scrubTime : vm.currentTime
-                        return vm.duration > 0 ? t / vm.duration : 0
-                    },
-                    set: { vm.updateScrub(to: $0 * vm.duration) }
-                ),
-                in: 0...1,
-                onEditingChanged: { editing in
-                    if editing { vm.beginScrubbing() } else { vm.commitScrub() }
-                }
-            )
-            .tint(.red)
-            .padding(.horizontal, 20)
-            .overlay(sponsorBlockMarkers)
-            .overlay(chapterMarkers)
-
-            // Scrub-time tooltip: shown only while dragging, floats above the thumb
-            if vm.isScrubbing && vm.duration > 0 {
-                GeometryReader { geo in
+        VStack(spacing: 4) {
+            // Tooltip row — always occupies space so layout doesn't jump
+            GeometryReader { geo in
+                if vm.isScrubbing && vm.duration > 0 {
                     let hPad: CGFloat = 20
                     let trackW = geo.size.width - hPad * 2
-                    let fraction = vm.scrubTime / vm.duration
-                    let thumbX = hPad + trackW * CGFloat(fraction)
+                    let fraction = CGFloat(vm.scrubTime / vm.duration)
+                    let thumbX = hPad + trackW * fraction
                     let labelW: CGFloat = 64
                     let clampedX = min(max(thumbX, hPad + labelW / 2), geo.size.width - hPad - labelW / 2)
 
@@ -476,8 +460,35 @@ public struct PlayerView: View {
                         .padding(.vertical, 4)
                         .background(.black.opacity(0.7), in: RoundedRectangle(cornerRadius: 6))
                         .frame(width: labelW)
-                        .position(x: clampedX, y: geo.size.height / 2 - 30)
+                        .position(x: clampedX, y: geo.size.height / 2)
                 }
+            }
+            .frame(height: 28)
+
+            // Track + slider row
+            ZStack {
+                Capsule()
+                    .fill(Color.white.opacity(0.35))
+                    .frame(height: 4)
+                    .padding(.horizontal, 20)
+
+                Slider(
+                    value: Binding(
+                        get: {
+                            let t = vm.isScrubbing ? vm.scrubTime : vm.currentTime
+                            return vm.duration > 0 ? t / vm.duration : 0
+                        },
+                        set: { vm.updateScrub(to: $0 * vm.duration) }
+                    ),
+                    in: 0...1,
+                    onEditingChanged: { editing in
+                        if editing { vm.beginScrubbing() } else { vm.commitScrub() }
+                    }
+                )
+                .tint(.red)
+                .padding(.horizontal, 20)
+                .overlay(sponsorBlockMarkers)
+                .overlay(chapterMarkers)
             }
         }
     }

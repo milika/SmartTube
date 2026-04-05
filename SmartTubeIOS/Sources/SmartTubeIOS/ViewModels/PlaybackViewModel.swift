@@ -120,6 +120,7 @@ public final class PlaybackViewModel {
     // MARK: - Load video
 
     public func load(video: Video) {
+        playerLog.notice("[load] load() called — id=\(video.id, privacy: .public) currentVideo=\(self.currentVideo?.id ?? "nil", privacy: .public) isLoading=\(self.isLoading)")
         // Stop and clear the current item immediately so the previous frame
         // is not visible while the next video is loading.
         player.pause()
@@ -631,6 +632,15 @@ public final class PlaybackViewModel {
         scheduleControlsHide()
     }
 
+    public func toggleControls() {
+        if controlsVisible {
+            controlsTimer?.cancel()
+            controlsVisible = false
+        } else {
+            showControls()
+        }
+    }
+
     private func scheduleControlsHide() {
         playerLog.debug("[controls] scheduleControlsHide — resetting 4s timer, isScrubbing=\(self.isScrubbing, privacy: .public)")
         controlsTimer?.cancel()
@@ -718,6 +728,7 @@ public final class PlaybackViewModel {
     // MARK: - Cleanup
 
     public func stop() {
+        playerLog.notice("[stop] stop() called — currentVideo=\(self.currentVideo?.id ?? "nil", privacy: .public) currentTime=\(Int(self.currentTime))s isLoading=\(self.isLoading)")
         // Save watch position before stopping (mirrors VideoStateController)
         if let videoId = playerInfo?.video.id, duration > 0 {
             let pos = self.currentTime
