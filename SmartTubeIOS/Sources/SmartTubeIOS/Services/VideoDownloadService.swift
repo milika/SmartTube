@@ -351,8 +351,8 @@ public final class VideoDownloadService {
             throw URLError(.badServerResponse)
         }
 
-        let videoFmt = try await videoTrackSrc.load(.formatDescriptions).first as! CMFormatDescription
-        let audioFmt = try await audioTrackSrc.load(.formatDescriptions).first as! CMFormatDescription
+        let videoFmt = try await videoTrackSrc.load(.formatDescriptions).first!
+        let audioFmt = try await audioTrackSrc.load(.formatDescriptions).first!
         let duration  = try await videoAsset.load(.duration)
 
         let writer = try AVAssetWriter(outputURL: destURL, fileType: .mp4)
@@ -380,6 +380,11 @@ public final class VideoDownloadService {
         try await withCheckedThrowingContinuation { (cont: CheckedContinuation<Void, Error>) in
             let group = DispatchGroup()
             let queue = DispatchQueue(label: "com.smarttube.merge", qos: .userInitiated)
+            nonisolated(unsafe) let videoInput = videoInput
+            nonisolated(unsafe) let videoOut = videoOut
+            nonisolated(unsafe) let audioInput = audioInput
+            nonisolated(unsafe) let audioOut = audioOut
+            nonisolated(unsafe) let writer = writer
 
             group.enter()
             videoInput.requestMediaDataWhenReady(on: queue) {

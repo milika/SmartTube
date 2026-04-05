@@ -16,10 +16,10 @@
 		CD550C82FB83F1B06A867F3F /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 161D597B9340722805A04592 /* Foundation.framework */; };
 		D222FD43501FE20610A249CC /* PlaylistsNavigationUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 43AC502830145DD05002B5A2 /* PlaylistsNavigationUITests.swift */; };
 		D4F5A6B7C8D9E0F1A2B3C4D5 /* SubscriptionsPlaybackUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C3E4F5A6B7C8D9E0F1A2B3C4 /* SubscriptionsPlaybackUITests.swift */; };
-		E5F6A7B8C9D0E1F2A3B4C5D6 /* SubscriptionsScrollRestorationUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D5E6F7A8B9C0D1E2F3A4B5C6 /* SubscriptionsScrollRestorationUITests.swift */; };
 		D9B2E782B8D7E9E750193022 /* SmartTubeDownloadWidget.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 79E77E6DD18B12CA7A5341D0 /* SmartTubeDownloadWidget.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		DD2551477B9F9B6D89AE6FCB /* AppEntry.swift in Sources */ = {isa = PBXBuildFile; fileRef = 29356C9641042E3DA5F16175 /* AppEntry.swift */; };
 		E3F4A5B6C7D8E9F0A1B2C3D4 /* CategoryChipHTTP400UITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F4A5B6C7D8E9F0A1B2C3D4E5 /* CategoryChipHTTP400UITests.swift */; };
+		E5F6A7B8C9D0E1F2A3B4C5D6 /* SubscriptionsScrollRestorationUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D5E6F7A8B9C0D1E2F3A4B5C6 /* SubscriptionsScrollRestorationUITests.swift */; };
 		F1CDC40190BFE18C52E5AD1B /* SmartTubeIOSCore in Frameworks */ = {isa = PBXBuildFile; productRef = 4D96747315A9E066D09F1F4E /* SmartTubeIOSCore */; };
 /* End PBXBuildFile section */
 
@@ -68,8 +68,8 @@
 		B7482B081D440A26079AA9BC /* SmartTubeIOS */ = {isa = PBXFileReference; lastKnownFileType = folder; name = SmartTubeIOS; path = ../SmartTubeIOS; sourceTree = SOURCE_ROOT; };
 		C3E4F5A6B7C8D9E0F1A2B3C4 /* SubscriptionsPlaybackUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubscriptionsPlaybackUITests.swift; sourceTree = "<group>"; };
 		CA34C2AD8A70726C11C5F851 /* Info.plist */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
-		DA3810E40296738F4C5E0B95 /* SmartTubeUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = SmartTubeUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		D5E6F7A8B9C0D1E2F3A4B5C6 /* SubscriptionsScrollRestorationUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubscriptionsScrollRestorationUITests.swift; sourceTree = "<group>"; };
+		DA3810E40296738F4C5E0B95 /* SmartTubeUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = SmartTubeUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		F4A5B6C7D8E9F0A1B2C3D4E5 /* CategoryChipHTTP400UITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CategoryChipHTTP400UITests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -356,7 +356,7 @@
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 14;
+				CURRENT_PROJECT_VERSION = 15;
 				DEVELOPMENT_TEAM = 5A4JA438MW;
 				ENABLE_PREVIEWS = YES;
 				INFOPLIST_FILE = SmartTubeApp/Info.plist;
@@ -479,6 +479,7 @@
 				CLANG_ENABLE_OBJC_WEAK = NO;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 14;
 				DEVELOPMENT_TEAM = 5A4JA438MW;
 				INFOPLIST_FILE = DownloadWidget/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
@@ -504,6 +505,7 @@
 				CLANG_ENABLE_OBJC_WEAK = NO;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 14;
 				DEVELOPMENT_TEAM = 5A4JA438MW;
 				INFOPLIST_FILE = DownloadWidget/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
@@ -558,7 +560,7 @@
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 14;
+				CURRENT_PROJECT_VERSION = 15;
 				DEVELOPMENT_TEAM = 5A4JA438MW;
 				ENABLE_PREVIEWS = YES;
 				INFOPLIST_FILE = SmartTubeApp/Info.plist;

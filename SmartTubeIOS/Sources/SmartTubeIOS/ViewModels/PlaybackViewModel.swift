@@ -77,7 +77,7 @@ public final class PlaybackViewModel {
     // MARK: - AVPlayer
 
     public let player = AVPlayer()
-    nonisolated private var timeObserver: Any?
+    @ObservationIgnored nonisolated(unsafe) private var timeObserver: Any?
     /// Prevents infinite retry loops: set once the first fallback attempt has been made.
     private var hasRetriedPlayback: Bool = false
     private var itemObserverTask: Task<Void, Never>?

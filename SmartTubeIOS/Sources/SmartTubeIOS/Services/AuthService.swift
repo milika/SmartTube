@@ -154,13 +154,13 @@ public final class AuthService {
         tokenRefreshTask = Task { [weak self] in
             try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
             guard !Task.isCancelled, let self else { return }
-            guard await self.isSignedIn, let refresh = await self.refreshToken else { return }
+            guard self.isSignedIn, let refresh = self.refreshToken else { return }
             let creds = await self.credentialsFetcher.credentials()
             do {
                 try await self.refreshAccessToken(refreshToken: refresh, creds: creds)
                 authLog.notice("scheduleProactiveRefresh() — token refreshed ✅")
                 // Re-schedule for the next expiry window
-                await self.scheduleProactiveRefresh()
+                self.scheduleProactiveRefresh()
             } catch {
                 authLog.error("scheduleProactiveRefresh() failed: \(String(describing: error), privacy: .public)")
             }

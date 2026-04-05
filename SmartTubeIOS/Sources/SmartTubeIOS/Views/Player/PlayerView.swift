@@ -23,6 +23,7 @@ public struct PlayerView: View {
     @State private var showSpeedPicker = false
     @State private var showQualityPicker = false
     @State private var showMoreMenu = false
+    @State private var shareItem: IdentifiableURL? = nil
     @State private var slideOffset: CGFloat = 0
     @State private var isTransitioning = false
     @State private var channelDestination: ChannelDestination?
@@ -114,6 +115,28 @@ public struct PlayerView: View {
                         .transition(.opacity)
                         .animation(.easeInOut(duration: 0.2), value: vm.statsForNerdsVisible)
                 }
+
+                // More-menu — pure SwiftUI overlay so no UIKit presentation fires
+                // onDisappear on the player and tears itself down.
+                if showMoreMenu {
+                    moreMenuOverlay
+                        .transition(.move(edge: .bottom).combined(with: .opacity))
+                        .animation(.easeOut(duration: 0.2), value: showMoreMenu)
+                }
+
+                // Speed picker — pure SwiftUI overlay, no UIKit sheet presentation.
+                if showSpeedPicker {
+                    speedPickerOverlay
+                        .transition(.move(edge: .bottom).combined(with: .opacity))
+                        .animation(.easeOut(duration: 0.2), value: showSpeedPicker)
+                }
+
+                // Quality picker — pure SwiftUI overlay, no UIKit sheet presentation.
+                if showQualityPicker {
+                    qualityPickerOverlay
+                        .transition(.move(edge: .bottom).combined(with: .opacity))
+                        .animation(.easeOut(duration: 0.2), value: showQualityPicker)
+                }
             }
             .offset(x: slideOffset)
         }
@@ -159,28 +182,8 @@ public struct PlayerView: View {
             vm.suspend()
         }
         .onChange(of: authService.accessToken) { _, newToken in vm.updateAuthToken(newToken) }
-        .onChange(of: showMoreMenu) { _, val in
-            swipeLog.notice("[menu] showMoreMenu changed → \(val, privacy: .public) controlsVisible=\(vm.controlsVisible, privacy: .public)")
-        }
-        .confirmationDialog("Options", isPresented: $showMoreMenu) {
-            let currentVideo = vm.playerInfo?.video ?? video
-            if let shareURL = URL(string: "https://www.youtube.com/watch?v=\(currentVideo.id)") {
-                ShareLink(item: shareURL) {
-                    Label("Share", systemImage: AppSymbol.share)
-                }
-            }
-            Button(downloadService.state.isActive ? "Downloading…" : "Download to Gallery") {
-                downloadService.updateAuthToken(authService.accessToken)
-                downloadService.download(video: currentVideo)
-            }
-            .disabled(downloadService.state.isActive)
-            Button("Cancel", role: .cancel) {}
-        }
-        .sheet(isPresented: $showSpeedPicker) {
-            speedPickerSheet
-        }
-        .sheet(isPresented: $showQualityPicker) {
-            qualityPickerSheet
+        .sheet(item: $shareItem) { item in
+            ActivityView(activityItems: [item.url])
         }
         .navigationDestination(item: $channelDestination) { dest in
             ChannelView(channelId: dest.channelId)
@@ -439,6 +442,66 @@ public struct PlayerView: View {
 
     // MARK: - Control elements
 
+    /// Pure-SwiftUI bottom sheet for the Share / Download menu.
+    /// Rendered inside the player's ZStack so no UIKit sheet presentation
+    /// fires onDisappear and teardowns the action sheet mid-animation.
+    private var moreMenuOverlay: some View {
+        let currentVideo = vm.playerInfo?.video ?? video
+        return ZStack(alignment: .bottom) {
+            Color.black.opacity(0.5)
+                .ignoresSafeArea()
+                .onTapGesture { showMoreMenu = false }
+
+            VStack(spacing: 0) {
+                Button {
+                    if let url = URL(string: "https://www.youtube.com/watch?v=\(currentVideo.id)") {
+                        shareItem = IdentifiableURL(url: url)
+                    }
+                    showMoreMenu = false
+                } label: {
+                    Label("Share", systemImage: AppSymbol.share)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding()
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(.primary)
+                Divider()
+                Button {
+                    showMoreMenu = false
+                    downloadService.updateAuthToken(authService.accessToken)
+                    downloadService.download(video: currentVideo)
+                } label: {
+                    Group {
+                        if downloadService.state.isActive {
+                            Label("Downloading…", systemImage: AppSymbol.download)
+                        } else {
+                            Label("Download to Gallery", systemImage: AppSymbol.download)
+                        }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding()
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(.primary)
+                .disabled(downloadService.state.isActive)
+                Divider()
+                Button(role: .cancel) { showMoreMenu = false } label: {
+                    Text("Cancel")
+                        .frame(maxWidth: .infinity)
+                        .padding()
+                        .fontWeight(.semibold)
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(.primary)
+            }
+            .background(.regularMaterial)
+            .clipShape(RoundedRectangle(cornerRadius: 16))
+            .padding(.horizontal, 8)
+            .padding(.bottom, 8)
+        }
+        .ignoresSafeArea()
+    }
+
     private var playPauseButton: some View {
         Button { vm.togglePlayPause() } label: {
             Image(systemName: vm.isPlaying ? "pause.fill" : "play.fill")
@@ -582,101 +645,157 @@ public struct PlayerView: View {
         .accessibilityIdentifier("player.errorBanner")
     }
 
-    // MARK: - Quality picker sheet
+    // MARK: - Quality picker overlay
 
-    @ViewBuilder
-    private var qualityPickerSheet: some View {
-        NavigationStack {
-            List {
-                Button {
-                    vm.selectFormat(nil)
-                    store.settings.preferredQuality = .auto
-                    showQualityPicker = false
-                } label: {
-                    HStack {
-                        Text("Auto")
-                            .foregroundStyle(.primary)
-                        Spacer()
-                        if vm.selectedFormat == nil {
-                            Image(systemName: AppSymbol.checkmark)
-                                .foregroundStyle(Color.accentColor)
-                        }
-                    }
-                    .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                ForEach(vm.availableFormats) { fmt in
-                    Button {
-                        vm.selectFormat(fmt)
-                        store.settings.preferredQuality = AppSettings.VideoQuality.from(height: fmt.height) ?? .auto
-                        showQualityPicker = false
-                    } label: {
-                        HStack {
-                            Text(fmt.qualityLabel)
-                                .foregroundStyle(.primary)
-                            Spacer()
-                            if vm.selectedFormat?.id == fmt.id {
-                                Image(systemName: AppSymbol.checkmark)
-                                    .foregroundStyle(Color.accentColor)
-                            }
-                        }
-                        .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.plain)
-                }
-            }
-            .navigationTitle("Quality")
-            #if os(iOS)
-            .navigationBarTitleDisplayMode(.inline)
-            #endif
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
+    private var qualityPickerOverlay: some View {
+        ZStack(alignment: .bottom) {
+            Color.black.opacity(0.5)
+                .ignoresSafeArea()
+                .onTapGesture { showQualityPicker = false }
+            VStack(spacing: 0) {
+                HStack {
                     Button("Cancel") { showQualityPicker = false }
+                        .padding()
+                    Spacer()
+                    Text("Quality")
+                        .fontWeight(.semibold)
+                    Spacer()
+                    Color.clear.frame(width: 70, height: 44)
                 }
+                Divider()
+                ScrollView {
+                    VStack(spacing: 0) {
+                        Button {
+                            vm.selectFormat(nil)
+                            store.settings.preferredQuality = .auto
+                            showQualityPicker = false
+                        } label: {
+                            HStack {
+                                Text("Auto")
+                                    .foregroundStyle(.primary)
+                                Spacer()
+                                if vm.selectedFormat == nil {
+                                    Image(systemName: AppSymbol.checkmark)
+                                        .foregroundStyle(Color.accentColor)
+                                }
+                            }
+                            .contentShape(Rectangle())
+                            .padding(.horizontal)
+                            .padding(.vertical, 12)
+                        }
+                        .buttonStyle(.plain)
+                        Divider()
+                        ForEach(vm.availableFormats) { fmt in
+                            Button {
+                                vm.selectFormat(fmt)
+                                store.settings.preferredQuality = AppSettings.VideoQuality.from(height: fmt.height) ?? .auto
+                                showQualityPicker = false
+                            } label: {
+                                HStack {
+                                    Text(fmt.qualityLabel)
+                                        .foregroundStyle(.primary)
+                                    Spacer()
+                                    if vm.selectedFormat?.id == fmt.id {
+                                        Image(systemName: AppSymbol.checkmark)
+                                            .foregroundStyle(Color.accentColor)
+                                    }
+                                }
+                                .contentShape(Rectangle())
+                                .padding(.horizontal)
+                                .padding(.vertical, 12)
+                            }
+                            .buttonStyle(.plain)
+                            Divider()
+                        }
+                    }
+                }
+                .frame(maxHeight: 320)
             }
+            .background(.regularMaterial)
+            .clipShape(RoundedRectangle(cornerRadius: 16))
+            .padding(.horizontal, 8)
+            .padding(.bottom, 8)
         }
-        .presentationDetents([.medium])
+        .ignoresSafeArea()
     }
 
-    // MARK: - Speed picker sheet
+    // MARK: - Speed picker overlay
 
-    @ViewBuilder
-    private var speedPickerSheet: some View {
-        NavigationStack {
-            List {
-                ForEach(AppSettings.availableSpeeds, id: \.self) { (speed: Double) in
-                    Button {
-                        store.settings.playbackSpeed = speed
-                        vm.setPlaybackSpeed(speed)
-                        showSpeedPicker = false
-                    } label: {
-                        HStack {
-                            Text(speed == 1.0 ? "Normal (1\u{d7})" : "\(speed, specifier: "%.2g")\u{d7}")
-                                .foregroundStyle(.primary)
-                            Spacer()
-                            if abs(store.settings.playbackSpeed - speed) < 0.01 {
-                                Image(systemName: AppSymbol.checkmark)
-                                    .foregroundStyle(Color.accentColor)
-                            }
-                        }
-                        .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.plain)
-                }
-            }
-            .navigationTitle("Playback Speed")
-            #if os(iOS)
-            .navigationBarTitleDisplayMode(.inline)
-            #endif
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
+    private var speedPickerOverlay: some View {
+        ZStack(alignment: .bottom) {
+            Color.black.opacity(0.5)
+                .ignoresSafeArea()
+                .onTapGesture { showSpeedPicker = false }
+            VStack(spacing: 0) {
+                HStack {
                     Button("Cancel") { showSpeedPicker = false }
+                        .padding()
+                    Spacer()
+                    Text("Playback Speed")
+                        .fontWeight(.semibold)
+                    Spacer()
+                    Color.clear.frame(width: 70, height: 44)
                 }
+                Divider()
+                ScrollView {
+                    VStack(spacing: 0) {
+                        ForEach(AppSettings.availableSpeeds, id: \.self) { (speed: Double) in
+                            Button {
+                                store.settings.playbackSpeed = speed
+                                vm.setPlaybackSpeed(speed)
+                                showSpeedPicker = false
+                            } label: {
+                                HStack {
+                                    Text(speed == 1.0 ? "Normal (1\u{d7})" : "\(speed, specifier: "%.2g")\u{d7}")
+                                        .foregroundStyle(.primary)
+                                    Spacer()
+                                    if abs(store.settings.playbackSpeed - speed) < 0.01 {
+                                        Image(systemName: AppSymbol.checkmark)
+                                            .foregroundStyle(Color.accentColor)
+                                    }
+                                }
+                                .contentShape(Rectangle())
+                                .padding(.horizontal)
+                                .padding(.vertical, 12)
+                            }
+                            .buttonStyle(.plain)
+                            Divider()
+                        }
+                    }
+                }
+                .frame(maxHeight: 320)
             }
+            .background(.regularMaterial)
+            .clipShape(RoundedRectangle(cornerRadius: 16))
+            .padding(.horizontal, 8)
+            .padding(.bottom, 8)
         }
-        .presentationDetents([.medium])
+        .ignoresSafeArea()
     }
 }
+
+// MARK: - ActivityView
+
+/// Thin `Identifiable` wrapper for a `URL` so it can be used with `.sheet(item:)`.
+private struct IdentifiableURL: Identifiable {
+    let id = UUID()
+    let url: URL
+}
+
+#if os(iOS)
+/// Wraps `UIActivityViewController` in a `UIViewControllerRepresentable` for use
+/// with `.sheet(item:)`. Only presented when the user explicitly taps Share, so
+/// it fires `onDisappear`/`onAppear` at most once — handled by `suspend()`/`resume()`.
+private struct ActivityView: UIViewControllerRepresentable {
+    let activityItems: [Any]
+
+    func makeUIViewController(context: Context) -> UIActivityViewController {
+        UIActivityViewController(activityItems: activityItems, applicationActivities: nil)
+    }
+
+    func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {}
+}
+#endif
 
 // MARK: - StatsForNerdsOverlay
 
