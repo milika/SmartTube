@@ -44,7 +44,7 @@ public struct LibraryView: View {
         #if os(iOS)
         .toolbar(.hidden, for: .navigationBar)
         #endif
-        .navigationDestination(item: $selectedVideo) { video in
+        .fullScreenCover(item: $selectedVideo) { video in
             PlayerView(video: video)
         }
         .navigationDestination(item: $selectedPlaylist) { stub in

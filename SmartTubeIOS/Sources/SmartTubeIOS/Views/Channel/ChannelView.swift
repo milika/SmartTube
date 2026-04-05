@@ -37,7 +37,7 @@ public struct ChannelView: View {
         }
         .navigationTitle(vm.channel?.title ?? "Channel")
         .onAppear { vm.load(channelId: channelId) }
-        .navigationDestination(item: $selectedVideo) { video in
+        .fullScreenCover(item: $selectedVideo) { video in
             PlayerView(video: video)
         }
         .navigationDestination(item: $channelDestination) { dest in

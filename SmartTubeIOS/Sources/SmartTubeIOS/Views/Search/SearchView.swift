@@ -38,7 +38,7 @@ public struct SearchView: View {
         #if os(iOS)
         .toolbar(.hidden, for: .navigationBar)
         #endif
-        .navigationDestination(item: $selectedVideo) { video in
+        .fullScreenCover(item: $selectedVideo) { video in
             PlayerView(video: video)
         }
         .navigationDestination(item: $channelDestination) { dest in

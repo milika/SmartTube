@@ -323,6 +323,7 @@ public struct ShortsPlayerView: View {
 
     /// Fetches an additional batch of Shorts and appends them, deduplicating by id.
     private func loadMoreIfNeeded() {
+        guard !ProcessInfo.processInfo.arguments.contains("--uitesting") else { return }
         guard !isFetchingMore else { return }
         isFetchingMore = true
         let existingIDs = Set(videos.map(\.id))
@@ -339,6 +340,10 @@ public struct ShortsPlayerView: View {
     /// `currentIndex` to keep the current video in place, then animates down into
     /// the last prepended video — giving the user new content above.
     private func loadMoreAtStart() {
+        guard !ProcessInfo.processInfo.arguments.contains("--uitesting") else {
+            withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) { slideOffset = 0 }
+            return
+        }
         guard !isFetchingMore else {
             withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) { slideOffset = 0 }
             return

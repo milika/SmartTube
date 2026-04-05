@@ -101,22 +101,25 @@ final class CategoryChipHTTP400UITests: XCTestCase {
         guard chip.waitForExistence(timeout: 3) else { return false }
 
         let screenWidth = app.windows.firstMatch.frame.width
-        let near = chipBar.coordinate(withNormalizedOffset: CGVector(dx: 0.15, dy: 0.5))
-        let far  = chipBar.coordinate(withNormalizedOffset: CGVector(dx: 0.85, dy: 0.5))
+        // Use app-level coordinates at the chip bar's y-position so the drag
+        // gesture reliably scrolls the ScrollView rather than landing on a chip
+        // button and inadvertently triggering a section change.
+        let rightEdge = app.coordinate(withNormalizedOffset: CGVector(dx: 0.85, dy: 0.09))
+        let leftEdge  = app.coordinate(withNormalizedOffset: CGVector(dx: 0.15, dy: 0.09))
 
         // Scroll until the chip is fully inside the visible screen bounds.
-        // chip.frame returns the on-screen CGRect without triggering a
-        // hittability assertion, so it is safe for off-screen elements.
         for _ in 0..<8 {
             let frame = chip.frame
             if frame.origin.x >= 4 && frame.maxX <= screenWidth - 4 { break }
             if frame.origin.x < 4 {
-                // Chip is off-screen to the left — drag left→right to reveal it.
-                near.press(forDuration: 0.05, thenDragTo: far)
+                // Chip is off-screen to the left — drag left→right to scroll backward.
+                leftEdge.press(forDuration: 0.05, thenDragTo: rightEdge)
             } else {
-                // Chip is off-screen to the right — drag right→left to reveal it.
-                far.press(forDuration: 0.05, thenDragTo: near)
+                // Chip is off-screen to the right — drag right→left to scroll forward.
+                rightEdge.press(forDuration: 0.05, thenDragTo: leftEdge)
             }
+            // Allow the scroll animation and accessibility tree to settle.
+            Thread.sleep(forTimeInterval: 0.3)
         }
 
         guard chip.exists else { return false }

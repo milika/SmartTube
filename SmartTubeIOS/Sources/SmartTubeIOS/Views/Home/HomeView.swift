@@ -23,9 +23,6 @@ public struct HomeView: View {
     @State private var shortsPresentation: ShortsPresentation?
     @State private var channelDestination: ChannelDestination?
     @State private var showSignIn = false
-    /// ID of the topmost card when the user taps a video; restored via proxy.scrollTo on back-nav.
-    @State private var sectionScrollIDSaved: String?
-
     private var visibleSections: [BrowseSection] {
         let types = store.settings.enabledSections
         guard !types.isEmpty else { return BrowseSection.defaultSections }
@@ -41,7 +38,7 @@ public struct HomeView: View {
             chipBar
             Divider()
             contentArea
-                .navigationDestination(item: $selectedVideo) { video in
+                .fullScreenCover(item: $selectedVideo) { video in
                     PlayerView(video: video)
                 }
                 .navigationDestination(item: $channelDestination) { dest in
@@ -168,15 +165,16 @@ public struct HomeView: View {
             if state.isLoading {
                 shelfPlaceholder
             } else {
+                let videos: [Video] = store.settings.hideShorts ? state.videos.filter { !$0.isShort } : state.videos
                 ScrollView(.horizontal, showsIndicators: false) {
                     LazyHStack(alignment: .top, spacing: 16) {
-                        ForEach(state.videos) { video in
+                        ForEach(videos) { video in
                             VideoCardView(video: video)
                                 .frame(width: 240)
                                 .accessibilityIdentifier("video.card.\(video.id)")
-                                .onTapGesture { selectVideo(video, from: state.videos) }
+                                .onTapGesture { selectVideo(video, from: videos) }
                                 .onAppear {
-                                    if state.videos.last?.id == video.id {
+                                    if videos.last?.id == video.id {
                                         homeVM.loadMore(sectionId: state.section.id)
                                     }
                                 }
@@ -233,100 +231,91 @@ public struct HomeView: View {
     }
 
     private var feedContent: some View {
-        let rowGroups  = sectionVM.videoGroups.filter { $0.layout == .row }
-        let gridVideos = sectionVM.videoGroups.filter { $0.layout != .row }.flatMap(\.videos)
-        // VStack (not lazy) keeps every item in the view tree so proxy.scrollTo(id)
-        // always succeeds, even for items that were off-screen during navigation.
-        return ScrollViewReader { proxy in
-            ScrollView {
-                if store.settings.compactThumbnails {
-                    VStack(alignment: .leading, spacing: 0) {
-                        ForEach(rowGroups) { group in
-                            if let title = group.title, !title.isEmpty {
-                                Text(title)
-                                    .font(.headline)
-                                    .padding(.horizontal)
-                                    .padding(.top, 16)
-                                    .padding(.bottom, 4)
-                            }
-                            VideoRowSection(videos: group.videos, onSelect: { selectVideo($0, from: group.videos) })
-                        }
-                        ForEach(gridVideos) { video in
-                            VideoCardView(video: video, compact: true)
-                                .padding(.horizontal)
-                                .padding(.vertical, 6)
-                                .id(video.id)
-                                .accessibilityIdentifier("video.card.\(video.id)")
-                                .onTapGesture { selectVideo(video, from: gridVideos) }
-                                .onAppear {
-                                    if video.id == gridVideos.last?.id {
-                                        sectionVM.loadMoreIfNeeded(lastVideo: video)
-                                    }
-                                }
-                            Divider().padding(.horizontal)
-                        }
-                        if sectionVM.isLoading {
-                            ProgressView().frame(maxWidth: .infinity).padding()
-                        }
-                    }
-                } else {
-                    VStack(alignment: .leading, spacing: 0) {
-                        ForEach(rowGroups) { group in
-                            if let title = group.title, !title.isEmpty {
-                                Text(title)
-                                    .font(.headline)
-                                    .padding(.horizontal)
-                                    .padding(.top, 16)
-                                    .padding(.bottom, 4)
-                            }
-                            VideoRowSection(videos: group.videos, onSelect: { selectVideo($0, from: group.videos) })
-                        }
-                        ForEach(Array(stride(from: 0, to: gridVideos.count, by: 2)), id: \.self) { idx in
-                            HStack(alignment: .top, spacing: 12) {
-                                let v1 = gridVideos[idx]
-                                VideoCardView(video: v1, compact: false)
-                                    .frame(maxWidth: .infinity)
-                                    .accessibilityIdentifier("video.card.\(v1.id)")
-                                    .onTapGesture { selectVideo(v1, from: gridVideos) }
-                                if idx + 1 < gridVideos.count {
-                                    let v2 = gridVideos[idx + 1]
-                                    VideoCardView(video: v2, compact: false)
-                                        .frame(maxWidth: .infinity)
-                                        .accessibilityIdentifier("video.card.\(v2.id)")
-                                        .onTapGesture { selectVideo(v2, from: gridVideos) }
-                                } else {
-                                    Color.clear.frame(maxWidth: .infinity)
-                                }
-                            }
-                            .id(gridVideos[idx].id)
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 6)
-                            .onAppear {
-                                if idx + 2 >= gridVideos.count, let last = gridVideos.last {
-                                    sectionVM.loadMoreIfNeeded(lastVideo: last)
-                                }
-                            }
-                        }
-                        .padding(.vertical, 2)
-                        if sectionVM.isLoading {
-                            ProgressView().frame(maxWidth: .infinity).padding()
-                        }
-                    }
-                }
-            }
-            .accessibilityIdentifier("home.sectionFeed")
-            .onChange(of: selectedVideo) { old, new in
-                if old != nil && new == nil, let saved = sectionScrollIDSaved {
-                    // Items are always rendered (VStack, not lazy) so proxy.scrollTo
-                    // reliably finds the target even after navigation pop.
-                    Task {
-                        try? await Task.sleep(for: .milliseconds(350))
-                        proxy.scrollTo(saved, anchor: .top)
-                    }
-                }
-            }
-            .refreshable { sectionVM.loadContent(refresh: true) }
+        let hideShorts = store.settings.hideShorts
+        let rowGroups: [VideoGroup] = sectionVM.videoGroups.filter { $0.layout == .row }.map { g in
+            guard hideShorts else { return g }
+            var copy = g
+            copy.videos = g.videos.filter { !$0.isShort }
+            return copy
         }
+        let gridVideos = sectionVM.videoGroups.filter { $0.layout != .row }.flatMap(\.videos).filter { !hideShorts || !$0.isShort }
+        // LazyVStack for performance. Scroll position is preserved by UIKit across
+        // fullScreenCover modal transitions (PlayerView is now presented as a cover).
+        return ScrollView {
+            if store.settings.compactThumbnails {
+                LazyVStack(alignment: .leading, spacing: 0) {
+                    ForEach(rowGroups) { group in
+                        if let title = group.title, !title.isEmpty {
+                            Text(title)
+                                .font(.headline)
+                                .padding(.horizontal)
+                                .padding(.top, 16)
+                                .padding(.bottom, 4)
+                        }
+                        VideoRowSection(videos: group.videos, onSelect: { selectVideo($0, from: group.videos) })
+                    }
+                    ForEach(gridVideos) { video in
+                        VideoCardView(video: video, compact: true)
+                            .padding(.horizontal)
+                            .padding(.vertical, 6)
+                            .accessibilityIdentifier("video.card.\(video.id)")
+                            .onTapGesture { selectVideo(video, from: gridVideos) }
+                            .onAppear {
+                                if video.id == gridVideos.last?.id {
+                                    sectionVM.loadMoreIfNeeded(lastVideo: video)
+                                }
+                            }
+                        Divider().padding(.horizontal)
+                    }
+                    if sectionVM.isLoading {
+                        ProgressView().frame(maxWidth: .infinity).padding()
+                    }
+                }
+            } else {
+                LazyVStack(alignment: .leading, spacing: 0) {
+                    ForEach(rowGroups) { group in
+                        if let title = group.title, !title.isEmpty {
+                            Text(title)
+                                .font(.headline)
+                                .padding(.horizontal)
+                                .padding(.top, 16)
+                                .padding(.bottom, 4)
+                        }
+                        VideoRowSection(videos: group.videos, onSelect: { selectVideo($0, from: group.videos) })
+                    }
+                    ForEach(Array(stride(from: 0, to: gridVideos.count, by: 2)), id: \.self) { idx in
+                        HStack(alignment: .top, spacing: 12) {
+                            let v1 = gridVideos[idx]
+                            VideoCardView(video: v1, compact: false)
+                                .frame(maxWidth: .infinity)
+                                .accessibilityIdentifier("video.card.\(v1.id)")
+                                .onTapGesture { selectVideo(v1, from: gridVideos) }
+                            if idx + 1 < gridVideos.count {
+                                let v2 = gridVideos[idx + 1]
+                                VideoCardView(video: v2, compact: false)
+                                    .frame(maxWidth: .infinity)
+                                    .accessibilityIdentifier("video.card.\(v2.id)")
+                                    .onTapGesture { selectVideo(v2, from: gridVideos) }
+                            } else {
+                                Color.clear.frame(maxWidth: .infinity)
+                            }
+                        }
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 6)
+                        .onAppear {
+                            if idx + 2 >= gridVideos.count, let last = gridVideos.last {
+                                sectionVM.loadMoreIfNeeded(lastVideo: last)
+                            }
+                        }
+                    }
+                    if sectionVM.isLoading {
+                        ProgressView().frame(maxWidth: .infinity).padding()
+                    }
+                }
+            }
+        }
+        .accessibilityIdentifier("home.sectionFeed")
+        .refreshable { sectionVM.loadContent(refresh: true) }
     }
 
     private var feedEmptyState: some View {
@@ -357,7 +346,6 @@ public struct HomeView: View {
     // MARK: - Video selection
 
     private func selectVideo(_ video: Video, from groupVideos: [Video]) {
-        sectionScrollIDSaved = video.id   // save the tapped video's ID for scroll restoration
         if video.isShort {
             let shorts = groupVideos.filter { $0.isShort }
             let idx = shorts.firstIndex(where: { $0.id == video.id }) ?? 0

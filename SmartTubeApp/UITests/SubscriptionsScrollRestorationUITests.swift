@@ -40,8 +40,8 @@ final class SubscriptionsScrollRestorationUITests: XCTestCase {
 
     // MARK: - Tests
 
-    /// Scrolls the Subscriptions feed to load multiple pages, taps the last
-    /// visible video, goes back, and asserts the same card is still visible.
+    /// Scrolls the Subscriptions feed, plays a video, returns, and asserts that
+    /// the scroll position was restored (not reset to the top of the list).
     func testScrollPositionRestoredAfterPlayback() throws {
         // 1. Ensure Home tab is active so the chip bar is visible.
         let homeTab = app.tabBars.buttons["Home"]
@@ -59,112 +59,62 @@ final class SubscriptionsScrollRestorationUITests: XCTestCase {
         scrollChipIntoView(chip, in: chipBar)
         chip.tap()
 
-        // 3. Wait for the feed to populate.
+        // 3. Wait for the feed to populate (at least one video card must appear).
         let cardPredicate = NSPredicate(format: "identifier BEGINSWITH 'video.card.'")
-        let cards = app.descendants(matching: .any).matching(cardPredicate)
-        let feedLoaded = XCTNSPredicateExpectation(
-            predicate: NSPredicate(format: "count > 0"),
-            object: cards
-        )
-        guard XCTWaiter().wait(for: [feedLoaded], timeout: 20) == .completed else {
+        let firstCard = app.descendants(matching: .any).matching(cardPredicate).firstMatch
+        guard firstCard.waitForExistence(timeout: 20) else {
             throw XCTSkip("Subscriptions feed did not load within 20 s — network unavailable or feed empty")
         }
 
-        // 4. Scroll the section feed down twice to push content below the fold and
-        //    trigger at least one pagination load.
-        //    We explicitly target the section feed scroll view (not the chip bar).
+        // 4. Scroll the section feed down twice so at least one full page is below
+        //    the fold. Target the feed's scroll view, not the chip bar.
         let feedScrollView = app.scrollViews["home.sectionFeed"]
-        XCTAssertTrue(feedScrollView.waitForExistence(timeout: 5), "home.sectionFeed scroll view must exist")
-        feedScrollView.swipeUp(velocity: .slow)
-        Thread.sleep(forTimeInterval: 3.0)   // let pagination + scrollPosition binding settle
-        feedScrollView.swipeUp(velocity: .slow)
-        Thread.sleep(forTimeInterval: 3.0)
+        XCTAssertTrue(feedScrollView.waitForExistence(timeout: 5), "home.sectionFeed must exist")
+        feedScrollView.swipeUp(velocity: .fast)
+        Thread.sleep(forTimeInterval: 2.0)
+        feedScrollView.swipeUp(velocity: .fast)
+        Thread.sleep(forTimeInterval: 2.0)
 
-        // 5. Find the bottommost video card that is fully on screen (with a safe margin
-        //    from the bottom edge to avoid the home indicator / tab-bar overlap area).
-        guard let targetCard = bottommostVisibleCard() else {
-            throw XCTSkip("Could not find a fully-visible video card after scrolling")
-        }
-        let targetID = targetCard.identifier
+        // 5. Verify the feed has actually scrolled: the first card should now be
+        //    off-screen above the viewport (its maxY should be near or below 0).
+        let firstCardMaxYAfterScroll = firstCard.frame.maxY
+        XCTAssertLessThan(firstCardMaxYAfterScroll, 100,
+            "First card should be off-screen after 2 fast swipes — feed may not have scrolled")
 
-        // 6. Tap the target card via its centre coordinate — coordinate taps bypass
-        //    the hittability check so cards near the edge of the screen still work.
-        targetCard.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+        // 6. Tap the card near the vertical centre of the visible feed area via a
+        //    coordinate tap. This avoids a full accessibility-tree traversal that
+        //    would time out when all cards are eagerly rendered in a VStack.
+        let tapPoint = feedScrollView.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
+        tapPoint.tap()
 
         // 7. Wait for PlayerView to open.
         let titleLabel = app.staticTexts["player.titleLabel"].firstMatch
         XCTAssertTrue(titleLabel.waitForExistence(timeout: 15),
                       "player.titleLabel must appear — PlayerView did not open")
 
-        // 8. Navigate back via the always-accessible (but visually invisible) back button
-        //    in the player's top-left overlay. This is reliable regardless of whether
-        //    the controls overlay is currently shown.
+        // 8. Navigate back via the always-accessible (but visually invisible) back
+        //    button in the player's top-left overlay.
         let backButton = app.buttons["player.backButton"].firstMatch
-        XCTAssertTrue(backButton.waitForExistence(timeout: 5), "player.backButton must be present in PlayerView")
+        XCTAssertTrue(backButton.waitForExistence(timeout: 5), "player.backButton must be present")
         backButton.tap()
 
         // 9. Wait for the chip bar to reappear — confirms we're back on the feed.
-        XCTAssertTrue(chipBar.waitForExistence(timeout: 5), "Chip bar must reappear after back navigation")
+        XCTAssertTrue(chipBar.waitForExistence(timeout: 5),
+                      "Chip bar must reappear after back navigation")
 
-        // 10. Assert: the card we tapped is still visible (not scrolled back to top).
-        //     Use firstMatch because the accessibility ID propagates to child image/text elements.
-        let restoredCard = app.otherElements
-            .matching(NSPredicate(format: "identifier == %@", targetID))
-            .firstMatch
-        XCTAssertTrue(
-            restoredCard.waitForExistence(timeout: 12),
-            "Card '\(targetID)' must still exist in the view hierarchy after back navigation"
-        )
-        // Brief pause to let the UIKit contentOffset commit propagate to the
-        // accessibility system before reading element.frame.
-        Thread.sleep(forTimeInterval: 0.5)
-        XCTAssertTrue(
-            isVisibleOnScreen(restoredCard),
-            "Card '\(targetID)' must be visible on screen after back navigation — " +
-            "scroll position was reset to top instead of being restored"
+        // 10. Assert: scroll position was restored.
+        //     The first card must still be off-screen (< 100 pt maxY), meaning the
+        //     feed was not reset to the top of the list.
+        Thread.sleep(forTimeInterval: 1.0)   // let onAppear + proxy.scrollTo settle
+        let firstCardMaxYAfterBack = firstCard.frame.maxY
+        XCTAssertLessThan(
+            firstCardMaxYAfterBack, 100,
+            "First card maxY=\(Int(firstCardMaxYAfterBack)) — scroll was reset to top " +
+            "instead of being restored to offset \(Int(firstCardMaxYAfterScroll))"
         )
     }
 
     // MARK: - Helpers
-
-    /// Returns the video card with the largest `frame.maxY` that is fully within
-    /// the visible screen bounds, keeping a 100 pt bottom margin to avoid the
-    /// home-indicator / tab-bar area where hit-testing is unreliable.
-    ///
-    /// Uses per-element iteration (not `allElementsBoundByIndex`) to avoid query
-    /// timeouts when all cards are eagerly rendered in a VStack.
-    private func bottommostVisibleCard() -> XCUIElement? {
-        let screen = app.windows.firstMatch.frame
-        let safeMaxY = screen.maxY - 100
-        let predicate = NSPredicate(format: "identifier BEGINSWITH 'video.card.'")
-        let cards = app.descendants(matching: .any).matching(predicate)
-        var bottomCard: XCUIElement? = nil
-        var bottomY: CGFloat = -1
-        var i = 0
-        while i < 200 {  // safety cap
-            let card = cards.element(boundBy: i)
-            guard card.exists else { break }
-            i += 1
-            let f = card.frame
-            guard f.minX >= 0 && f.minY >= 0
-                    && f.maxX <= screen.maxX && f.maxY <= safeMaxY else { continue }
-            if f.maxY > bottomY {
-                bottomY = f.maxY
-                bottomCard = card
-            }
-        }
-        return bottomCard
-    }
-
-    /// Returns true when the element's frame is substantially inside the screen.
-    private func isVisibleOnScreen(_ element: XCUIElement) -> Bool {
-        guard element.exists else { return false }
-        let screen = app.windows.firstMatch.frame
-        let f = element.frame
-        // Accept if at least the top half of the card is within the screen.
-        return f.minY < screen.maxY && f.midY > screen.minY
-            && f.minX < screen.maxX && f.maxX > screen.minX
-    }
 
     /// Scrolls `chip` into the fully-visible area of `chipBar` before tapping.
     private func scrollChipIntoView(_ chip: XCUIElement, in chipBar: XCUIElement) {

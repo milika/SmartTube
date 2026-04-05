@@ -29,14 +29,26 @@ final class ShortsNavigationUITests: XCTestCase {
 
     // MARK: - Helpers
 
-    /// Scrolls the horizontal chip bar left by performing coordinate-based swipes
-    /// near the top of the screen where the chip bar lives.
+    /// Scrolls the chip bar until the Shorts chip is fully visible on screen.
+    /// Uses app-level coordinate drags (which reliably scroll the chip bar) with
+    /// direction checking so Shorts is never over-scrolled past.
     private func scrollToShortsChip() {
-        // dy ≈ 0.09 places the gesture in the chip bar area (~72pt from the top).
-        let start = app.coordinate(withNormalizedOffset: CGVector(dx: 0.8, dy: 0.09))
-        let end   = app.coordinate(withNormalizedOffset: CGVector(dx: 0.2, dy: 0.09))
-        for _ in 0..<3 {
-            start.press(forDuration: 0.05, thenDragTo: end)
+        let chip        = app.buttons["Shorts"]
+        let screenWidth = app.windows.firstMatch.frame.width
+        let rightEdge   = app.coordinate(withNormalizedOffset: CGVector(dx: 0.8, dy: 0.09))
+        let leftEdge    = app.coordinate(withNormalizedOffset: CGVector(dx: 0.2, dy: 0.09))
+        for _ in 0..<6 {
+            let frame = chip.frame
+            guard frame.origin.x < 4 || frame.maxX > screenWidth - 4 else { break }
+            if frame.origin.x < 4 {
+                // Chip is off-screen to the left — drag left→right to scroll backward.
+                leftEdge.press(forDuration: 0.05, thenDragTo: rightEdge)
+            } else {
+                // Chip is off-screen to the right — drag right→left to scroll forward.
+                rightEdge.press(forDuration: 0.05, thenDragTo: leftEdge)
+            }
+            // Allow the scroll animation and accessibility tree to settle.
+            Thread.sleep(forTimeInterval: 0.3)
         }
     }
 
@@ -342,10 +354,20 @@ final class ShortsLiveSwipeUITests: XCTestCase {
         let shortsChip = app.buttons["Shorts"]
         XCTAssertTrue(shortsChip.waitForExistence(timeout: 5), "Shorts chip must appear in chip bar")
 
-        // Scroll chip bar rightward if the chip is off-screen.
-        let start = app.coordinate(withNormalizedOffset: CGVector(dx: 0.8, dy: 0.09))
-        let end   = app.coordinate(withNormalizedOffset: CGVector(dx: 0.2, dy: 0.09))
-        for _ in 0..<3 { start.press(forDuration: 0.05, thenDragTo: end) }
+        // Scroll chip bar until Shorts is fully on-screen, then tap.
+        let rightEdge   = app.coordinate(withNormalizedOffset: CGVector(dx: 0.8, dy: 0.09))
+        let leftEdge    = app.coordinate(withNormalizedOffset: CGVector(dx: 0.2, dy: 0.09))
+        let screenWidth = app.windows.firstMatch.frame.width
+        for _ in 0..<6 {
+            let frame = shortsChip.frame
+            guard frame.origin.x < 4 || frame.maxX > screenWidth - 4 else { break }
+            if frame.origin.x < 4 {
+                leftEdge.press(forDuration: 0.05, thenDragTo: rightEdge)
+            } else {
+                rightEdge.press(forDuration: 0.05, thenDragTo: leftEdge)
+            }
+            Thread.sleep(forTimeInterval: 0.3)
+        }
 
         shortsChip.tap()
     }

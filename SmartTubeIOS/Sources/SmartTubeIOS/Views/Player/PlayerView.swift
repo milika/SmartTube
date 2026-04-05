@@ -67,7 +67,8 @@ public struct PlayerView: View {
                     },
                     onSwipeCancelled: {
                         withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) { slideOffset = 0 }
-                    }
+                    },
+                    isEnabled: !vm.isScrubbing
                 )
                 .ignoresSafeArea()
                 .accessibilityHidden(true)
@@ -124,7 +125,7 @@ public struct PlayerView: View {
                 .accessibilityIdentifier("player.backButton")
                 Text(vm.playerInfo?.video.title ?? video.title)
                     .font(.caption)
-                    .foregroundStyle(.white.opacity(0.01))   // visually invisible, accessible
+                    .opacity(0)   // visually invisible (including emoji), accessible
                     .accessibilityIdentifier("player.titleLabel")
                     .allowsHitTesting(false)
             }
@@ -407,7 +408,7 @@ public struct PlayerView: View {
         .simultaneousGesture(
             DragGesture(minimumDistance: 50, coordinateSpace: .global)
                 .onEnded { value in
-                    guard !isTransitioning else { return }
+                    guard !isTransitioning, !vm.isScrubbing else { return }
                     let dx = value.translation.width
                     guard abs(dx) > abs(value.translation.height) else { return }
                     if dx < 0 {
@@ -705,6 +706,8 @@ private struct AVPlayerLayerView: UIViewRepresentable {
 
 /// Transparent UIKit overlay that captures horizontal swipe and tap gestures.
 /// Left swipe → `onSwipeLeft`, right swipe → `onSwipeRight`, tap → `onTap`.
+/// Set `isEnabled = false` (e.g. while the progress slider is being scrubbed) to
+/// temporarily suppress pan recognition so the scrub drag is not mistaken for a swipe.
 private struct SwipeGestureOverlay: UIViewRepresentable {
     var onSwipeLeft:      () -> Void
     var onSwipeRight:     () -> Void
@@ -712,6 +715,7 @@ private struct SwipeGestureOverlay: UIViewRepresentable {
     var onTwoFingerTap:   () -> Void = {}
     var onPanChanged:     ((CGFloat) -> Void)?
     var onSwipeCancelled: (() -> Void)?
+    var isEnabled:        Bool = true
 
     func makeCoordinator() -> Coordinator { Coordinator(self) }
 
@@ -723,6 +727,7 @@ private struct SwipeGestureOverlay: UIViewRepresentable {
                                          action: #selector(Coordinator.handlePan(_:)))
         pan.cancelsTouchesInView = true
         view.addGestureRecognizer(pan)
+        context.coordinator.pan = pan
 
         let tap = UITapGestureRecognizer(target: context.coordinator,
                                           action: #selector(Coordinator.handleTap))
@@ -741,10 +746,12 @@ private struct SwipeGestureOverlay: UIViewRepresentable {
 
     func updateUIView(_ uiView: UIView, context: Context) {
         context.coordinator.parent = self
+        context.coordinator.pan?.isEnabled = isEnabled
     }
 
     final class Coordinator: NSObject {
         var parent: SwipeGestureOverlay
+        weak var pan: UIPanGestureRecognizer?
         private let minDistance: CGFloat = 40
 
         init(_ parent: SwipeGestureOverlay) { self.parent = parent }
