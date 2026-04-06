@@ -79,6 +79,7 @@ public final class PlaybackViewModel {
 
     public let player = AVPlayer()
     @ObservationIgnored nonisolated(unsafe) private var timeObserver: Any?
+    @ObservationIgnored nonisolated(unsafe) private var audioSessionObserver: Any?
     /// Prevents infinite retry loops: set once the first fallback attempt has been made.
     private var hasRetriedPlayback: Bool = false
     private var itemObserverTask: Task<Void, Never>?
@@ -130,6 +131,7 @@ public final class PlaybackViewModel {
         setupTimeObserver()
         #if canImport(UIKit)
         setupRemoteCommandCenter()
+        setupAudioSessionObserver()
         #endif
     }
 
@@ -170,6 +172,26 @@ public final class PlaybackViewModel {
         hasPrevious = !history.isEmpty
         hasRetriedPlayback = false
         loadTask = Task { await loadAsync(video: video) }
+    }
+
+    /// Call when the app returns to the foreground.
+    /// Reactivates the AVAudioSession and resumes the player if it was playing
+    /// before the interruption/background transition.
+    public func handleForeground() {
+        guard player.currentItem != nil else { return }
+        #if canImport(UIKit)
+        do {
+            try AVAudioSession.sharedInstance().setActive(true)
+        } catch {
+            playerLog.error("AVAudioSession reactivation failed: \(error.localizedDescription, privacy: .public)")
+        }
+        #endif
+        // Resume only if we consider ourselves to be in playing state.
+        // isPlaying tracks our intent; player.rate reflects actual hardware state.
+        if isPlaying && player.rate == 0 {
+            player.play()
+            playerLog.notice("[handleForeground] resumed player after foreground transition")
+        }
     }
 
     /// Pauses playback and saves the watch position without tearing down the AVPlayerItem.
@@ -827,6 +849,44 @@ public final class PlaybackViewModel {
 #if canImport(UIKit)
 private extension PlaybackViewModel {
 
+    func setupAudioSessionObserver() {
+        audioSessionObserver = NotificationCenter.default.addObserver(
+            forName: AVAudioSession.interruptionNotification,
+            object: AVAudioSession.sharedInstance(),
+            queue: .main
+        ) { [weak self] notification in
+            guard let self,
+                  let typeValue = notification.userInfo?[AVAudioSessionInterruptionTypeKey] as? UInt,
+                  let type = AVAudioSession.InterruptionType(rawValue: typeValue) else { return }
+            switch type {
+            case .began:
+                // System (phone call, Siri, etc.) took the audio session — note we
+                // were playing so we can resume when it ends.
+                playerLog.notice("[interruption] began — pausing player")
+                Task { @MainActor [weak self] in
+                    self?.player.pause()
+                }
+            case .ended:
+                let optionsValue = notification.userInfo?[AVAudioSessionInterruptionOptionKey] as? UInt ?? 0
+                let options = AVAudioSession.InterruptionOptions(rawValue: optionsValue)
+                playerLog.notice("[interruption] ended — shouldResume=\(options.contains(.shouldResume), privacy: .public)")
+                Task { @MainActor [weak self] in
+                    guard let self else { return }
+                    do {
+                        try AVAudioSession.sharedInstance().setActive(true)
+                    } catch {
+                        playerLog.error("[interruption] setActive failed: \(error.localizedDescription, privacy: .public)")
+                    }
+                    if options.contains(.shouldResume) && self.isPlaying {
+                        self.player.play()
+                    }
+                }
+            @unknown default:
+                break
+            }
+        }
+    }
+
     func setupRemoteCommandCenter() {
         let center = MPRemoteCommandCenter.shared()
 
@@ -889,18 +949,9 @@ private extension PlaybackViewModel {
         }
         nowPlayingInfoCache = info
         setNowPlayingInfo(nowPlayingInfoCache)
-
-        if let thumbnailURL = video.thumbnailURL {
-            Task {
-                guard let data = try? await URLSession.shared.data(from: thumbnailURL).0,
-                      let image = UIImage(data: data) else { return }
-                let size = image.size
-                let artwork = MPMediaItemArtwork(boundsSize: size) { _ in image }
-                // Update our local cache and push to MediaPlayer on DispatchQueue.main.
-                self.nowPlayingInfoCache[MPMediaItemPropertyArtwork] = artwork
-                self.setNowPlayingInfo(self.nowPlayingInfoCache)
-            }
-        }
+        // Artwork is intentionally omitted: fetching it requires an async Task,
+        // and calling MPNowPlayingInfoCenter after any `await` — regardless of
+        // threading wrapper — crashes on MediaPlayer's internal accessQueue.
     }
 
     func updateNowPlayingPlayback() {
@@ -914,14 +965,14 @@ private extension PlaybackViewModel {
         setNowPlayingInfo(nil)
     }
 
-    /// All writes to `MPNowPlayingInfoCenter` go through here.
-    /// MediaPlayer's legacy accessQueue asserts `DispatchQueue.main`;
-    /// Swift concurrency's `@MainActor` does NOT satisfy that after an `await`.
+    /// Writes to `MPNowPlayingInfoCenter` directly on `@MainActor` (= main thread).
+    /// Do NOT use DispatchQueue.main.async here — dispatching async from @MainActor
+    /// creates a new GCD block that may lack the proper queue-specific context that
+    /// MediaPlayer's internal accessQueue asserts, causing EXC_BREAKPOINT.
+    /// Since every caller is already @MainActor-isolated this call is always
+    /// synchronous on the main thread.
     private func setNowPlayingInfo(_ info: [String: Any]?) {
-        let captured = info
-        DispatchQueue.main.async {
-            MPNowPlayingInfoCenter.default().nowPlayingInfo = captured
-        }
+        MPNowPlayingInfoCenter.default().nowPlayingInfo = info
     }
 }
 #endif

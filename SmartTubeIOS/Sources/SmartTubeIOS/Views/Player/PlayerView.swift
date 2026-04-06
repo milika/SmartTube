@@ -18,13 +18,13 @@ private let swipeLog = Logger(subsystem: appSubsystem, category: "Player")
 public struct PlayerView: View {
     public let video: Video
     @State private var vm = PlaybackViewModel()
+    @Environment(\.scenePhase) private var scenePhase
     @Environment(\.dismiss) private var dismiss
     @Environment(SettingsStore.self) private var store
     @Environment(AuthService.self) private var authService
     @State private var showSpeedPicker = false
     @State private var showQualityPicker = false
     @State private var showMoreMenu = false
-    @State private var shareItem: IdentifiableURL? = nil
     @State private var slideOffset: CGFloat = 0
     @State private var isTransitioning = false
     @State private var channelDestination: ChannelDestination?
@@ -34,7 +34,12 @@ public struct PlayerView: View {
     @State private var pipController: AVPictureInPictureController?
     @State private var pipDelegate: PiPDelegate?
     @State private var isPiPActive: Bool = false
+    @State private var playerLayer: AVPlayerLayer?
     #endif
+    /// True while the app is backgrounded. Prevents `onDisappear` from calling
+    /// `suspend()` when iOS fires it as a side-effect of backgrounding rather
+    /// than actual navigation away from the player.
+    @State private var isInBackground = false
 
     public init(video: Video) {
         self.video = video
@@ -51,14 +56,7 @@ public struct PlayerView: View {
                 // A bare AVPlayerLayer renders video with no accessibility interference.
                 AVPlayerLayerView(player: vm.player) { layer in
                     #if os(iOS)
-                    if AVPictureInPictureController.isPictureInPictureSupported() {
-                        let pip = AVPictureInPictureController(playerLayer: layer)
-                        pip?.canStartPictureInPictureAutomaticallyFromInline = true
-                        let delegate = PiPDelegate { active in isPiPActive = active }
-                        pip?.delegate = delegate
-                        pipDelegate = delegate   // strong retain
-                        pipController = pip
-                    }
+                    playerLayer = layer
                     #endif
                 }
                 .ignoresSafeArea()
@@ -183,7 +181,7 @@ public struct PlayerView: View {
         .onAppear {
             swipeLog.notice("[PlayerView] onAppear id=\(video.id, privacy: .public)")
             if vm.currentVideoId == video.id {
-                // Spurious appear (e.g. a sheet/ShareLink temporarily covered us) — just resume.
+                // Spurious appear (e.g. a sheet temporarily covered us) — just resume.
                 vm.resume()
             } else {
                 vm.load(video: video)
@@ -193,15 +191,39 @@ public struct PlayerView: View {
             vm.updateAuthToken(authService.accessToken)
         }
         .onDisappear {
-            swipeLog.notice("[PlayerView] onDisappear id=\(video.id, privacy: .public)")
-            // Only suspend (pause + save position) — a full stop() is called by the
-            // dismiss buttons so the player is torn down only on intentional back navigation.
+            swipeLog.notice("[PlayerView] onDisappear id=\(video.id, privacy: .public) isInBackground=\(isInBackground, privacy: .public)")
+            guard !isInBackground else { return }
             vm.suspend()
         }
         .onChange(of: authService.accessToken) { _, newToken in vm.updateAuthToken(newToken) }
-        .sheet(item: $shareItem) { item in
-            ActivityView(activityItems: [item.url])
+        .onChange(of: scenePhase) { _, phase in
+            switch phase {
+            case .background:
+                isInBackground = true
+            case .active:
+                isInBackground = false
+                vm.handleForeground()
+            default:
+                break
+            }
         }
+        #if os(iOS)
+        // Create the PiP controller the first time the player actually starts
+        // playing — AVPlayer must have a ready item for isPictureInPicturePossible
+        // to ever become true. Creating it at view-appear time (before any item
+        // is loaded) means it stays permanently inert.
+        .onChange(of: vm.isPlaying) { _, playing in
+            guard playing, pipController == nil,
+                  let layer = playerLayer,
+                  AVPictureInPictureController.isPictureInPictureSupported() else { return }
+            let pip = AVPictureInPictureController(playerLayer: layer)
+            pip?.canStartPictureInPictureAutomaticallyFromInline = true
+            let delegate = PiPDelegate { active in isPiPActive = active }
+            pip?.delegate = delegate
+            pipDelegate = delegate
+            pipController = pip
+        }
+        #endif
         .navigationDestination(item: $channelDestination) { dest in
             ChannelView(channelId: dest.channelId)
         }
@@ -451,6 +473,7 @@ public struct PlayerView: View {
                             .foregroundStyle(.secondary)
                     }
                     .padding()
+                    .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
                 .foregroundStyle(.primary)
@@ -468,6 +491,7 @@ public struct PlayerView: View {
                                 .foregroundStyle(.secondary)
                         }
                         .padding()
+                        .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
                     .foregroundStyle(.primary)
@@ -489,6 +513,7 @@ public struct PlayerView: View {
                             .frame(maxWidth: .infinity)
                             .padding()
                             .foregroundStyle(vm.likeStatus == .like ? Color.accentColor : .primary)
+                            .contentShape(Rectangle())
                         }
                         .buttonStyle(.plain)
                         Divider().frame(height: 44)
@@ -504,6 +529,7 @@ public struct PlayerView: View {
                             .frame(maxWidth: .infinity)
                             .padding()
                             .foregroundStyle(vm.likeStatus == .dislike ? Color.accentColor : .primary)
+                            .contentShape(Rectangle())
                         }
                         .buttonStyle(.plain)
                     }
@@ -511,14 +537,15 @@ public struct PlayerView: View {
                 }
                 // Share
                 Button {
-                    if let url = URL(string: "https://www.youtube.com/watch?v=\(currentVideo.id)") {
-                        shareItem = IdentifiableURL(url: url)
-                    }
                     showMoreMenu = false
+                    if let url = URL(string: "https://www.youtube.com/watch?v=\(currentVideo.id)") {
+                        presentShareSheet(url: url)
+                    }
                 } label: {
                     Label("Share", systemImage: AppSymbol.share)
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .padding()
+                        .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
                 .foregroundStyle(.primary)
@@ -538,6 +565,7 @@ public struct PlayerView: View {
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding()
+                    .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
                 .foregroundStyle(.primary)
@@ -548,6 +576,7 @@ public struct PlayerView: View {
                         .frame(maxWidth: .infinity)
                         .padding()
                         .fontWeight(.semibold)
+                        .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
                 .foregroundStyle(.primary)
@@ -830,30 +859,28 @@ public struct PlayerView: View {
         }
         .ignoresSafeArea()
     }
-}
 
-// MARK: - ActivityView
+    // MARK: - Share
 
-/// Thin `Identifiable` wrapper for a `URL` so it can be used with `.sheet(item:)`.
-private struct IdentifiableURL: Identifiable {
-    let id = UUID()
-    let url: URL
-}
-
-#if os(iOS)
-/// Wraps `UIActivityViewController` in a `UIViewControllerRepresentable` for use
-/// with `.sheet(item:)`. Only presented when the user explicitly taps Share, so
-/// it fires `onDisappear`/`onAppear` at most once — handled by `suspend()`/`resume()`.
-private struct ActivityView: UIViewControllerRepresentable {
-    let activityItems: [Any]
-
-    func makeUIViewController(context: Context) -> UIActivityViewController {
-        UIActivityViewController(activityItems: activityItems, applicationActivities: nil)
+    #if os(iOS)
+    private func presentShareSheet(url: URL) {
+        let wasPlaying = vm.isPlaying
+        vm.suspend()
+        let vc = UIActivityViewController(activityItems: [url], applicationActivities: nil)
+        vc.completionWithItemsHandler = { _, _, _, _ in
+            if wasPlaying { vm.resume() }
+        }
+        guard
+            let scene = UIApplication.shared.connectedScenes
+                .first(where: { $0.activationState == .foregroundActive }) as? UIWindowScene,
+            let root = scene.windows.first(where: \.isKeyWindow)?.rootViewController
+        else { return }
+        var top = root
+        while let presented = top.presentedViewController { top = presented }
+        top.present(vc, animated: true)
     }
-
-    func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {}
+    #endif
 }
-#endif
 
 // MARK: - StatsForNerdsOverlay
 
@@ -944,8 +971,9 @@ private struct AVPlayerLayerView: UIViewRepresentable {
 
 // MARK: - PiPDelegate
 
-/// Minimal AVPictureInPictureControllerDelegate that notifies a SwiftUI
-/// closure when PiP starts or stops so @State can be updated reactively.
+/// AVPictureInPictureControllerDelegate that notifies a SwiftUI closure when
+/// PiP starts or stops, and implements the restore callback required for a
+/// smooth transition back to full-screen without rebuffering.
 private final class PiPDelegate: NSObject, AVPictureInPictureControllerDelegate {
     private let onActiveChange: (Bool) -> Void
 
@@ -959,6 +987,20 @@ private final class PiPDelegate: NSObject, AVPictureInPictureControllerDelegate 
 
     func pictureInPictureControllerDidStopPictureInPicture(_ controller: AVPictureInPictureController) {
         onActiveChange(false)
+    }
+
+    /// Called when the user taps the PiP window to return to the app.
+    /// Must call completionHandler(true) once the UI is ready to show the video
+    /// again — without this iOS cannot complete the restore animation and the
+    /// player rebuffers/stutters.
+    func pictureInPictureController(
+        _ controller: AVPictureInPictureController,
+        restoreUserInterfaceForPictureInPictureStopWithCompletionHandler completionHandler: @escaping (Bool) -> Void
+    ) {
+        // The AVPlayerLayer is always present and visible in PlayerView, so the
+        // UI is immediately ready. Calling completionHandler(true) right away
+        // lets AVKit animate the video seamlessly back into the layer.
+        completionHandler(true)
     }
 }
 
