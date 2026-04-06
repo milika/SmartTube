@@ -126,10 +126,28 @@ public struct HomeView: View {
     @ViewBuilder
     private var contentArea: some View {
         if selectedSection.type == .home {
-            homeShelves
+            if auth.isSignedIn {
+                homeShelves
+            } else {
+                homeSignedOutPrompt
+            }
         } else {
             sectionFeed
         }
+    }
+
+    private var homeSignedOutPrompt: some View {
+        VStack(spacing: 16) {
+            Image(systemName: AppSymbol.personCircleQuestion)
+                .font(.system(size: 60))
+                .foregroundStyle(.secondary)
+            Text("Sign in to see your feed")
+                .font(.headline)
+                .foregroundStyle(.secondary)
+            Button("Sign In") { showSignIn = true }
+                .buttonStyle(.borderedProminent)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     // MARK: - Home shelves  (multi-section overview)

@@ -1,5 +1,6 @@
 import SwiftUI
 import AVFoundation
+import AVKit
 import SmartTubeIOSCore
 import os
 #if canImport(UIKit)
@@ -29,6 +30,11 @@ public struct PlayerView: View {
     @State private var channelDestination: ChannelDestination?
     @State private var downloadService = VideoDownloadService()
     @State private var downloadAlertItem: DownloadAlertItem?
+    #if os(iOS)
+    @State private var pipController: AVPictureInPictureController?
+    @State private var pipDelegate: PiPDelegate?
+    @State private var isPiPActive: Bool = false
+    #endif
 
     public init(video: Video) {
         self.video = video
@@ -43,9 +49,20 @@ public struct PlayerView: View {
                 // AVPlayerViewController (VideoPlayer) dominates the UIKit accessibility
                 // tree, making all overlaid SwiftUI elements invisible to XCUITest.
                 // A bare AVPlayerLayer renders video with no accessibility interference.
-                AVPlayerLayerView(player: vm.player)
-                    .ignoresSafeArea()
-                    .accessibilityHidden(true)
+                AVPlayerLayerView(player: vm.player) { layer in
+                    #if os(iOS)
+                    if AVPictureInPictureController.isPictureInPictureSupported() {
+                        let pip = AVPictureInPictureController(playerLayer: layer)
+                        pip?.canStartPictureInPictureAutomaticallyFromInline = true
+                        let delegate = PiPDelegate { active in isPiPActive = active }
+                        pip?.delegate = delegate
+                        pipDelegate = delegate   // strong retain
+                        pipController = pip
+                    }
+                    #endif
+                }
+                .ignoresSafeArea()
+                .accessibilityHidden(true)
 
                 // Horizontal swipe layer: left → next video, right → previous video.
                 // Uses UIKit-level UIPanGestureRecognizer so it fires above AVPlayerLayer.
@@ -264,59 +281,27 @@ public struct PlayerView: View {
                     .disabled(channelId == nil || channelId?.isEmpty == true)
                 }
                 Spacer()
-                // Speed picker button
-                Button {
-                    showSpeedPicker = true
-                } label: {
-                    Text(store.settings.playbackSpeed == 1.0 ? "1×"
-                         : "\(store.settings.playbackSpeed, specifier: "%.2g")×")
-                        .font(.callout.weight(.semibold))
-                        .foregroundStyle(.white)
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 6)
-                        .background(.black.opacity(0.4))
-                        .clipShape(Capsule())
-                }
-                // Quality picker button (only shown when direct format URLs are available)
-                if !vm.availableFormats.isEmpty {
+                #if os(iOS)
+                // Picture-in-Picture button — shown whenever PiP is supported on this device
+                if let pip = pipController {
                     Button {
-                        showQualityPicker = true
+                        if isPiPActive {
+                            pip.stopPictureInPicture()
+                        } else {
+                            pip.startPictureInPicture()
+                        }
                     } label: {
-                        Text(vm.selectedFormat?.qualityLabel ?? "Auto")
-                            .font(.callout.weight(.semibold))
-                            .foregroundStyle(.white.opacity(vm.isLoading ? 0.3 : 1))
-                            .padding(.horizontal, 10)
-                            .padding(.vertical, 6)
-                            .background(.black.opacity(0.4))
-                            .clipShape(Capsule())
-                    }
-                    .disabled(vm.isLoading)
-                }
-                // Like / Dislike buttons (requires sign-in)
-                if authService.isSignedIn {
-                    Button { vm.like() } label: {
-                        Image(systemName: vm.likeStatus == .like
-                              ? "\(AppSymbol.thumbsUp).fill"
-                              : AppSymbol.thumbsUp)
+                        Image(systemName: isPiPActive ? "pip.exit" : "pip.enter")
                             .font(.system(size: 18))
-                            .foregroundStyle(vm.likeStatus == .like ? .yellow : .white)
+                            .foregroundStyle(.white)
                             .padding(8)
                             .background(.black.opacity(0.4))
                             .clipShape(Circle())
                     }
                     .buttonStyle(.plain)
-                    Button { vm.dislike() } label: {
-                        Image(systemName: vm.likeStatus == .dislike
-                              ? "\(AppSymbol.thumbsDown).fill"
-                              : AppSymbol.thumbsDown)
-                            .font(.system(size: 18))
-                            .foregroundStyle(vm.likeStatus == .dislike ? .yellow : .white)
-                            .padding(8)
-                            .background(.black.opacity(0.4))
-                            .clipShape(Circle())
-                    }
-                    .buttonStyle(.plain)
+                    .accessibilityIdentifier("player.pipButton")
                 }
+                #endif
                 // Share / Download menu
                 Button {
                     swipeLog.notice("[menu] ... button tapped — controlsVisible=\(vm.controlsVisible, privacy: .public) showMoreMenu=\(showMoreMenu, privacy: .public)")
@@ -442,7 +427,7 @@ public struct PlayerView: View {
 
     // MARK: - Control elements
 
-    /// Pure-SwiftUI bottom sheet for the Share / Download menu.
+    /// Pure-SwiftUI bottom sheet combining all top-bar controls + Share/Download.
     /// Rendered inside the player's ZStack so no UIKit sheet presentation
     /// fires onDisappear and teardowns the action sheet mid-animation.
     private var moreMenuOverlay: some View {
@@ -453,6 +438,78 @@ public struct PlayerView: View {
                 .onTapGesture { showMoreMenu = false }
 
             VStack(spacing: 0) {
+                // Speed
+                Button {
+                    showMoreMenu = false
+                    showSpeedPicker = true
+                } label: {
+                    HStack {
+                        Label("Playback Speed", systemImage: "speedometer")
+                        Spacer()
+                        Text(store.settings.playbackSpeed == 1.0 ? "Normal"
+                             : "\(store.settings.playbackSpeed, specifier: "%.2g")×")
+                            .foregroundStyle(.secondary)
+                    }
+                    .padding()
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(.primary)
+                Divider()
+                // Quality (only when formats are available)
+                if !vm.availableFormats.isEmpty {
+                    Button {
+                        showMoreMenu = false
+                        showQualityPicker = true
+                    } label: {
+                        HStack {
+                            Label("Quality", systemImage: "4k.tv")
+                            Spacer()
+                            Text(vm.selectedFormat?.qualityLabel ?? "Auto")
+                                .foregroundStyle(.secondary)
+                        }
+                        .padding()
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(.primary)
+                    .disabled(vm.isLoading)
+                    Divider()
+                }
+                // Like / Dislike (requires sign-in)
+                if authService.isSignedIn {
+                    HStack(spacing: 0) {
+                        Button {
+                            vm.like()
+                            showMoreMenu = false
+                        } label: {
+                            Label(
+                                vm.likeStatus == .like ? "Liked" : "Like",
+                                systemImage: vm.likeStatus == .like
+                                    ? "\(AppSymbol.thumbsUp).fill" : AppSymbol.thumbsUp
+                            )
+                            .frame(maxWidth: .infinity)
+                            .padding()
+                            .foregroundStyle(vm.likeStatus == .like ? Color.accentColor : .primary)
+                        }
+                        .buttonStyle(.plain)
+                        Divider().frame(height: 44)
+                        Button {
+                            vm.dislike()
+                            showMoreMenu = false
+                        } label: {
+                            Label(
+                                vm.likeStatus == .dislike ? "Disliked" : "Dislike",
+                                systemImage: vm.likeStatus == .dislike
+                                    ? "\(AppSymbol.thumbsDown).fill" : AppSymbol.thumbsDown
+                            )
+                            .frame(maxWidth: .infinity)
+                            .padding()
+                            .foregroundStyle(vm.likeStatus == .dislike ? Color.accentColor : .primary)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                    Divider()
+                }
+                // Share
                 Button {
                     if let url = URL(string: "https://www.youtube.com/watch?v=\(currentVideo.id)") {
                         shareItem = IdentifiableURL(url: url)
@@ -466,6 +523,7 @@ public struct PlayerView: View {
                 .buttonStyle(.plain)
                 .foregroundStyle(.primary)
                 Divider()
+                // Download
                 Button {
                     showMoreMenu = false
                     downloadService.updateAuthToken(authService.accessToken)
@@ -848,6 +906,7 @@ struct StatsForNerdsOverlay: View {
 /// with the UIKit accessibility tree so SwiftUI overlays remain reachable.
 private struct AVPlayerLayerView: UIViewRepresentable {
     let player: AVPlayer?
+    var onLayerReady: ((AVPlayerLayer) -> Void)? = nil
 
     func makeUIView(context: Context) -> _PlayerUIView {
         let view = _PlayerUIView()
@@ -856,6 +915,7 @@ private struct AVPlayerLayerView: UIViewRepresentable {
         view.accessibilityElementsHidden = true
         view.playerLayer.player = player
         view.playerLayer.videoGravity = .resizeAspect
+        view.onLayerReady = onLayerReady
         return view
     }
 
@@ -866,6 +926,39 @@ private struct AVPlayerLayerView: UIViewRepresentable {
     final class _PlayerUIView: UIView {
         override static var layerClass: AnyClass { AVPlayerLayer.self }
         var playerLayer: AVPlayerLayer { layer as! AVPlayerLayer }
+        var onLayerReady: ((AVPlayerLayer) -> Void)?
+        private var didFireCallback = false
+
+        override func willMove(toWindow newWindow: UIWindow?) {
+            super.willMove(toWindow: newWindow)
+            guard newWindow != nil, !didFireCallback else { return }
+            didFireCallback = true
+            // Defer to next run-loop tick so the layer has a non-zero frame.
+            DispatchQueue.main.async { [weak self] in
+                guard let self else { return }
+                self.onLayerReady?(self.playerLayer)
+            }
+        }
+    }
+}
+
+// MARK: - PiPDelegate
+
+/// Minimal AVPictureInPictureControllerDelegate that notifies a SwiftUI
+/// closure when PiP starts or stops so @State can be updated reactively.
+private final class PiPDelegate: NSObject, AVPictureInPictureControllerDelegate {
+    private let onActiveChange: (Bool) -> Void
+
+    init(onActiveChange: @escaping (Bool) -> Void) {
+        self.onActiveChange = onActiveChange
+    }
+
+    func pictureInPictureControllerDidStartPictureInPicture(_ controller: AVPictureInPictureController) {
+        onActiveChange(true)
+    }
+
+    func pictureInPictureControllerDidStopPictureInPicture(_ controller: AVPictureInPictureController) {
+        onActiveChange(false)
     }
 }
 

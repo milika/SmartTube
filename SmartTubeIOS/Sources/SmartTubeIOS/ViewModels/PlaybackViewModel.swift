@@ -4,6 +4,7 @@ import Observation
 import os
 #if canImport(UIKit)
 import UIKit
+import MediaPlayer
 #endif
 import SmartTubeIOSCore
 
@@ -95,6 +96,12 @@ public final class PlaybackViewModel {
     /// Tracks the in-flight loadAsync so it can be cancelled if load() is called again.
     private var loadTask: Task<Void, Never>?
 
+    // MARK: - Now Playing cache
+    // Never read nowPlayingInfo back from MPNowPlayingInfoCenter — doing a
+    // read-modify-write while MediaPlayer is processing on its accessQueue
+    // causes EXC_BREAKPOINT. Mirror the dict locally instead.
+    @ObservationIgnored private var nowPlayingInfoCache: [String: Any] = [:]
+
     // MARK: - Dependencies
 
     private let api: InnerTubeAPI
@@ -112,7 +119,18 @@ public final class PlaybackViewModel {
         self.sponsorBlock = sponsorBlock
         self.deArrow = deArrow
         self.settings = settings
+        #if canImport(UIKit)
+        do {
+            try AVAudioSession.sharedInstance().setCategory(.playback, mode: .moviePlayback)
+            try AVAudioSession.sharedInstance().setActive(true)
+        } catch {
+            playerLog.error("AVAudioSession setup failed: \(error.localizedDescription, privacy: .public)")
+        }
+        #endif
         setupTimeObserver()
+        #if canImport(UIKit)
+        setupRemoteCommandCenter()
+        #endif
     }
 
     deinit {
@@ -170,6 +188,9 @@ public final class PlaybackViewModel {
         player.pause()
         isPlaying = false
         controlsTimer?.cancel()
+        #if canImport(UIKit)
+        updateNowPlayingPlayback()
+        #endif
     }
 
     /// Resumes playback after a `suspend()`. If the player has no current item
@@ -183,6 +204,9 @@ public final class PlaybackViewModel {
         player.play()
         isPlaying = true
         showControls()
+        #if canImport(UIKit)
+        updateNowPlayingPlayback()
+        #endif
     }
 
     private func loadAsync(video: Video) async {
@@ -313,6 +337,7 @@ public final class PlaybackViewModel {
             isPlaying = true
             #if canImport(UIKit)
             UIApplication.shared.isIdleTimerDisabled = true
+            updateNowPlayingInfo()
             #endif
             scheduleControlsHide()
         } catch {
@@ -580,6 +605,9 @@ public final class PlaybackViewModel {
         if isPlaying { player.pause() } else { player.play() }
         isPlaying.toggle()
         showControls()
+        #if canImport(UIKit)
+        updateNowPlayingPlayback()
+        #endif
     }
 
     // MARK: - Scrubbing (slider drag)
@@ -788,8 +816,115 @@ public final class PlaybackViewModel {
         #endif
         controlsTimer?.cancel()
         seekDebounceTask?.cancel()
+        #if canImport(UIKit)
+        clearNowPlayingInfo()
+        #endif
     }
 }
+
+// MARK: - Now Playing (lock screen + Dynamic Island)
+
+#if canImport(UIKit)
+private extension PlaybackViewModel {
+
+    func setupRemoteCommandCenter() {
+        let center = MPRemoteCommandCenter.shared()
+
+        center.playCommand.addTarget { [weak self] _ in
+            Task { @MainActor [weak self] in
+                self?.player.play()
+                self?.isPlaying = true
+                self?.updateNowPlayingPlayback()
+            }
+            return .success
+        }
+        center.pauseCommand.addTarget { [weak self] _ in
+            Task { @MainActor [weak self] in
+                self?.player.pause()
+                self?.isPlaying = false
+                self?.updateNowPlayingPlayback()
+            }
+            return .success
+        }
+        center.togglePlayPauseCommand.addTarget { [weak self] _ in
+            Task { @MainActor [weak self] in self?.togglePlayPause() }
+            return .success
+        }
+        center.skipForwardCommand.preferredIntervals = [10]
+        center.skipForwardCommand.addTarget { [weak self] event in
+            let interval = (event as? MPSkipIntervalCommandEvent)?.interval ?? 10
+            Task { @MainActor [weak self] in self?.seekRelative(seconds: interval) }
+            return .success
+        }
+        center.skipBackwardCommand.preferredIntervals = [10]
+        center.skipBackwardCommand.addTarget { [weak self] event in
+            let interval = (event as? MPSkipIntervalCommandEvent)?.interval ?? 10
+            Task { @MainActor [weak self] in self?.seekRelative(seconds: -interval) }
+            return .success
+        }
+        center.changePlaybackPositionCommand.addTarget { [weak self] event in
+            let position = (event as? MPChangePlaybackPositionCommandEvent)?.positionTime ?? 0
+            Task { @MainActor [weak self] in self?.seek(to: position) }
+            return .success
+        }
+    }
+
+    func updateNowPlayingInfo() {
+        let video = playerInfo?.video ?? currentVideo
+        guard let video else {
+            nowPlayingInfoCache = [:]
+            setNowPlayingInfo(nil)
+            return
+        }
+        var info: [String: Any] = [
+            MPMediaItemPropertyTitle: video.title,
+            MPMediaItemPropertyArtist: video.channelTitle,
+            MPNowPlayingInfoPropertyMediaType: NSNumber(value: MPNowPlayingInfoMediaType.video.rawValue),
+            MPNowPlayingInfoPropertyIsLiveStream: NSNumber(value: video.isLive),
+            MPNowPlayingInfoPropertyElapsedPlaybackTime: NSNumber(value: currentTime),
+            MPNowPlayingInfoPropertyPlaybackRate: NSNumber(value: isPlaying ? Double(player.rate) : 0.0),
+        ]
+        if duration > 0 {
+            info[MPMediaItemPropertyPlaybackDuration] = NSNumber(value: duration)
+        }
+        nowPlayingInfoCache = info
+        setNowPlayingInfo(nowPlayingInfoCache)
+
+        if let thumbnailURL = video.thumbnailURL {
+            Task {
+                guard let data = try? await URLSession.shared.data(from: thumbnailURL).0,
+                      let image = UIImage(data: data) else { return }
+                let size = image.size
+                let artwork = MPMediaItemArtwork(boundsSize: size) { _ in image }
+                // Update our local cache and push to MediaPlayer on DispatchQueue.main.
+                self.nowPlayingInfoCache[MPMediaItemPropertyArtwork] = artwork
+                self.setNowPlayingInfo(self.nowPlayingInfoCache)
+            }
+        }
+    }
+
+    func updateNowPlayingPlayback() {
+        nowPlayingInfoCache[MPNowPlayingInfoPropertyElapsedPlaybackTime] = NSNumber(value: currentTime)
+        nowPlayingInfoCache[MPNowPlayingInfoPropertyPlaybackRate] = NSNumber(value: isPlaying ? Double(player.rate) : 0.0)
+        setNowPlayingInfo(nowPlayingInfoCache)
+    }
+
+    func clearNowPlayingInfo() {
+        nowPlayingInfoCache = [:]
+        setNowPlayingInfo(nil)
+    }
+
+    /// All writes to `MPNowPlayingInfoCenter` go through here.
+    /// MediaPlayer's legacy accessQueue asserts `DispatchQueue.main`;
+    /// Swift concurrency's `@MainActor` does NOT satisfy that after an `await`.
+    private func setNowPlayingInfo(_ info: [String: Any]?) {
+        let captured = info
+        DispatchQueue.main.async {
+            MPNowPlayingInfoCenter.default().nowPlayingInfo = captured
+        }
+    }
+}
+#endif
 
 // MARK: - StatsForNerdsSnapshot
 

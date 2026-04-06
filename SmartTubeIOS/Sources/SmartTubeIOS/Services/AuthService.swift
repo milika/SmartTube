@@ -58,6 +58,12 @@ public final class AuthService {
     private let scope = "http://gdata.youtube.com https://www.googleapis.com/auth/youtube-paid-content"
     private var tokenRefreshTask: Task<Void, Never>?
 
+    // State persisted across foreground/background transitions so that the
+    // poll loop can be restarted without re-requesting a device code.
+    private var currentDeviceCode: String?
+    private var currentInterval: TimeInterval = 5
+    private var currentCreds: YouTubeClientCredentials?
+
     private let tokenKey   = "st_access_token"
     private let refreshKey = "st_refresh_token"
     private let expiryKey  = "st_token_expiry"
@@ -111,6 +117,9 @@ public final class AuthService {
 
             // Step 2 – start polling in the background
             let interval = max(TimeInterval(deviceResponse.interval), 5)
+            currentDeviceCode = deviceResponse.deviceCode
+            currentInterval   = interval
+            currentCreds      = creds
             pollTask = Task { [weak self] in
                 await self?.pollForToken(deviceCode: deviceResponse.deviceCode,
                                          interval: interval,
@@ -127,6 +136,25 @@ public final class AuthService {
         pollTask?.cancel()
         pollTask = nil
         pendingActivation = nil
+        currentDeviceCode = nil
+        currentCreds      = nil
+    }
+
+    /// Call when the app returns to the foreground while a sign-in is in progress.
+    /// Cancels any stale (possibly iOS-suspended) poll task and immediately fires
+    /// a new poll so the user is signed in the moment they switch back from Chrome.
+    public func handleForeground() {
+        guard let pending = pendingActivation, pending.expiresAt > Date() else { return }
+        guard let deviceCode = currentDeviceCode, let creds = currentCreds else { return }
+        authLog.notice("handleForeground() — restarting poll immediately")
+        pollTask?.cancel()
+        let interval = currentInterval
+        pollTask = Task { [weak self] in
+            await self?.pollForToken(deviceCode: deviceCode,
+                                     interval: interval,
+                                     creds: creds,
+                                     pollImmediately: true)
+        }
     }
 
     /// Refreshes the access token now if it has expired or will expire within the next 5 minutes.
@@ -234,10 +262,20 @@ public final class AuthService {
 
     // MARK: - Polling
 
-    private func pollForToken(deviceCode: String, interval: TimeInterval, creds: YouTubeClientCredentials) async {
-        authLog.notice("Starting poll loop (interval \(Int(interval), privacy: .public)s)")
+    private func pollForToken(
+        deviceCode: String,
+        interval: TimeInterval,
+        creds: YouTubeClientCredentials,
+        pollImmediately: Bool = false
+    ) async {
+        authLog.notice("Starting poll loop (interval \(Int(interval), privacy: .public)s, immediate=\(pollImmediately, privacy: .public))")
+        var skipInitialSleep = pollImmediately
         while !Task.isCancelled {
-            try? await Task.sleep(nanoseconds: UInt64(interval * 1_000_000_000))
+            if skipInitialSleep {
+                skipInitialSleep = false
+            } else {
+                try? await Task.sleep(nanoseconds: UInt64(interval * 1_000_000_000))
+            }
             guard !Task.isCancelled else { return }
 
             do {
@@ -255,6 +293,13 @@ public final class AuthService {
             } catch AuthError.slowDown {
                 authLog.notice("slow_down received — waiting extra 5s")
                 try? await Task.sleep(nanoseconds: UInt64(5 * 1_000_000_000))
+                continue
+            } catch let urlError as URLError {
+                // Transient network failure — commonly triggered when iOS suspends
+                // the in-flight URLSession request after the app is backgrounded
+                // (e.g. while the user approves in Chrome).  Keep the loop alive
+                // so the next foreground trigger or timer tick can succeed.
+                authLog.notice("Network error during poll (transient, retrying): \(urlError.localizedDescription, privacy: .public)")
                 continue
             } catch {
                 authLog.error("❌ Poll error: \(String(describing: error), privacy: .public)")

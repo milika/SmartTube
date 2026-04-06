@@ -22,7 +22,10 @@ struct SmartTubeApp: App {
         }
         .onChange(of: scenePhase) { _, phase in
             if phase == .active {
-                Task { await authService.refreshIfNeeded() }
+                Task {
+                    await authService.refreshIfNeeded()
+                    authService.handleForeground()
+                }
             }
         }
         #if os(macOS)
