@@ -63,6 +63,13 @@ public struct AppSettings: Codable {
     // MARK: DeArrow
     public var deArrowEnabled: Bool
 
+    // MARK: YouTube link interception
+    /// When `true`, SmartTube registers as a handler for `youtube://` and
+    /// `vnd.youtube://` deeplinks and opens them in-app instead of the
+    /// official YouTube app. Requires the URL schemes to be registered in
+    /// Info.plist (which they are once the user enables this).
+    public var overrideYouTubeLinks: Bool
+
     // MARK: Types
 
     /// Canonical ordered list of selectable playback speeds — single source of truth.
@@ -148,5 +155,6 @@ public struct AppSettings: Codable {
         sponsorBlockMinSegmentDuration = 0
         sponsorBlockExcludedChannels   = [:]
         deArrowEnabled       = false
+        overrideYouTubeLinks = false
     }
 }

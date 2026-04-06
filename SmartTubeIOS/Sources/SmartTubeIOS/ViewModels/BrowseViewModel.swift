@@ -24,6 +24,9 @@ public final class BrowseViewModel {
     public var error: Error?
     /// True when the current section requires authentication and the user is not signed in.
     public private(set) var isAuthRequired: Bool = false
+    /// A video to open immediately via deeplink / URL interception.
+    /// Cleared by the UI after the player is presented.
+    public var deepLinkedVideo: Video?
 
     // MARK: - Dependencies
 

@@ -30,6 +30,9 @@ struct AppEntry: App {
                 .onChange(of: settingsStore.settings.enabledSections) { _, newSections in
                     browseViewModel.configureSections(newSections)
                 }
+                .onOpenURL { url in
+                    handleOpenURL(url)
+                }
         }
         .defaultSize(width: 1280, height: 800)
 
@@ -56,9 +59,22 @@ struct AppEntry: App {
                     .onChange(of: settingsStore.settings.enabledSections) { _, newSections in
                         browseViewModel.configureSections(newSections)
                     }
+                    .onOpenURL { url in
+                        handleOpenURL(url)
+                    }
             }
         }
         #endif
+    }
+
+    // MARK: - URL handling
+
+    @MainActor
+    private func handleOpenURL(_ url: URL) {
+        // Only intercept when the user has opted in.
+        guard settingsStore.settings.overrideYouTubeLinks else { return }
+        guard let videoID = YouTubeLinkHandler.videoID(from: url) else { return }
+        browseViewModel.deepLinkedVideo = Video(id: videoID, title: "", channelTitle: "")
     }
 
     // MARK: - Stub data for UI testing

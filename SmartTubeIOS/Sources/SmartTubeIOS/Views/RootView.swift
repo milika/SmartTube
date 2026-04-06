@@ -8,10 +8,12 @@ import SwiftUI
 public struct RootView: View {
     @Environment(AuthService.self) private var auth
     @Environment(SettingsStore.self) private var store
+    @Environment(BrowseViewModel.self) private var browseVM
 
     public init() {}
 
     public var body: some View {
+        @Bindable var browseVM = browseVM
         Group {
             #if os(macOS)
             MainSidebarView()
@@ -24,6 +26,11 @@ public struct RootView: View {
             // Sign-in prompt is shown as a dismissible sheet so users
             // can still browse without being signed in.
             SignInView()
+        }
+        .fullScreenCover(item: $browseVM.deepLinkedVideo) { video in
+            PlayerView(video: video)
+                .environment(store)
+                .environment(auth)
         }
     }
 
