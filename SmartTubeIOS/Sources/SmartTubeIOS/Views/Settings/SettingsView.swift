@@ -82,6 +82,23 @@ public struct SettingsView: View {
                 step: 5
             )
 
+            Picker("Hide Controls After", selection: $store.settings.controlsHideTimeout) {
+                Text("2s").tag(2)
+                Text("3s").tag(3)
+                Text("4s").tag(4)
+                Text("5s").tag(5)
+                Text("8s").tag(8)
+                Text("10s").tag(10)
+            }
+
+            Picker("Video Fit", selection: $store.settings.videoGravityMode) {
+                Text("Fit (letterbox)").tag(AppSettings.VideoGravityMode.fit)
+                Text("Fill (crop)").tag(AppSettings.VideoGravityMode.fill)
+            }
+
+            Toggle("Loop Video", isOn: $store.settings.loopEnabled)
+            Toggle("Shuffle", isOn: $store.settings.shuffleEnabled)
+
             Toggle("Autoplay next video", isOn: $store.settings.autoplayEnabled)
             Toggle("Subtitles", isOn: $store.settings.subtitlesEnabled)
             Toggle("Background Playback", isOn: $store.settings.backgroundPlaybackEnabled)

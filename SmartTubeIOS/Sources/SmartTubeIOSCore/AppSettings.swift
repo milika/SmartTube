@@ -16,6 +16,21 @@ public struct AppSettings: Codable {
     public var seekBackSeconds: Int
     /// Seconds to seek forward (configurable; default 30 mirrors Android's default).
     public var seekForwardSeconds: Int
+    /// Seconds before the player controls auto-hide after the last interaction.
+    /// Mirrors Android's `PlayerData.controlsHideTimeoutMs`. Default: 4.
+    public var controlsHideTimeout: Int
+
+    /// Whether the video should fill the screen (cropping sides) or fit within bounds.
+    public enum VideoGravityMode: String, Codable, CaseIterable, Sendable {
+        case fit  = "fit"   // resizeAspect — letterbox/pillarbox
+        case fill = "fill"  // resizeAspectFill — crops to fill
+    }
+    public var videoGravityMode: VideoGravityMode
+
+    /// When `true`, the current video replays from the start instead of advancing.
+    public var loopEnabled: Bool
+    /// When `true`, autoplay picks a random video from the related-videos list.
+    public var shuffleEnabled: Bool
 
     // MARK: UI
     public var defaultSection: String
@@ -133,6 +148,10 @@ public struct AppSettings: Codable {
         backgroundPlaybackEnabled = false
         seekBackSeconds      = 10
         seekForwardSeconds   = 30
+        controlsHideTimeout  = 4
+        videoGravityMode     = .fit
+        loopEnabled          = false
+        shuffleEnabled       = false
         defaultSection       = BrowseSection.SectionType.home.rawValue
         compactThumbnails    = false
         hideShorts           = false

@@ -248,22 +248,34 @@ Added `SponsorBlockAction` enum (`.skip`, `.showToast`, `.nothing`) to `AppSetti
 
 ## Phase 4 — Settings Alignment
 
-### 4.1 Player settings expansion
+### 4.1 Player settings expansion ✅
 Add missing player settings following Android's `PlayerData`:
-- Controls auto-hide timeout
-- Resize/zoom mode
-- Seek increments (configurable forward/back)
-- Sleep timer
-- Playback mode (loop, shuffle)
+- Controls auto-hide timeout ✅
+- Resize/zoom mode ✅
+- Seek increments (configurable forward/back) ✅
+- Sleep timer ✅
+- Playback mode (loop, shuffle) ✅
 
-**Files:** `AppSettings.swift`, `SettingsView.swift`
+**Files:** `AppSettings.swift`, `SettingsView.swift`, `PlaybackViewModel.swift`, `PlayerView.swift`
 
-### 4.2 General settings expansion
+**How it was done:**
+Added `controlsHideTimeout: Int` (default 4, range 2–10 s), `VideoGravityMode` enum (`.fit` / `.fill`), `videoGravityMode: VideoGravityMode` (default `.fit`), `loopEnabled: Bool` (default `false`), and `shuffleEnabled: Bool` (default `false`) to `AppSettings`.
+
+`PlaybackViewModel.scheduleControlsHide()` now uses `settings.controlsHideTimeout` instead of the hardcoded 4 s. `handlePlaybackEnd()` checks `loopEnabled` first (seeks to `.zero` and replays), then `shuffleEnabled` (picks a random video from `relatedVideos`), then falls through to normal autoplay. Added `sleepTimerMinutes: Int?` observable state and `setSleepTimer(minutes:)` which launches a Task that pauses the player after the given duration and clears itself; `PlaybackViewModel.sleepTimerOptions = [15, 30, 45, 60]`.
+
+`AVPlayerLayerView` gained a `videoGravity: AVLayerVideoGravity` parameter (default `.resizeAspect`) applied in both `makeUIView` and `updateUIView`. `PlayerView` passes `store.settings.videoGravityMode.avGravity` (mapped via a private extension). The More-menu gained a `Menu`-style "Sleep Timer" row showing the active duration or "Off".
+
+`SettingsView.playerSection` added: "Hide Controls After" Picker (2/3/4/5/8/10 s), "Video Fit" Picker (Fit / Fill), "Loop Video" Toggle, "Shuffle" Toggle.
+
+### 4.2 General settings expansion 🛧
 Following Android's `GeneralData`:
-- History state control (auto/enabled/disabled)
-- Background playback shortcut behavior
+- History state control (auto/enabled/disabled) 🔲
+- Background playback toggle ✅
 
 **Files:** `AppSettings.swift`, `SettingsView.swift`
+
+**How it was done (background playback):**
+Added `backgroundPlaybackEnabled: Bool` (default `false`) to `AppSettings`. `SettingsView` exposes a `Toggle("Background Playback", isOn: $store.settings.backgroundPlaybackEnabled)`. `PlaybackViewModel` / `AVPlayer` respect this setting to allow audio to continue when the app is backgrounded.
 
 ### 4.3 Search settings
 Following Android's `SearchData`:
@@ -324,19 +336,24 @@ Added `sponsorBlockMinSegmentDuration: Double` (default 0 = off) and `sponsorBlo
 ### 5.5 Subscribe/Unsubscribe
 Add InnerTube `/subscription/subscribe` and `/subscription/unsubscribe` endpoints.
 
-### 5.6 Share video
+### 5.6 Share video ✅
 Add system share sheet with YouTube URL.
+
+**How it was done:**
+Added a `ShareLink(item: URL("https://www.youtube.com/watch?v=\(video.id)"))` action inside the `.contextMenu` modifier on `VideoCardView` (both grid and compact layouts). `PlayerView` also exposes a "Share" button in its overflow/more menu that calls `presentShareSheet(url:)` using the same YouTube watch URL.
 
 ---
 
 ## Phase 6 — Persistence & Security Upgrades
 
-### 6.1 Keychain migration
-**Current:** Tokens stored in UserDefaults (insecure).
-**Fix:** Migrate to Keychain using Security framework.
+### 6.1 Keychain migration ✅
+**How it was done:**
+Tokens were never persisted to UserDefaults in shipping code. `AuthService` stores all credentials exclusively in the iOS/macOS Keychain via `SecItemAdd` / `SecItemCopyMatching` / `SecItemDelete` helpers (`keychainSet`, `keychainGet`, `keychainDelete`). Keys used: `st_access_token`, `st_refresh_token`, `st_token_expiry`, `st_account_name`, `st_avatar_url` — all with `kSecAttrAccessibleAfterFirstUnlock`. `saveToKeychain()` is called on every auth state change; `loadFromKeychain()` is called on init.
 
-### 6.2 Watch history persistence
-Use a local database (SwiftData or JSON file) for watch history and video state.
+### 6.2 Watch history persistence 🛧
+**What's done:** Per-video resume position is persisted via `VideoStateStore` (JSON in UserDefaults key `st_video_states`, auto-pruned to 1,000 entries). Positions < 5 s or > 95% duration are not stored. Position is restored when the player loads the same video.
+
+**What remains:** A true watch-history list (recently watched videos with thumbnail/title/timestamp, browseable in a dedicated screen) is not yet implemented. This would require a separate `WatchHistoryStore` backed by SwiftData or a JSON file, plus a History section in the Browse sidebar.
 
 ---
 
@@ -347,9 +364,9 @@ Phase 0 (Critical):    0.1 → 0.3 → 0.2 → 0.4
 Phase 1 (Core):        1.1 → 1.3 → 1.2 → 1.5 → 1.4
 Phase 2 (Sections):    2.1 → 2.2
 Phase 3 (Playback):    3.2 → 3.1 → 3.3 → 3.5 → 3.4
-Phase 4 (Settings):    4.4 → 4.1 → 4.2 → 4.3
-Phase 5 (Advanced):    5.6 → 5.3 → 5.2 → 5.1 → 5.5 → 5.4
-Phase 6 (Security):    6.1 → 6.2
+Phase 4 (Settings):    4.4✅ → 4.1✅ → 4.2🛧(bg✅, history🔲) → 4.3🔲
+Phase 5 (Advanced):    5.6✅ → 5.3🔲 → 5.2🔲 → 5.1🔲 → 5.5🔲 → 5.4🔲
+Phase 6 (Security):    6.1✅ → 6.2🛧
 ```
 
 ---

@@ -7,13 +7,13 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		AA01000000000000000000A4 /* ShareViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA01000000000000000000A1 /* ShareViewController.swift */; };
-		AA01000000000000000000A5 /* SmartTubeIOSCore in Frameworks */ = {isa = PBXBuildFile; productRef = AA01000000000000000000B1 /* SmartTubeIOSCore */; };
-		AA01000000000000000000A6 /* SmartTubeShareExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = AA01000000000000000000A3 /* SmartTubeShareExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		03863DDC82B3DC452E915BF7 /* DownloadLiveActivity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 46FAE8C7AB41057B392DF731 /* DownloadLiveActivity.swift */; };
 		06412259452CCFBF300F2D4B /* SmartTubeIOS in Frameworks */ = {isa = PBXBuildFile; productRef = B8401470D9A590E7F3685830 /* SmartTubeIOS */; };
 		494A17316084B602873D7C05 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = AE55B486AFD7F51FEF1874FF /* Assets.xcassets */; };
 		673C1D012F7F20340021583B /* Launch Screen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 673C1D002F7F20340021583B /* Launch Screen.storyboard */; };
+		AA01000000000000000000A4 /* ShareViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA01000000000000000000A1 /* ShareViewController.swift */; };
+		AA01000000000000000000A5 /* SmartTubeIOSCore in Frameworks */ = {isa = PBXBuildFile; productRef = AA01000000000000000000B1 /* SmartTubeIOSCore */; };
+		AA01000000000000000000A6 /* SmartTubeShareExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = AA01000000000000000000A3 /* SmartTubeShareExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		B0C1D2E3F4A5B6C7D8E9F0A1 /* ShortsNavigationUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A9B0C1D2E3F4A5B6C7D8E9F0 /* ShortsNavigationUITests.swift */; };
 		C1D2E3F4A5B6C7D8E9F0A1B2 /* PlayerNavigationUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2C3D4E5F6A7B8C9D0E1F2A3 /* PlayerNavigationUITests.swift */; };
 		CD550C82FB83F1B06A867F3F /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 161D597B9340722805A04592 /* Foundation.framework */; };
@@ -27,13 +27,6 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
-		AA01000000000000000000AF /* PBXContainerItemProxy */ = {
-			isa = PBXContainerItemProxy;
-			containerPortal = CF958B49C3E80CFAE3F092E3 /* Project object */;
-			proxyType = 1;
-			remoteGlobalIDString = AA01000000000000000000A7;
-			remoteInfo = SmartTubeShareExtension;
-		};
 		49607BD3D63D4720113FA32C /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = CF958B49C3E80CFAE3F092E3 /* Project object */;
@@ -47,6 +40,13 @@
 			proxyType = 1;
 			remoteGlobalIDString = 5A4C56D3A7C36BE68C3C3CE0;
 			remoteInfo = SmartTube;
+		};
+		AA01000000000000000000AF /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = CF958B49C3E80CFAE3F092E3 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = AA01000000000000000000A7;
+			remoteInfo = SmartTubeShareExtension;
 		};
 /* End PBXContainerItemProxy section */
 
@@ -66,11 +66,6 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
-		AA01000000000000000000A1 /* ShareViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShareViewController.swift; sourceTree = "<group>"; };
-		AA01000000000000000000A2 /* ShareExtension/Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
-		AA01000000000000000000C1 /* SmartTubeApp.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = SmartTubeApp.entitlements; sourceTree = "<group>"; };
-		AA01000000000000000000C2 /* SmartTubeShareExtension.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = SmartTubeShareExtension.entitlements; sourceTree = "<group>"; };
-		AA01000000000000000000A3 /* SmartTubeShareExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = SmartTubeShareExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		161D597B9340722805A04592 /* Foundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Foundation.framework; path = Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS18.0.sdk/System/Library/Frameworks/Foundation.framework; sourceTree = DEVELOPER_DIR; };
 		29356C9641042E3DA5F16175 /* AppEntry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppEntry.swift; sourceTree = "<group>"; };
 		43AC502830145DD05002B5A2 /* PlaylistsNavigationUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaylistsNavigationUITests.swift; sourceTree = "<group>"; };
@@ -79,6 +74,11 @@
 		6ACA5CEA633CF065619F786C /* SmartTube.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = SmartTube.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		79E77E6DD18B12CA7A5341D0 /* SmartTubeDownloadWidget.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = SmartTubeDownloadWidget.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		A9B0C1D2E3F4A5B6C7D8E9F0 /* ShortsNavigationUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShortsNavigationUITests.swift; sourceTree = "<group>"; };
+		AA01000000000000000000A1 /* ShareViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShareViewController.swift; sourceTree = "<group>"; };
+		AA01000000000000000000A2 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		AA01000000000000000000A3 /* SmartTubeShareExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = SmartTubeShareExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		AA01000000000000000000C1 /* SmartTubeApp.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = SmartTubeApp.entitlements; sourceTree = "<group>"; };
+		AA01000000000000000000C2 /* SmartTubeShareExtension.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = SmartTubeShareExtension.entitlements; sourceTree = "<group>"; };
 		AE55B486AFD7F51FEF1874FF /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		B2C3D4E5F6A7B8C9D0E1F2A3 /* PlayerNavigationUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlayerNavigationUITests.swift; sourceTree = "<group>"; };
 		B7482B081D440A26079AA9BC /* SmartTubeIOS */ = {isa = PBXFileReference; lastKnownFileType = folder; name = SmartTubeIOS; path = ../SmartTubeIOS; sourceTree = SOURCE_ROOT; };
@@ -98,20 +98,20 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		AA01000000000000000000A9 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				AA01000000000000000000A5 /* SmartTubeIOSCore in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		B6C0B99892FC28B6BAE2EEE7 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
 				CD550C82FB83F1B06A867F3F /* Foundation.framework in Frameworks */,
 				F1CDC40190BFE18C52E5AD1B /* SmartTubeIOSCore in Frameworks */,
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-		AA01000000000000000000A9 /* Frameworks */ = {
-			isa = PBXFrameworksBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-				AA01000000000000000000A5 /* SmartTubeIOSCore in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -199,22 +199,22 @@
 			name = Frameworks;
 			sourceTree = "<group>";
 		};
+		AA01000000000000000000AE /* ShareExtension */ = {
+			isa = PBXGroup;
+			children = (
+				AA01000000000000000000A1 /* ShareViewController.swift */,
+				AA01000000000000000000A2 /* Info.plist */,
+				AA01000000000000000000C2 /* SmartTubeShareExtension.entitlements */,
+			);
+			path = ShareExtension;
+			sourceTree = "<group>";
+		};
 		D1E07E1C2FBB3A95D6BDC0EF /* Packages */ = {
 			isa = PBXGroup;
 			children = (
 				B7482B081D440A26079AA9BC /* SmartTubeIOS */,
 			);
 			name = Packages;
-			sourceTree = "<group>";
-		};
-		AA01000000000000000000AE /* ShareExtension */ = {
-			isa = PBXGroup;
-			children = (
-				AA01000000000000000000A1 /* ShareViewController.swift */,
-				AA01000000000000000000A2 /* ShareExtension/Info.plist */,
-				AA01000000000000000000C2 /* SmartTubeShareExtension.entitlements */,
-			);
-			path = ShareExtension;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -368,6 +368,14 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
+		AA01000000000000000000A8 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				AA01000000000000000000A4 /* ShareViewController.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		B3C0A889127D7404950A6815 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -397,14 +405,6 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		AA01000000000000000000A8 /* Sources */ = {
-			isa = PBXSourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-				AA01000000000000000000A4 /* ShareViewController.swift in Sources */,
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
@@ -414,16 +414,16 @@
 			target = 92FF8ABD9CCECACCB7D9D2F1 /* SmartTubeDownloadWidget */;
 			targetProxy = 49607BD3D63D4720113FA32C /* PBXContainerItemProxy */;
 		};
-		E375F1AE8C8F1602CC3963FA /* PBXTargetDependency */ = {
-			isa = PBXTargetDependency;
-			target = 5A4C56D3A7C36BE68C3C3CE0 /* SmartTube */;
-			targetProxy = 5B9FD798A2B61FB0B894387A /* PBXContainerItemProxy */;
-		};
 		AA01000000000000000000B0 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
 			name = SmartTubeShareExtension;
 			target = AA01000000000000000000A7 /* SmartTubeShareExtension */;
 			targetProxy = AA01000000000000000000AF /* PBXContainerItemProxy */;
+		};
+		E375F1AE8C8F1602CC3963FA /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 5A4C56D3A7C36BE68C3C3CE0 /* SmartTube */;
+			targetProxy = 5B9FD798A2B61FB0B894387A /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
@@ -495,7 +495,7 @@
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 19;
+				CURRENT_PROJECT_VERSION = 21;
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
@@ -630,6 +630,57 @@
 			};
 			name = Release;
 		};
+		AA01000000000000000000AB /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CODE_SIGN_ENTITLEMENTS = ShareExtension/SmartTubeShareExtension.entitlements;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = 5A4JA438MW;
+				INFOPLIST_FILE = ShareExtension/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.void.smarttube.app.shareextension;
+				PRODUCT_NAME = SmartTubeShareExtension;
+				SDKROOT = iphoneos;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SWIFT_VERSION = 5.9;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		AA01000000000000000000AC /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CODE_SIGN_ENTITLEMENTS = ShareExtension/SmartTubeShareExtension.entitlements;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = 5A4JA438MW;
+				INFOPLIST_FILE = ShareExtension/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.void.smarttube.app.shareextension;
+				PRODUCT_NAME = SmartTubeShareExtension;
+				SDKROOT = iphoneos;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SWIFT_VERSION = 5.9;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
 		B114FDA1A112D6CFA1203000 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -697,7 +748,7 @@
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 19;
+				CURRENT_PROJECT_VERSION = 21;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
@@ -717,57 +768,6 @@
 				SWIFT_COMPILATION_MODE = wholemodule;
 				SWIFT_OPTIMIZATION_LEVEL = "-O";
 				SWIFT_VERSION = 5.0;
-			};
-			name = Release;
-		};
-		AA01000000000000000000AB /* Debug */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				APPLICATION_EXTENSION_API_ONLY = YES;
-				CODE_SIGN_ENTITLEMENTS = ShareExtension/SmartTubeShareExtension.entitlements;
-				CODE_SIGN_IDENTITY = "iPhone Developer";
-				CODE_SIGN_STYLE = Automatic;
-				DEVELOPMENT_TEAM = 5A4JA438MW;
-				INFOPLIST_FILE = ShareExtension/Info.plist;
-				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
-				LD_RUNPATH_SEARCH_PATHS = (
-					"$(inherited)",
-					"@executable_path/Frameworks",
-					"@executable_path/../../Frameworks",
-				);
-				PRODUCT_BUNDLE_IDENTIFIER = com.void.smarttube.app.shareextension;
-				PRODUCT_NAME = SmartTubeShareExtension;
-				SDKROOT = iphoneos;
-				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
-				SUPPORTS_MACCATALYST = NO;
-				SWIFT_VERSION = 5.9;
-				TARGETED_DEVICE_FAMILY = "1,2";
-			};
-			name = Debug;
-		};
-		AA01000000000000000000AC /* Release */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				APPLICATION_EXTENSION_API_ONLY = YES;
-				CODE_SIGN_ENTITLEMENTS = ShareExtension/SmartTubeShareExtension.entitlements;
-				CODE_SIGN_IDENTITY = "iPhone Developer";
-				CODE_SIGN_STYLE = Automatic;
-				DEVELOPMENT_TEAM = 5A4JA438MW;
-				INFOPLIST_FILE = ShareExtension/Info.plist;
-				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
-				LD_RUNPATH_SEARCH_PATHS = (
-					"$(inherited)",
-					"@executable_path/Frameworks",
-					"@executable_path/../../Frameworks",
-				);
-				PRODUCT_BUNDLE_IDENTIFIER = com.void.smarttube.app.shareextension;
-				PRODUCT_NAME = SmartTubeShareExtension;
-				SDKROOT = iphoneos;
-				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
-				SUPPORTS_MACCATALYST = NO;
-				SWIFT_VERSION = 5.9;
-				TARGETED_DEVICE_FAMILY = "1,2";
-				VALIDATE_PRODUCT = YES;
 			};
 			name = Release;
 		};
@@ -834,14 +834,14 @@
 			package = 644EA6428F48EF6B886E4B58 /* XCLocalSwiftPackageReference "../SmartTubeIOS" */;
 			productName = SmartTubeIOSCore;
 		};
-		B8401470D9A590E7F3685830 /* SmartTubeIOS */ = {
-			isa = XCSwiftPackageProductDependency;
-			productName = SmartTubeIOS;
-		};
 		AA01000000000000000000B1 /* SmartTubeIOSCore */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = 644EA6428F48EF6B886E4B58 /* XCLocalSwiftPackageReference "../SmartTubeIOS" */;
 			productName = SmartTubeIOSCore;
+		};
+		B8401470D9A590E7F3685830 /* SmartTubeIOS */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = SmartTubeIOS;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

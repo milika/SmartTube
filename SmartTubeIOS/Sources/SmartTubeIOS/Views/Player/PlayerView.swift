@@ -54,7 +54,7 @@ public struct PlayerView: View {
                 // AVPlayerViewController (VideoPlayer) dominates the UIKit accessibility
                 // tree, making all overlaid SwiftUI elements invisible to XCUITest.
                 // A bare AVPlayerLayer renders video with no accessibility interference.
-                AVPlayerLayerView(player: vm.player) { layer in
+                AVPlayerLayerView(player: vm.player, videoGravity: store.settings.videoGravityMode.avGravity) { layer in
                     #if os(iOS)
                     playerLayer = layer
                     #endif
@@ -550,6 +550,30 @@ public struct PlayerView: View {
                 .buttonStyle(.plain)
                 .foregroundStyle(.primary)
                 Divider()
+                // Sleep timer
+                Menu {
+                    Button("Off") { vm.setSleepTimer(minutes: nil) }
+                    ForEach(PlaybackViewModel.sleepTimerOptions, id: \.self) { mins in
+                        Button("\(mins) min") { vm.setSleepTimer(minutes: mins) }
+                    }
+                } label: {
+                    HStack {
+                        Label("Sleep Timer", systemImage: "moon.zzz")
+                        Spacer()
+                        if let mins = vm.sleepTimerMinutes {
+                            Text("\(mins) min")
+                                .foregroundStyle(.secondary)
+                        } else {
+                            Text("Off")
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    .padding()
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(.primary)
+                Divider()
                 // Download
                 Button {
                     showMoreMenu = false
@@ -933,6 +957,7 @@ struct StatsForNerdsOverlay: View {
 /// with the UIKit accessibility tree so SwiftUI overlays remain reachable.
 private struct AVPlayerLayerView: UIViewRepresentable {
     let player: AVPlayer?
+    var videoGravity: AVLayerVideoGravity = .resizeAspect
     var onLayerReady: ((AVPlayerLayer) -> Void)? = nil
 
     func makeUIView(context: Context) -> _PlayerUIView {
@@ -941,13 +966,14 @@ private struct AVPlayerLayerView: UIViewRepresentable {
         view.isAccessibilityElement = false
         view.accessibilityElementsHidden = true
         view.playerLayer.player = player
-        view.playerLayer.videoGravity = .resizeAspect
+        view.playerLayer.videoGravity = videoGravity
         view.onLayerReady = onLayerReady
         return view
     }
 
     func updateUIView(_ uiView: _PlayerUIView, context: Context) {
         uiView.playerLayer.player = player
+        uiView.playerLayer.videoGravity = videoGravity
     }
 
     final class _PlayerUIView: UIView {
@@ -1097,5 +1123,13 @@ struct RelatedVideosView: View {
                 }
             }
         }
+    }
+}
+
+// MARK: - AppSettings.VideoGravityMode → AVLayerVideoGravity mapping
+
+private extension AppSettings.VideoGravityMode {
+    var avGravity: AVLayerVideoGravity {
+        self == .fill ? .resizeAspectFill : .resizeAspect
     }
 }

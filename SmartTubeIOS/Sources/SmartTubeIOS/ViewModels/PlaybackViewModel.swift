@@ -85,6 +85,11 @@ public final class PlaybackViewModel {
     private var itemObserverTask: Task<Void, Never>?
     private var endObserverTask: Task<Void, Never>?
     private var controlsTimer: Task<Void, Never>?
+    @ObservationIgnored private var sleepTimerTask: Task<Void, Never>?
+    /// Remaining minutes on the sleep timer (nil = off). Observable so PlayerView can show it.
+    public private(set) var sleepTimerMinutes: Int? = nil
+    /// Available sleep timer durations in minutes.
+    public static let sleepTimerOptions: [Int] = [15, 30, 45, 60]
     /// Position to seek to once the AVPlayerItem is ready.
     private var savedPositionToRestore: TimeInterval? = nil
     /// Timestamp of the last commitScrub(). Used to ignore the spurious
@@ -419,6 +424,24 @@ public final class PlaybackViewModel {
         settings = newSettings
     }
 
+    // MARK: - Sleep Timer
+
+    /// Activates (or cancels) the sleep timer.
+    /// - Parameter minutes: Nil cancels any running timer; a positive value starts a new countdown.
+    public func setSleepTimer(minutes: Int?) {
+        sleepTimerTask?.cancel()
+        sleepTimerTask = nil
+        sleepTimerMinutes = minutes
+        guard let minutes else { return }
+        sleepTimerTask = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(Double(minutes) * 60))
+            guard let self, !Task.isCancelled else { return }
+            self.player.pause()
+            self.isPlaying = false
+            self.sleepTimerMinutes = nil
+        }
+    }
+
     // MARK: - Auth
 
     /// Forwards the current access token to the InnerTubeAPI actor (mirrors BrowseViewModel).
@@ -616,6 +639,17 @@ public final class PlaybackViewModel {
     }
 
     private func handlePlaybackEnd() {
+        if settings.loopEnabled {
+            player.seek(to: .zero)
+            player.play()
+            return
+        }
+        if settings.shuffleEnabled, !relatedVideos.isEmpty {
+            let pick = relatedVideos[Int.random(in: 0..<relatedVideos.count)]
+            playerLog.notice("Shuffle: loading id=\(pick.id, privacy: .public)")
+            load(video: pick)
+            return
+        }
         guard settings.autoplayEnabled, let next = relatedVideos.first else { return }
         playerLog.notice("Autoplay: loading next video id=\(next.id, privacy: .public)")
         load(video: next)
@@ -734,10 +768,10 @@ public final class PlaybackViewModel {
     }
 
     private func scheduleControlsHide() {
-        playerLog.debug("[controls] scheduleControlsHide — resetting 4s timer, isScrubbing=\(self.isScrubbing, privacy: .public)")
+        playerLog.debug("[controls] scheduleControlsHide — resetting \(self.settings.controlsHideTimeout, privacy: .public)s timer, isScrubbing=\(self.isScrubbing, privacy: .public)")
         controlsTimer?.cancel()
         controlsTimer = Task {
-            try? await Task.sleep(for: .seconds(4))
+            try? await Task.sleep(for: .seconds(settings.controlsHideTimeout))
             playerLog.debug("[controls] timer fired — isCancelled=\(Task.isCancelled, privacy: .public) isScrubbing=\(self.isScrubbing, privacy: .public)")
             guard !Task.isCancelled else {
                 playerLog.debug("[controls] hide suppressed (cancelled)")
