@@ -19,6 +19,7 @@ public struct SettingsView: View {
             accountSection
             playerSection
             uiSection
+            youTubeLinkSection
             sponsorBlockSection
             deArrowSection
             aboutSection
@@ -103,6 +104,19 @@ public struct SettingsView: View {
                 SectionsSettingsView()
                     .environment(store)
             }
+        }
+    }
+
+    // MARK: - YouTube Link Override
+
+    private var youTubeLinkSection: some View {
+        @Bindable var store = store
+        return Section {
+            Toggle("Open YouTube links in SmartTube", isOn: $store.settings.overrideYouTubeLinks)
+        } header: {
+            Text("YouTube Links")
+        } footer: {
+            Text("When enabled, SmartTube intercepts youtube:// and vnd.youtube:// deeplinks and opens them in-app. Works when YouTube app is not installed, or when SmartTube is selected via the iOS share sheet.")
         }
     }
 

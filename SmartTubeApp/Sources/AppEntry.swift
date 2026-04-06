@@ -8,6 +8,10 @@ struct AppEntry: App {
     @State private var authService     = AuthService()
     @State private var browseViewModel = BrowseViewModel()
     @State private var settingsStore   = SettingsStore()
+    @Environment(\.scenePhase) private var scenePhase
+
+    private static let appGroup   = "group.com.void.smarttube"
+    private static let pendingKey = "pendingVideoID"
 
     /// When launched with `--uitesting-shorts` the app skips the full navigation
     /// stack and presents ShortsPlayerView directly with three stub videos so
@@ -30,9 +34,7 @@ struct AppEntry: App {
                 .onChange(of: settingsStore.settings.enabledSections) { _, newSections in
                     browseViewModel.configureSections(newSections)
                 }
-                .onOpenURL { url in
-                    handleOpenURL(url)
-                }
+                .onOpenURL { url in handleOpenURL(url) }
         }
         .defaultSize(width: 1280, height: 800)
 
@@ -59,8 +61,9 @@ struct AppEntry: App {
                     .onChange(of: settingsStore.settings.enabledSections) { _, newSections in
                         browseViewModel.configureSections(newSections)
                     }
-                    .onOpenURL { url in
-                        handleOpenURL(url)
+                    .onOpenURL { url in handleOpenURL(url) }
+                    .onChange(of: scenePhase) { _, phase in
+                        if phase == .active { consumePendingVideoID() }
                     }
             }
         }
@@ -71,9 +74,35 @@ struct AppEntry: App {
 
     @MainActor
     private func handleOpenURL(_ url: URL) {
-        // Only intercept when the user has opted in.
+        let scheme = url.scheme?.lowercased() ?? ""
+
+        // smarttube://video/VIDEO_ID — fired by the Share Extension (unused now,
+        // kept for compatibility with any third-party integrations).
+        if scheme == "smarttube", url.host?.lowercased() == "video" {
+            let components = url.pathComponents.filter { $0 != "/" }
+            if let videoID = components.first, !videoID.isEmpty {
+                browseViewModel.deepLinkedVideo = Video(id: videoID, title: "", channelTitle: "")
+                return
+            }
+        }
+
+        // youtube:// / vnd.youtube:// — only when user has opted in
         guard settingsStore.settings.overrideYouTubeLinks else { return }
         guard let videoID = YouTubeLinkHandler.videoID(from: url) else { return }
+        browseViewModel.deepLinkedVideo = Video(id: videoID, title: "", channelTitle: "")
+    }
+
+    // MARK: - App Group pending video (from Share Extension)
+
+    @MainActor
+    private func consumePendingVideoID() {
+        guard let defaults = UserDefaults(suiteName: Self.appGroup),
+              let videoID = defaults.string(forKey: Self.pendingKey),
+              !videoID.isEmpty
+        else { return }
+
+        defaults.removeObject(forKey: Self.pendingKey)
+        defaults.synchronize()
         browseViewModel.deepLinkedVideo = Video(id: videoID, title: "", channelTitle: "")
     }
 

@@ -65,20 +65,24 @@ public enum YouTubeLinkHandler {
     // MARK: - Private helpers
 
     private static func videoIDFromYouTubeScheme(_ url: URL) -> String? {
-        // youtube://watch?v=VIDEO_ID
+        // youtube://watch?v=VIDEO_ID  or  vnd.youtube://watch?v=VIDEO_ID
         if let v = queryParam("v", in: url), !v.isEmpty {
             return validID(v)
         }
-        // youtube://VIDEO_ID  or  vnd.youtube://VIDEO_ID  or  vnd.youtube:VIDEO_ID
+        // youtube://VIDEO_ID  or  vnd.youtube://VIDEO_ID  (host is the video ID)
         let host = url.host ?? ""
-        if !host.isEmpty && host != "watch" {
+        if !host.isEmpty && host.lowercased() != "watch" {
             return validID(host)
         }
-        // vnd.youtube:VIDEO_ID (no slashes — resourceSpecifier is the ID)
-        let specifier = url.resourceSpecifier
-        let bare = specifier.hasPrefix("//") ? String(specifier.dropFirst(2)) : specifier
-        let id = bare.split(separator: "?").first.map(String.init) ?? bare
-        return validID(id)
+        // vnd.youtube:VIDEO_ID (opaque URL — no authority component)
+        // URLComponents parses the path as the "part after the scheme:"
+        if let components = URLComponents(url: url, resolvingAgainstBaseURL: false) {
+            let candidate = components.path
+                .split(separator: "?").first
+                .map(String.init) ?? components.path
+            return validID(candidate)
+        }
+        return nil
     }
 
     private static func queryParam(_ name: String, in url: URL) -> String? {
