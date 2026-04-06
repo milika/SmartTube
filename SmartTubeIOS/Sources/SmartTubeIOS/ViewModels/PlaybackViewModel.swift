@@ -204,7 +204,7 @@ public final class PlaybackViewModel {
     /// Use `resume()` to restart playback, or `load(video:)` to switch videos.
     public func suspend() {
         playerLog.notice("[suspend] suspend() called — currentVideo=\(self.currentVideo?.id ?? "nil", privacy: .public) currentTime=\(Int(self.currentTime))s")
-        if let videoId = playerInfo?.video.id, duration > 0 {
+        if settings.historyState == .enabled, let videoId = playerInfo?.video.id, duration > 0 {
             let pos = self.currentTime
             let dur = self.duration
             Task {
@@ -856,7 +856,7 @@ public final class PlaybackViewModel {
     public func stop() {
         playerLog.notice("[stop] stop() called — currentVideo=\(self.currentVideo?.id ?? "nil", privacy: .public) currentTime=\(Int(self.currentTime))s isLoading=\(self.isLoading)")
         // Save watch position before stopping (mirrors VideoStateController)
-        if let videoId = playerInfo?.video.id, duration > 0 {
+        if settings.historyState == .enabled, let videoId = playerInfo?.video.id, duration > 0 {
             let pos = self.currentTime
             let dur = self.duration
             Task {

@@ -33,6 +33,8 @@ public final class BrowseViewModel {
     private let api: InnerTubeAPI
     private var fetchTask: Task<Void, Never>?
     private var enrichTask: Task<Void, Never>?
+    /// When `false`, the History section returns empty content rather than fetching from YouTube.
+    private var historyEnabled: Bool = true
 
     public init(api: InnerTubeAPI = InnerTubeAPI(), initialSection: BrowseSection? = nil) {
         self.api = api
@@ -99,6 +101,15 @@ public final class BrowseViewModel {
         fetchTask = Task { await fetchNextPage(for: currentSection) }
     }
 
+    /// Update whether history is enabled. If currently on the history section, reloads it.
+    public func updateHistoryEnabled(_ enabled: Bool) {
+        guard historyEnabled != enabled else { return }
+        historyEnabled = enabled
+        if currentSection.type == .history {
+            loadContent(refresh: true, source: "updateHistoryEnabled")
+        }
+    }
+
     // MARK: - Auth
 
     /// Forward the current access token to the API layer.
@@ -148,6 +159,10 @@ public final class BrowseViewModel {
                 }
 
             case .history:
+                guard historyEnabled else {
+                    if !Task.isCancelled { videoGroups = []; isAuthRequired = false }
+                    return
+                }
                 let group = try await api.fetchHistory()
                 if !Task.isCancelled {
                     isAuthRequired = group.videos.isEmpty

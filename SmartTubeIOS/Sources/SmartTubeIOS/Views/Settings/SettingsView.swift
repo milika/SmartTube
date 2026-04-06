@@ -18,6 +18,7 @@ public struct SettingsView: View {
         Form {
             accountSection
             playerSection
+            generalSection
             uiSection
             sponsorBlockSection
             deArrowSection
@@ -101,6 +102,18 @@ public struct SettingsView: View {
             Toggle("Autoplay next video", isOn: $store.settings.autoplayEnabled)
             Toggle("Subtitles", isOn: $store.settings.subtitlesEnabled)
             Toggle("Background Playback", isOn: $store.settings.backgroundPlaybackEnabled)
+        }
+    }
+
+    // MARK: - General
+
+    private var generalSection: some View {
+        @Bindable var store = store
+        return Section("General") {
+            Picker("Watch History", selection: $store.settings.historyState) {
+                Text("Enabled").tag(AppSettings.HistoryState.enabled)
+                Text("Disabled").tag(AppSettings.HistoryState.disabled)
+            }
         }
     }
 

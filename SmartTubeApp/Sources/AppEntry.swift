@@ -34,6 +34,9 @@ struct AppEntry: App {
                 .onChange(of: settingsStore.settings.enabledSections) { _, newSections in
                     browseViewModel.configureSections(newSections)
                 }
+                .onChange(of: settingsStore.settings.historyState, initial: true) { _, newState in
+                    browseViewModel.updateHistoryEnabled(newState == .enabled)
+                }
                 .onOpenURL { url in handleOpenURL(url) }
         }
         .defaultSize(width: 1280, height: 800)
@@ -60,6 +63,9 @@ struct AppEntry: App {
                     }
                     .onChange(of: settingsStore.settings.enabledSections) { _, newSections in
                         browseViewModel.configureSections(newSections)
+                    }
+                    .onChange(of: settingsStore.settings.historyState, initial: true) { _, newState in
+                        browseViewModel.updateHistoryEnabled(newState == .enabled)
                     }
                     .onOpenURL { url in handleOpenURL(url) }
                     .onChange(of: scenePhase, initial: true) { _, phase in

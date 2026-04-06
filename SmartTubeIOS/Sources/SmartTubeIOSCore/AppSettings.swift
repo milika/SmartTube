@@ -41,6 +41,18 @@ public struct AppSettings: Codable {
     /// When empty, all default sections are shown.
     public var enabledSections: [BrowseSection.SectionType]
 
+    // MARK: General
+
+    /// Controls whether watch history is recorded locally and fetched from YouTube.
+    /// Mirrors Android's `GeneralData.historyEnabled`.
+    public enum HistoryState: String, Codable, CaseIterable, Sendable {
+        /// Default — history is fetched from YouTube and local positions are saved.
+        case enabled  = "enabled"
+        /// History section shows nothing and local watch positions are not saved.
+        case disabled = "disabled"
+    }
+    public var historyState: HistoryState
+
     // MARK: SponsorBlock
 
     /// Per-segment action that controls how each SponsorBlock category is handled.
@@ -150,6 +162,7 @@ public struct AppSettings: Codable {
         hideShorts           = false
         themeName            = .system
         enabledSections      = BrowseSection.defaultSections.map(\.type)
+        historyState         = .enabled
         sponsorBlockEnabled  = true
         // Default actions mirror Android's SponsorBlockData defaults:
         //   sponsor / selfPromo → auto-skip; interaction / intro / preview / musicOfftopic → show toast; others → nothing

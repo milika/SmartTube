@@ -267,15 +267,15 @@ Added `controlsHideTimeout: Int` (default 4, range 2–10 s), `VideoGravityMode`
 
 `SettingsView.playerSection` added: "Hide Controls After" Picker (2/3/4/5/8/10 s), "Video Fit" Picker (Fit / Fill), "Loop Video" Toggle, "Shuffle" Toggle.
 
-### 4.2 General settings expansion 🛧
+### 4.2 General settings expansion ✅
 Following Android's `GeneralData`:
-- History state control (auto/enabled/disabled) 🔲
+- History state control (auto/enabled/disabled) ✅
 - Background playback toggle ✅
 
-**Files:** `AppSettings.swift`, `SettingsView.swift`
+**Files:** `AppSettings.swift`, `SettingsView.swift`, `BrowseViewModel.swift`, `PlaybackViewModel.swift`, `AppEntry.swift`
 
-**How it was done (background playback):**
-Added `backgroundPlaybackEnabled: Bool` (default `false`) to `AppSettings`. `SettingsView` exposes a `Toggle("Background Playback", isOn: $store.settings.backgroundPlaybackEnabled)`. `PlaybackViewModel` / `AVPlayer` respect this setting to allow audio to continue when the app is backgrounded.
+**How it was done:**
+Added `HistoryState` enum (`.enabled` / `.disabled`) and `historyState: HistoryState` (default `.enabled`) to `AppSettings`. `SettingsView` exposes a new "General" section with a `Picker("Watch History", ...)`. `BrowseViewModel` gained a private `historyEnabled: Bool` flag and a public `updateHistoryEnabled(_:)` method; when `false`, the `.history` case returns empty content immediately without calling `fetchHistory()`. Both `PlaybackViewModel.suspend()` and `stop()` now guard `VideoStateStore.shared.save(...)` with `settings.historyState == .enabled`, so watch-position is not persisted when history is disabled. `AppEntry` propagates changes via `.onChange(of: settingsStore.settings.historyState, initial: true)` calling `browseViewModel.updateHistoryEnabled(_:)` in both the macOS and iOS `WindowGroup`.
 
 ### 4.3 Search settings
 Following Android's `SearchData`:
@@ -364,7 +364,7 @@ Phase 0 (Critical):    0.1 → 0.3 → 0.2 → 0.4
 Phase 1 (Core):        1.1 → 1.3 → 1.2 → 1.5 → 1.4
 Phase 2 (Sections):    2.1 → 2.2
 Phase 3 (Playback):    3.2 → 3.1 → 3.3 → 3.5 → 3.4
-Phase 4 (Settings):    4.4✅ → 4.1✅ → 4.2🛧(bg✅, history🔲) → 4.3🔲
+Phase 4 (Settings):    4.4✅ → 4.1✅ → 4.2✅ → 4.3🔲
 Phase 5 (Advanced):    5.6✅ → 5.3🔲 → 5.2🔲 → 5.1🔲 → 5.5🔲 → 5.4🔲
 Phase 6 (Security):    6.1✅ → 6.2🛧
 ```
