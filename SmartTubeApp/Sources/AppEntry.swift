@@ -62,7 +62,7 @@ struct AppEntry: App {
                         browseViewModel.configureSections(newSections)
                     }
                     .onOpenURL { url in handleOpenURL(url) }
-                    .onChange(of: scenePhase) { _, phase in
+                    .onChange(of: scenePhase, initial: true) { _, phase in
                         if phase == .active { consumePendingVideoID() }
                     }
             }
