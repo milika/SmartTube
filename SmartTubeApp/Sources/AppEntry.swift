@@ -76,19 +76,10 @@ struct AppEntry: App {
     private func handleOpenURL(_ url: URL) {
         let scheme = url.scheme?.lowercased() ?? ""
 
-        // smarttube://video/VIDEO_ID — fired by the Share Extension (unused now,
-        // kept for compatibility with any third-party integrations).
-        if scheme == "smarttube", url.host?.lowercased() == "video" {
-            let components = url.pathComponents.filter { $0 != "/" }
-            if let videoID = components.first, !videoID.isEmpty {
-                browseViewModel.deepLinkedVideo = Video(id: videoID, title: "", channelTitle: "")
-                return
-            }
-        }
-
-        // youtube:// / vnd.youtube:// — only when user has opted in
-        guard settingsStore.settings.overrideYouTubeLinks else { return }
-        guard let videoID = YouTubeLinkHandler.videoID(from: url) else { return }
+        // smarttube://video/VIDEO_ID — fired by the Share Extension
+        guard scheme == "smarttube", url.host?.lowercased() == "video" else { return }
+        let components = url.pathComponents.filter { $0 != "/" }
+        guard let videoID = components.first, !videoID.isEmpty else { return }
         browseViewModel.deepLinkedVideo = Video(id: videoID, title: "", channelTitle: "")
     }
 
