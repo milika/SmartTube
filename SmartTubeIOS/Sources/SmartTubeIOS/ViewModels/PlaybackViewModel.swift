@@ -360,7 +360,7 @@ public final class PlaybackViewModel {
                 }
             }
 
-            player.play()
+            player.rate = Float(settings.playbackSpeed)
             isPlaying = true
             #if canImport(UIKit)
             UIApplication.shared.isIdleTimerDisabled = true

@@ -16,7 +16,8 @@ import ActivityKit
 //   phase    — current pipeline stage
 //   progress — 0.0–1.0; meaningful only during .downloading
 
-@available(iOS 16.1, *)
+@available(iOS 16.1, macCatalyst 16.1, *)
+@available(macOS, unavailable)
 public struct DownloadActivityAttributes: ActivityAttributes {
     public typealias ContentState = DownloadContentState
 
