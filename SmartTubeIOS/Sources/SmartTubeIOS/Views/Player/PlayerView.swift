@@ -659,7 +659,7 @@ public struct PlayerView: View {
             // Track + slider row
             ZStack {
                 Capsule()
-                    .fill(Color.white.opacity(0.35))
+                    .fill(Color.white.opacity(0.2))
                     .frame(height: 4)
                     .padding(.horizontal, 20)
 
@@ -676,7 +676,7 @@ public struct PlayerView: View {
                         if editing { vm.beginScrubbing() } else { vm.commitScrub() }
                     }
                 )
-                .tint(.red)
+                .tint(Color.red.opacity(0.6))
                 .padding(.horizontal, 20)
                 .overlay(sponsorBlockMarkers)
                 .overlay(chapterMarkers)
