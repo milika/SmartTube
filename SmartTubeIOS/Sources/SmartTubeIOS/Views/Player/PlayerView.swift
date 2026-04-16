@@ -656,31 +656,50 @@ public struct PlayerView: View {
             }
             .frame(height: 28)
 
-            // Track + slider row
-            ZStack {
-                Capsule()
-                    .fill(Color.white.opacity(0.2))
-                    .frame(height: 4)
-                    .padding(.horizontal, 20)
+            // Track + slider row (custom — fully transparent thumb and track)
+            GeometryReader { geo in
+                let hPad: CGFloat = 20
+                let trackW = geo.size.width - hPad * 2
+                let time = vm.isScrubbing ? vm.scrubTime : vm.currentTime
+                let progress = vm.duration > 0 ? CGFloat(time / vm.duration) : 0
+                let thumbX = hPad + trackW * progress
 
-                Slider(
-                    value: Binding(
-                        get: {
-                            let t = vm.isScrubbing ? vm.scrubTime : vm.currentTime
-                            return vm.duration > 0 ? t / vm.duration : 0
-                        },
-                        set: { vm.updateScrub(to: $0 * vm.duration) }
-                    ),
-                    in: 0...1,
-                    onEditingChanged: { editing in
-                        if editing { vm.beginScrubbing() } else { vm.commitScrub() }
+                ZStack {
+                    // Background track
+                    Capsule()
+                        .fill(Color.white.opacity(0.2))
+                        .frame(height: 4)
+                        .padding(.horizontal, hPad)
+
+                    // Progress fill
+                    HStack(spacing: 0) {
+                        Capsule()
+                            .fill(Color.red.opacity(0.5))
+                            .frame(width: max(thumbX - hPad, 0), height: 4)
+                        Spacer(minLength: 0)
                     }
-                )
-                .tint(Color.red.opacity(0.6))
-                .padding(.horizontal, 20)
+                    .padding(.leading, hPad)
+
+                    // Thumb
+                    Circle()
+                        .fill(Color.white.opacity(0.5))
+                        .frame(width: 16, height: 16)
+                        .position(x: thumbX, y: geo.size.height / 2)
+                }
                 .overlay(sponsorBlockMarkers)
                 .overlay(chapterMarkers)
+                .contentShape(Rectangle())
+                .gesture(
+                    DragGesture(minimumDistance: 0)
+                        .onChanged { value in
+                            let fraction = min(max((value.location.x - hPad) / trackW, 0), 1)
+                            if !vm.isScrubbing { vm.beginScrubbing() }
+                            vm.updateScrub(to: Double(fraction) * vm.duration)
+                        }
+                        .onEnded { _ in vm.commitScrub() }
+                )
             }
+            .frame(height: 28)
         }
     }
 
