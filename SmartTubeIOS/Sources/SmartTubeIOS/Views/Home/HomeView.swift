@@ -23,6 +23,9 @@ public struct HomeView: View {
     @State private var shortsPresentation: ShortsPresentation?
     @State private var channelDestination: ChannelDestination?
     @State private var showSignIn = false
+    #if os(tvOS)
+    @FocusState private var focusedSection: BrowseSection?
+    #endif
     private var visibleSections: [BrowseSection] {
         let types = store.settings.enabledSections
         let all: [BrowseSection] = types.isEmpty
@@ -45,6 +48,10 @@ public struct HomeView: View {
             Divider()
             #endif
             contentArea
+                #if os(tvOS)
+                .focusSection()
+                .onExitCommand { focusedSection = selectedSection }
+                #endif
                 #if !os(tvOS)
                 .fullScreenCover(item: $selectedVideo) { video in
                     PlayerView(video: video)
@@ -109,6 +116,8 @@ public struct HomeView: View {
         }
         #if os(tvOS)
         .scrollClipDisabled()
+        .background(.ultraThinMaterial)
+        .focusSection()
         #endif
         .accessibilityIdentifier("home.chipBar")
     }
@@ -139,6 +148,9 @@ public struct HomeView: View {
         .buttonStyle(.plain)
         .animation(.easeInOut(duration: 0.15), value: selectedSection)
         .accessibilityAddTraits(isSelected ? [.isSelected] : [])
+        #if os(tvOS)
+        .focused($focusedSection, equals: section)
+        #endif
     }
 
     // MARK: - Content area
@@ -184,6 +196,9 @@ public struct HomeView: View {
             .padding(.vertical, 8)
         }
         .refreshable { homeVM.load() }
+        #if os(tvOS)
+        .focusSection()
+        #endif
     }
 
     @ViewBuilder
@@ -231,6 +246,9 @@ public struct HomeView: View {
                     .padding(.horizontal)
                     .padding(.vertical, 4)
                 }
+                #if os(tvOS)
+                .focusSection()
+                #endif
             }
         }
     }
@@ -359,6 +377,9 @@ public struct HomeView: View {
         }
         .accessibilityIdentifier("home.sectionFeed")
         .refreshable { sectionVM.loadContent(refresh: true) }
+        #if os(tvOS)
+        .focusSection()
+        #endif
     }
 
     private var feedEmptyState: some View {

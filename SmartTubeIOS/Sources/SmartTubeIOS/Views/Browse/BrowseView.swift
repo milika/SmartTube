@@ -285,5 +285,8 @@ struct VideoRowSection: View {
             .padding(.horizontal)
             .padding(.vertical, 4)
         }
+        #if os(tvOS)
+        .focusSection()
+        #endif
     }
 }

@@ -248,3 +248,25 @@ Both targets (`SmartTubeIOSCore`, `SmartTubeIOS`) need the platform added. `Smar
 ## Summary
 
 > **TL;DR:** `SmartTubeIOSCore` is a free port. The auth flow is already TV-native (device code + QR). The main work is (1) the player gesture layer, (2) focus engine throughout the UI, and (3) the navigation shell. Estimated effort: ~3–4 focused phases, with a working browsable Apple TV build achievable after Phase TV-1.
+
+---
+
+## Developer notes — Simulator input mapping
+
+When testing the tvOS app in Xcode Simulator, use the keyboard as a stand-in for the Siri Remote. All conversations about navigation in this doc use this terminology.
+
+| Keyboard key | Siri Remote equivalent | Effect in app |
+|---|---|---|
+| ↑ ↓ ← → (arrow keys) | D-pad directional swipe | Move focus between elements |
+| Enter / Return | Click (select button) | Activate focused element / play video |
+| Esc | Menu button (back) | Go back / dismiss |
+| Space | Play/Pause button | Toggle playback |
+
+**Focus chain (Home tab):**
+```
+Tab bar (↓ or enter) → Chips (↓ or enter) → Video list (esc returns to chips)
+within chips: (left right) moves focus between chips, (↓) moves to video list, esc returns to tab bar
+within video list: esc returns to chips, arrow navigatte, up on top row returns to chips
+```
+
+You can also open **Hardware → Apple TV Remote** in Simulator for an on-screen remote widget.

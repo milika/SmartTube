@@ -23,6 +23,9 @@ public struct VideoCardView: View {
     @State private var downloadService = VideoDownloadService()
     @State private var downloadAlertItem: DownloadAlertItem?
     #endif
+    #if os(tvOS)
+    @FocusState private var isFocused: Bool
+    #endif
 
     public init(video: Video, compact: Bool = false) {
         self.video = video
@@ -97,6 +100,16 @@ public struct VideoCardView: View {
         .alert(item: $downloadAlertItem) { item in
             Alert(title: Text(item.title), message: Text(item.message), dismissButton: .default(Text("OK")))
         }
+        #else
+        .focused($isFocused)
+        .overlay {
+            RoundedRectangle(cornerRadius: 10)
+                .strokeBorder(Color.white, lineWidth: isFocused ? 4 : 0)
+        }
+        .shadow(color: isFocused ? .white.opacity(0.9) : .clear, radius: 18, x: 0, y: 0)
+        .scaleEffect(isFocused ? 1.08 : 1.0)
+        .zIndex(isFocused ? 1 : 0)
+        .animation(.easeInOut(duration: 0.15), value: isFocused)
         #endif
     }
 
@@ -137,9 +150,6 @@ public struct VideoCardView: View {
             }
             .padding(.horizontal, 2)
         }
-        #if os(tvOS)
-        .buttonStyle(.card)
-        #endif
     }
 
     // MARK: Compact (list) layout

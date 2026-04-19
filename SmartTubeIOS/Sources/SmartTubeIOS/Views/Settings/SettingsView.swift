@@ -38,10 +38,24 @@ public struct SettingsView: View {
         Section("Account") {
             if auth.isSignedIn {
                 HStack {
-                    AsyncImage(url: auth.accountAvatarURL) { img in img.resizable().scaledToFill() }
-                        placeholder: { Circle().fill(Color.secondary.opacity(0.3)) }
-                        .frame(width: 40, height: 40)
-                        .clipShape(Circle())
+                    #if os(tvOS)
+                    let avatarSize: CGFloat = 64
+                    #else
+                    let avatarSize: CGFloat = 40
+                    #endif
+                    AsyncImage(url: auth.accountAvatarURL) { phase in
+                        switch phase {
+                        case .success(let image):
+                            image.resizable().scaledToFill()
+                        case .failure, .empty:
+                            Circle().fill(Color.secondary.opacity(0.3))
+                                .overlay(Image(systemName: "person.fill").foregroundStyle(.secondary))
+                        @unknown default:
+                            Circle().fill(Color.secondary.opacity(0.3))
+                        }
+                    }
+                    .frame(width: avatarSize, height: avatarSize)
+                    .clipShape(Circle())
                     Text(auth.accountName ?? "Unknown")
                 }
                 Button("Sign Out", role: .destructive) { auth.signOut() }
