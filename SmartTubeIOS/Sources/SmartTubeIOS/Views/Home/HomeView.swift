@@ -105,6 +105,20 @@ public struct HomeView: View {
     }
 
     private var chipBar: some View {
+        #if os(tvOS)
+        HStack(spacing: 8) {
+            ForEach(visibleSections) { section in
+                chipButton(section: section)
+            }
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 10)
+        .background(.ultraThinMaterial)
+        .focusSection()
+        .defaultFocus($focusedSection, selectedSection)
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("home.chipBar")
+        #else
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 8) {
                 ForEach(visibleSections) { section in
@@ -114,23 +128,42 @@ public struct HomeView: View {
             .padding(.horizontal, 16)
             .padding(.vertical, 10)
         }
-        #if os(tvOS)
-        .scrollClipDisabled()
-        .background(.ultraThinMaterial)
-        .focusSection()
-        #endif
         .accessibilityIdentifier("home.chipBar")
+        #endif
     }
 
     private func chipButton(section: BrowseSection) -> some View {
         let isSelected = selectedSection == section
-        return Button {
+        let action = {
             guard selectedSection != section else { return }
             selectedSection = section
             if section.type != .home {
                 sectionVM.select(section: section)
             }
-        } label: {
+        }
+        #if os(tvOS)
+        return Button(action: action) {
+            Text(section.title)
+                .font(.subheadline.weight(.medium))
+                .padding(.horizontal, 14)
+                .padding(.vertical, 7)
+                .background(
+                    isSelected ? Color.primary : Color.secondary.opacity(0.15),
+                    in: Capsule()
+                )
+                .foregroundStyle(
+                    isSelected
+                        ? Color(white: colorScheme == .dark ? 0 : 1)
+                        : Color.primary
+                )
+        }
+        .animation(.easeInOut(duration: 0.15), value: selectedSection)
+        .accessibilityAddTraits(isSelected ? [.isSelected] : [])
+        .accessibilityLabel(section.title)
+        .accessibilityIdentifier("chip.\(section.title)")
+        .focused($focusedSection, equals: section)
+        #else
+        return Button(action: action) {
             Text(section.title)
                 .font(.subheadline.weight(.medium))
                 .padding(.horizontal, 14)
@@ -148,8 +181,6 @@ public struct HomeView: View {
         .buttonStyle(.plain)
         .animation(.easeInOut(duration: 0.15), value: selectedSection)
         .accessibilityAddTraits(isSelected ? [.isSelected] : [])
-        #if os(tvOS)
-        .focused($focusedSection, equals: section)
         #endif
     }
 
@@ -165,6 +196,7 @@ public struct HomeView: View {
             }
         } else {
             sectionFeed
+                .accessibilityIdentifier("home.sectionContainer")
         }
     }
 
@@ -227,6 +259,19 @@ public struct HomeView: View {
                 ScrollView(.horizontal, showsIndicators: false) {
                     LazyHStack(alignment: .top, spacing: 16) {
                         ForEach(videos) { video in
+                            #if os(tvOS)
+                            Button { selectVideo(video, from: videos) } label: {
+                                VideoCardView(video: video)
+                                    .frame(width: tvOSCardWidth)
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityIdentifier("video.card.\(video.id)")
+                            .onAppear {
+                                if videos.last?.id == video.id {
+                                    homeVM.loadMore(sectionId: state.section.id)
+                                }
+                            }
+                            #else
                             VideoCardView(video: video)
                                 .frame(width: tvOSCardWidth)
                                 .accessibilityIdentifier("video.card.\(video.id)")
@@ -236,6 +281,7 @@ public struct HomeView: View {
                                         homeVM.loadMore(sectionId: state.section.id)
                                     }
                                 }
+                            #endif
                         }
                         if state.isLoadingMore {
                             ProgressView()

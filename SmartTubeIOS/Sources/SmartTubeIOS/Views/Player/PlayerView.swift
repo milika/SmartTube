@@ -180,6 +180,8 @@ public struct PlayerView: View {
         .navigationBarHidden(true)
         .statusBarHidden(true)
         .toolbar(.hidden, for: .tabBar)
+        #elseif os(tvOS)
+        .toolbar(.hidden, for: .tabBar)
         #endif
         // Always-visible title badge so XCUITest can read the current video title
         // without waiting for the controls overlay to be shown.
@@ -190,6 +192,9 @@ public struct PlayerView: View {
                     Color.clear.frame(width: 60, height: 60)
                 }
                 .accessibilityIdentifier("player.backButton")
+                #if os(tvOS)
+                .buttonStyle(.plain)
+                #endif
                 Text(vm.playerInfo?.video.title ?? video.title)
                     .font(.caption)
                     .opacity(0)   // visually invisible (including emoji), accessible
@@ -421,11 +426,15 @@ public struct PlayerView: View {
                         .accessibilityIdentifier("player.prevChapterBtn")
                     }
 
+                    #if !os(tvOS)
                     Text(formatDuration(vm.currentTime))
                         .padding(.leading, 6)
                     Spacer()
                     Text(formatDuration(vm.duration))
                         .padding(.trailing, 6)
+                    #else
+                    Spacer()
+                    #endif
 
                     // Next chapter button — only present when the video has chapters
                     if !vm.chapters.isEmpty {
@@ -455,7 +464,11 @@ public struct PlayerView: View {
                 }
                 .font(.caption)
                 .foregroundStyle(.white.opacity(0.8))
+                #if os(tvOS)
+                .padding(.horizontal, 40)
+                #else
                 .padding(.horizontal, 20)
+                #endif
             }
             .padding(.bottom, 20)
         }
@@ -662,6 +675,91 @@ public struct PlayerView: View {
     }
 
     private var progressBar: some View {
+        #if os(tvOS)
+        tvProgressBar
+        #else
+        iosProgressBar
+        #endif
+    }
+
+    #if os(tvOS)
+    private var tvProgressBar: some View {
+        VStack(spacing: 6) {
+            // Scrub time tooltip
+            GeometryReader { geo in
+                if vm.isScrubbing && vm.duration > 0 {
+                    let hPad: CGFloat = 40
+                    let trackW = geo.size.width - hPad * 2
+                    let fraction = CGFloat(vm.scrubTime / vm.duration)
+                    let thumbX = hPad + trackW * fraction
+                    let labelW: CGFloat = 90
+                    let clampedX = min(max(thumbX, hPad + labelW / 2), geo.size.width - hPad - labelW / 2)
+
+                    Text(formatDuration(vm.scrubTime))
+                        .font(.body.monospacedDigit().weight(.semibold))
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 6)
+                        .background(.black.opacity(0.75), in: RoundedRectangle(cornerRadius: 8))
+                        .frame(width: labelW)
+                        .position(x: clampedX, y: geo.size.height / 2)
+                }
+            }
+            .frame(height: 36)
+
+            // Track row
+            GeometryReader { geo in
+                let hPad: CGFloat = 40
+                let trackW = geo.size.width - hPad * 2
+                let time = vm.isScrubbing ? vm.scrubTime : vm.currentTime
+                let progress = vm.duration > 0 ? CGFloat(time / vm.duration) : 0
+                let thumbX = hPad + trackW * progress
+
+                ZStack {
+                    // Background track
+                    Capsule()
+                        .fill(Color.white.opacity(0.25))
+                        .frame(height: 6)
+                        .padding(.horizontal, hPad)
+
+                    // Progress fill
+                    HStack(spacing: 0) {
+                        Capsule()
+                            .fill(Color.red.opacity(0.85))
+                            .frame(width: max(thumbX - hPad, 0), height: 6)
+                        Spacer(minLength: 0)
+                    }
+                    .padding(.leading, hPad)
+
+                    // Thumb
+                    Circle()
+                        .fill(Color.white)
+                        .frame(width: 22, height: 22)
+                        .shadow(color: .black.opacity(0.4), radius: 4)
+                        .position(x: thumbX, y: geo.size.height / 2)
+                }
+                .overlay(sponsorBlockMarkers)
+                .overlay(chapterMarkers)
+            }
+            .frame(height: 36)
+
+            // Time labels
+            HStack {
+                Text(formatDuration(vm.currentTime))
+                    .font(.callout.monospacedDigit())
+                    .foregroundStyle(.white.opacity(0.9))
+                    .padding(.leading, 40)
+                Spacer()
+                Text(formatDuration(vm.duration))
+                    .font(.callout.monospacedDigit())
+                    .foregroundStyle(.white.opacity(0.9))
+                    .padding(.trailing, 40)
+            }
+        }
+    }
+    #endif
+
+    private var iosProgressBar: some View {
         VStack(spacing: 4) {
             // Tooltip row — always occupies space so layout doesn't jump
             GeometryReader { geo in

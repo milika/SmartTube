@@ -270,3 +270,6 @@ within video list: esc returns to chips, arrow navigatte, up on top row returns 
 ```
 
 You can also open **Hardware → Apple TV Remote** in Simulator for an on-screen remote widget.
+
+
+** CRITICAL: Make sure our changes do not break iPhone implementation, revise them all in the simulator and on device. **
