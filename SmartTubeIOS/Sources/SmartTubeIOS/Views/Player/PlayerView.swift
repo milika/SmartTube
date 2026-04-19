@@ -42,6 +42,9 @@ public struct PlayerView: View {
     /// `suspend()` when iOS fires it as a side-effect of backgrounding rather
     /// than actual navigation away from the player.
     @State private var isInBackground = false
+    #if os(tvOS)
+    @FocusState private var playerFocused: Bool
+    #endif
 
     public init(video: Video) {
         self.video = video
@@ -161,19 +164,29 @@ public struct PlayerView: View {
         }
         .background(Color.black.ignoresSafeArea())
         #if os(tvOS)
-        // Siri Remote D-pad: left/right navigate prev/next video; select/play-pause handled
-        // by AVPlayerViewController system controls automatically.
+        .focusable()
+        .focused($playerFocused)
+        // Siri Remote D-pad: left/right seek ±10s; up/down toggle controls overlay.
         .onMoveCommand { direction in
             guard !isTransitioning else { return }
-            let tvWidth = UIScreen.main.bounds.width
             switch direction {
             case .left:
-                if vm.hasPrevious { performHorizontalTransition(direction: 1, screenWidth: tvWidth) { vm.playPrevious() } }
+                vm.seekRelative(seconds: -10)
             case .right:
-                if vm.hasNext { performHorizontalTransition(direction: -1, screenWidth: tvWidth) { vm.playNext() } }
+                vm.seekRelative(seconds: 10)
             default:
                 vm.toggleControls()
             }
+        }
+        .onTapGesture {
+            vm.togglePlayPause()
+        }
+        .onPlayPauseCommand {
+            vm.togglePlayPause()
+        }
+        .onExitCommand {
+            vm.stop()
+            dismiss()
         }
         #endif
         #if os(iOS)
@@ -194,6 +207,7 @@ public struct PlayerView: View {
                 .accessibilityIdentifier("player.backButton")
                 #if os(tvOS)
                 .buttonStyle(.plain)
+                .focusable(false)
                 #endif
                 Text(vm.playerInfo?.video.title ?? video.title)
                     .font(.caption)
@@ -205,6 +219,9 @@ public struct PlayerView: View {
         }
         .onAppear {
             swipeLog.notice("[PlayerView] onAppear id=\(video.id, privacy: .public)")
+            #if os(tvOS)
+            playerFocused = true
+            #endif
             if vm.currentVideoId == video.id {
                 // Spurious appear (e.g. a sheet temporarily covered us) — only resume
                 // if playback was active before the view disappeared, so an intentional
