@@ -281,6 +281,7 @@ public struct ShortsPlayerView: View {
         // Allow swipe navigation even when the controls overlay is on screen.
         // .simultaneousGesture fires alongside button taps so controls remain
         // interactive while vertical swipes still drive Shorts navigation.
+        #if !os(tvOS)
         .simultaneousGesture(
             DragGesture(minimumDistance: 50, coordinateSpace: .global)
                 .onEnded { value in
@@ -302,6 +303,7 @@ public struct ShortsPlayerView: View {
                     }
                 }
         )
+        #endif
     }
 
     // MARK: - Navigation

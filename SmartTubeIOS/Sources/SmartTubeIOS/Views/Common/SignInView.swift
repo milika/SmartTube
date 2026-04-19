@@ -15,6 +15,9 @@ public struct SignInView: View {
     public init() {}
 
     public var body: some View {
+        #if os(tvOS)
+        tvBody
+        #else
         NavigationStack {
             Group {
                 if let info = auth.pendingActivation {
@@ -51,7 +54,119 @@ public struct SignInView: View {
         .onChange(of: auth.isSignedIn) { _, signedIn in
             if signedIn { dismiss() }
         }
+        #endif
     }
+
+    #if os(tvOS)
+    /// Full-screen tvOS sign-in layout — two-column, 10-foot-UI friendly.
+    private var tvBody: some View {
+        ZStack(alignment: .topTrailing) {
+            Color.black.opacity(0.85).ignoresSafeArea()
+
+            if let info = auth.pendingActivation {
+                tvActivationView(info: info)
+            } else {
+                tvLoadingView
+            }
+
+            Button {
+                auth.cancelSignIn()
+                dismiss()
+            } label: {
+                Label("Cancel", systemImage: "xmark")
+                    .font(.headline)
+            }
+            .padding(40)
+        }
+        .alert("Sign-In Failed", isPresented: $showError, presenting: auth.error) { _ in
+            Button("Try Again") { Task { await auth.beginSignIn() } }
+            Button("Cancel", role: .cancel) { auth.error = nil }
+        } message: { err in
+            Text(err.localizedDescription)
+        }
+        .onChange(of: auth.error == nil ? 0 : 1) { _, hasError in
+            if hasError == 1 { showError = true }
+        }
+        .task { await auth.beginSignIn() }
+        .onChange(of: auth.isSignedIn) { _, signedIn in
+            if signedIn { dismiss() }
+        }
+    }
+
+    private var tvLoadingView: some View {
+        VStack(spacing: 24) {
+            ProgressView().controlSize(.large)
+            Text("Connecting to Google…")
+                .font(.title3)
+                .foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    private func tvActivationView(info: AuthService.ActivationInfo) -> some View {
+        HStack(alignment: .center, spacing: 80) {
+            // Left column: instructions + code + countdown
+            VStack(alignment: .leading, spacing: 32) {
+                VStack(alignment: .leading, spacing: 12) {
+                    Image(systemName: AppSymbol.tvMediabox)
+                        .font(.system(size: 56))
+                        .foregroundStyle(.red)
+
+                    Text("Sign in to SmartTube")
+                        .font(.largeTitle).fontWeight(.bold)
+
+                    Text("On any device, open the link below and enter the code.")
+                        .font(.title3)
+                        .foregroundStyle(.secondary)
+                }
+
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Go to:")
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                    Text(info.verificationURL.absoluteString)
+                        .font(.title3).fontWeight(.semibold)
+                        .foregroundStyle(.blue)
+                }
+
+                Text(info.userCode)
+                    .font(.system(size: 56, weight: .bold, design: .monospaced))
+                    .tracking(10)
+                    .padding(.vertical, 20)
+                    .padding(.horizontal, 32)
+                    .background(Color.secondary.opacity(0.15))
+                    .clipShape(RoundedRectangle(cornerRadius: 16))
+
+                CountdownView(expiresAt: info.expiresAt) {
+                    Task { await auth.beginSignIn() }
+                }
+
+                HStack(spacing: 12) {
+                    ProgressView()
+                    Text("Waiting for authorisation…")
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+
+            // Right column: QR code
+            VStack(spacing: 16) {
+                QRCodeView(content: activationQRURL(info: info))
+                    .frame(width: 280, height: 280)
+                    .padding(16)
+                    .background(.white)
+                    .clipShape(RoundedRectangle(cornerRadius: 20))
+
+                Text("Scan to open activation page")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .padding(60)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+    #endif
 
     // MARK: - Loading screen
 
@@ -127,7 +242,7 @@ public struct SignInView: View {
                 Button {
                     #if os(iOS)
                     UIPasteboard.general.string = info.userCode
-                    #else
+                    #elseif os(macOS)
                     NSPasteboard.general.clearContents()
                     NSPasteboard.general.setString(info.userCode, forType: .string)
                     #endif

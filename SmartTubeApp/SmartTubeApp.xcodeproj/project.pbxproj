@@ -11,6 +11,7 @@
 		06412259452CCFBF300F2D4B /* SmartTubeIOS in Frameworks */ = {isa = PBXBuildFile; productRef = B8401470D9A590E7F3685830 /* SmartTubeIOS */; };
 		494A17316084B602873D7C05 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = AE55B486AFD7F51FEF1874FF /* Assets.xcassets */; };
 		673C1D012F7F20340021583B /* Launch Screen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 673C1D002F7F20340021583B /* Launch Screen.storyboard */; };
+		67E6B6872F9535CD00CD372F /* SmartTubeIOS in Frameworks */ = {isa = PBXBuildFile; productRef = 67E6B6862F9535CD00CD372F /* SmartTubeIOS */; };
 		AA01000000000000000000A4 /* ShareViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA01000000000000000000A1 /* ShareViewController.swift */; };
 		AA01000000000000000000A5 /* SmartTubeIOSCore in Frameworks */ = {isa = PBXBuildFile; productRef = AA01000000000000000000B1 /* SmartTubeIOSCore */; };
 		AA01000000000000000000A6 /* SmartTubeShareExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = AA01000000000000000000A3 /* SmartTubeShareExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
@@ -111,6 +112,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				67E6B6872F9535CD00CD372F /* SmartTubeIOS in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -294,6 +296,7 @@
 			);
 			name = "Smart Tube";
 			packageProductDependencies = (
+				67E6B6862F9535CD00CD372F /* SmartTubeIOS */,
 			);
 			productName = "Smart Tube";
 			productReference = 67E6B67B2F9535CD00CD372F /* Smart Tube.app */;
@@ -637,19 +640,16 @@
 					"@executable_path/Frameworks",
 				);
 				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
-				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = "com.void.bdp.Smart-Tube";
+				MARKETING_VERSION = 1.2;
+				PRODUCT_BUNDLE_IDENTIFIER = com.void.smarttube.tv;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = appletvos;
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
-				SWIFT_APPROACHABLE_CONCURRENCY = YES;
-				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
 				SWIFT_EMIT_LOC_STRINGS = YES;
-				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
-				SWIFT_VERSION = 5.0;
+				SWIFT_VERSION = 5.9;
 				TARGETED_DEVICE_FAMILY = 3;
-				TVOS_DEPLOYMENT_TARGET = 26.4;
+				TVOS_DEPLOYMENT_TARGET = 17.0;
 			};
 			name = Debug;
 		};
@@ -675,18 +675,15 @@
 					"@executable_path/Frameworks",
 				);
 				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
-				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = "com.void.bdp.Smart-Tube";
+				MARKETING_VERSION = 1.2;
+				PRODUCT_BUNDLE_IDENTIFIER = com.void.smarttube.tv;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = appletvos;
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
-				SWIFT_APPROACHABLE_CONCURRENCY = YES;
-				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
 				SWIFT_EMIT_LOC_STRINGS = YES;
-				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
-				SWIFT_VERSION = 5.0;
+				SWIFT_VERSION = 5.9;
 				TARGETED_DEVICE_FAMILY = 3;
-				TVOS_DEPLOYMENT_TARGET = 26.4;
+				TVOS_DEPLOYMENT_TARGET = 17.0;
 				VALIDATE_PRODUCT = YES;
 			};
 			name = Release;
@@ -981,6 +978,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 644EA6428F48EF6B886E4B58 /* XCLocalSwiftPackageReference "../SmartTubeIOS" */;
 			productName = SmartTubeIOSCore;
+		};
+		67E6B6862F9535CD00CD372F /* SmartTubeIOS */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 644EA6428F48EF6B886E4B58 /* XCLocalSwiftPackageReference "../SmartTubeIOS" */;
+			productName = SmartTubeIOS;
 		};
 		AA01000000000000000000B1 /* SmartTubeIOSCore */ = {
 			isa = XCSwiftPackageProductDependency;

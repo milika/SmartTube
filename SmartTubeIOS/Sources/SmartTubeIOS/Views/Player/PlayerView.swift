@@ -165,11 +165,12 @@ public struct PlayerView: View {
         // by AVPlayerViewController system controls automatically.
         .onMoveCommand { direction in
             guard !isTransitioning else { return }
+            let tvWidth = UIScreen.main.bounds.width
             switch direction {
             case .left:
-                if vm.hasPrevious { performHorizontalTransition(direction: 1, screenWidth: geo.size.width) { vm.playPrevious() } }
+                if vm.hasPrevious { performHorizontalTransition(direction: 1, screenWidth: tvWidth) { vm.playPrevious() } }
             case .right:
-                if vm.hasNext { performHorizontalTransition(direction: -1, screenWidth: geo.size.width) { vm.playNext() } }
+                if vm.hasNext { performHorizontalTransition(direction: -1, screenWidth: tvWidth) { vm.playNext() } }
             default:
                 vm.toggleControls()
             }
@@ -718,6 +719,7 @@ public struct PlayerView: View {
                 .overlay(sponsorBlockMarkers)
                 .overlay(chapterMarkers)
                 .contentShape(Rectangle())
+                #if !os(tvOS)
                 .gesture(
                     DragGesture(minimumDistance: 0)
                         .onChanged { value in
@@ -727,6 +729,7 @@ public struct PlayerView: View {
                         }
                         .onEnded { _ in vm.commitScrub() }
                 )
+                #endif
             }
             .frame(height: 28)
         }
@@ -1082,7 +1085,7 @@ private final class PiPDelegate: NSObject, AVPictureInPictureControllerDelegate 
 
 // MARK: - SwipeGestureOverlay (horizontal)
 
-/// Transparent UIKit overlay that captures horizontal swipe and tap gestures.
+#if os(iOS)
 /// Left swipe → `onSwipeLeft`, right swipe → `onSwipeRight`, tap → `onTap`.
 /// Set `isEnabled = false` (e.g. while the progress slider is being scrubbed) to
 /// temporarily suppress pan recognition so the scrub drag is not mistaken for a swipe.
@@ -1156,7 +1159,8 @@ private struct SwipeGestureOverlay: UIViewRepresentable {
         @MainActor @objc func handleTwoFingerTap() { parent.onTwoFingerTap() }
     }
 }
-#endif
+#endif // os(iOS)
+#endif // os(iOS) || os(tvOS)
 
 // MARK: - RelatedVideosView
 struct RelatedVideosView: View {

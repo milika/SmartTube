@@ -69,6 +69,7 @@ public struct SettingsView: View {
                 }
             }
 
+            #if !os(tvOS)
             Stepper(
                 "Seek Back: \(store.settings.seekBackSeconds)s",
                 value: $store.settings.seekBackSeconds,
@@ -81,6 +82,7 @@ public struct SettingsView: View {
                 in: 5...60,
                 step: 5
             )
+            #endif
 
             Picker("Hide Controls After", selection: $store.settings.controlsHideTimeout) {
                 Text("2s").tag(2)
@@ -200,9 +202,11 @@ public struct SettingsView: View {
     private var aboutSection: some View {
         Section("About") {
             LabeledContent("Version", value: appVersion)
+            #if !os(tvOS)
             Link(destination: URL(string: "https://ko-fi.com/milikadelic")!) {
                 Label("Support on Ko-fi", systemImage: "cup.and.saucer.fill")
             }
+            #endif
             Button("Reset All Settings", role: .destructive) { store.reset() }
         }
     }

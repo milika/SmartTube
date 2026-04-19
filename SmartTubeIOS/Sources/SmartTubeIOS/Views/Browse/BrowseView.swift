@@ -176,7 +176,9 @@ public struct BrowseView: View {
         }
         .padding(.horizontal)
         .padding(.vertical, 10)
+        #if !os(tvOS)
         .background(.bar)
+        #endif
     }
 
     private var emptyState: some View {

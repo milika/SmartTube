@@ -75,7 +75,7 @@ private struct ChannelListRow: View {
 
     private var avatarPlaceholder: some View {
         Circle()
-            .fill(Color(.systemFill))
+            .fill(Color.secondary.opacity(0.2))
             .frame(width: 48, height: 48)
             .overlay(
                 Image(systemName: AppSymbol.personCircle)

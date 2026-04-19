@@ -38,11 +38,13 @@ public struct VideoCardView: View {
             }
         }
         .contextMenu {
+            #if !os(tvOS)
             if let shareURL = URL(string: "https://www.youtube.com/watch?v=\(video.id)") {
                 ShareLink(item: shareURL) {
                     Label("Share", systemImage: AppSymbol.share)
                 }
             }
+            #endif
             if let channelId = video.channelId, !channelId.isEmpty {
                 Button {
                     NotificationCenter.default.post(

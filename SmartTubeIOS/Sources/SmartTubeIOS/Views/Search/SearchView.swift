@@ -303,7 +303,9 @@ struct SearchFilterSheet: View {
                 }
             }
             .navigationTitle("Search filters")
+            #if !os(tvOS)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { dismiss() }
@@ -314,10 +316,12 @@ struct SearchFilterSheet: View {
                         dismiss()
                     }
                 }
+                #if !os(tvOS)
                 ToolbarItem(placement: .bottomBar) {
                     Button("Reset") { draft = .default }
                         .disabled(draft.isDefault)
                 }
+                #endif
             }
         }
         .presentationDetents([.medium, .large])
