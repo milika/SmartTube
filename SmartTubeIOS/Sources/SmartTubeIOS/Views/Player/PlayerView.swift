@@ -561,6 +561,7 @@ public struct PlayerView: View {
                     Divider()
                 }
                 // Share
+                #if os(iOS)
                 Button {
                     showMoreMenu = false
                     if let url = URL(string: "https://www.youtube.com/watch?v=\(currentVideo.id)") {
@@ -575,6 +576,7 @@ public struct PlayerView: View {
                 .buttonStyle(.plain)
                 .foregroundStyle(.primary)
                 Divider()
+                #endif
                 // Sleep timer
                 Menu {
                     Button("Off") { vm.setSleepTimer(minutes: nil) }

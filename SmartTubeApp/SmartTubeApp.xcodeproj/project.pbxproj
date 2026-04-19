@@ -71,6 +71,7 @@
 		43AC502830145DD05002B5A2 /* PlaylistsNavigationUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaylistsNavigationUITests.swift; sourceTree = "<group>"; };
 		46FAE8C7AB41057B392DF731 /* DownloadLiveActivity.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = DownloadLiveActivity.swift; sourceTree = "<group>"; };
 		673C1D002F7F20340021583B /* Launch Screen.storyboard */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; path = "Launch Screen.storyboard"; sourceTree = "<group>"; };
+		67E6B67B2F9535CD00CD372F /* Smart Tube.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Smart Tube.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		6ACA5CEA633CF065619F786C /* SmartTube.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = SmartTube.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		79E77E6DD18B12CA7A5341D0 /* SmartTubeDownloadWidget.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = SmartTubeDownloadWidget.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		A9B0C1D2E3F4A5B6C7D8E9F0 /* ShortsNavigationUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShortsNavigationUITests.swift; sourceTree = "<group>"; };
@@ -89,12 +90,27 @@
 		F4A5B6C7D8E9F0A1B2C3D4E5 /* CategoryChipHTTP400UITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CategoryChipHTTP400UITests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
+/* Begin PBXFileSystemSynchronizedRootGroup section */
+		67E6B67C2F9535CD00CD372F /* Smart Tube */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = "Smart Tube";
+			sourceTree = "<group>";
+		};
+/* End PBXFileSystemSynchronizedRootGroup section */
+
 /* Begin PBXFrameworksBuildPhase section */
 		2BAA25ED5DBB8F5241B0AA13 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
 				06412259452CCFBF300F2D4B /* SmartTubeIOS in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		67E6B6782F9535CD00CD372F /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -125,6 +141,7 @@
 				32582044D5D706C4EC49DA00 /* SmartTubeApp */,
 				9084B7F6DD70E282DD4342A7 /* Sources */,
 				30B4BA37D4FD93516937E9D9 /* UITests */,
+				67E6B67C2F9535CD00CD372F /* Smart Tube */,
 				5EF0B6AF2643BF476B25C7C0 /* Products */,
 				A6606018E9CE8927C08D84DF /* Frameworks */,
 				3A6CBA986681DD6D6BBFD4EA /* DownloadWidget */,
@@ -171,6 +188,7 @@
 				DA3810E40296738F4C5E0B95 /* SmartTubeUITests.xctest */,
 				79E77E6DD18B12CA7A5341D0 /* SmartTubeDownloadWidget.appex */,
 				AA01000000000000000000A3 /* SmartTubeShareExtension.appex */,
+				67E6B67B2F9535CD00CD372F /* Smart Tube.app */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -259,6 +277,28 @@
 			productReference = 6ACA5CEA633CF065619F786C /* SmartTube.app */;
 			productType = "com.apple.product-type.application";
 		};
+		67E6B67A2F9535CD00CD372F /* Smart Tube */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 67E6B6852F9535CD00CD372F /* Build configuration list for PBXNativeTarget "Smart Tube" */;
+			buildPhases = (
+				67E6B6772F9535CD00CD372F /* Sources */,
+				67E6B6782F9535CD00CD372F /* Frameworks */,
+				67E6B6792F9535CD00CD372F /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				67E6B67C2F9535CD00CD372F /* Smart Tube */,
+			);
+			name = "Smart Tube";
+			packageProductDependencies = (
+			);
+			productName = "Smart Tube";
+			productReference = 67E6B67B2F9535CD00CD372F /* Smart Tube.app */;
+			productType = "com.apple.product-type.application";
+		};
 		92FF8ABD9CCECACCB7D9D2F1 /* SmartTubeDownloadWidget */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = 7D9289AB39EE378EB64C7F41 /* Build configuration list for PBXNativeTarget "SmartTubeDownloadWidget" */;
@@ -306,6 +346,7 @@
 			isa = PBXProject;
 			attributes = {
 				BuildIndependentTargetsInParallel = YES;
+				LastSwiftUpdateCheck = 2640;
 				LastUpgradeCheck = 1600;
 				TargetAttributes = {
 					38EEA5DF9BAA36788D776AB0 = {
@@ -313,6 +354,9 @@
 					};
 					5A4C56D3A7C36BE68C3C3CE0 = {
 						ProvisioningStyle = Automatic;
+					};
+					67E6B67A2F9535CD00CD372F = {
+						CreatedOnToolsVersion = 26.4;
 					};
 				};
 			};
@@ -337,6 +381,7 @@
 				38EEA5DF9BAA36788D776AB0 /* SmartTubeUITests */,
 				92FF8ABD9CCECACCB7D9D2F1 /* SmartTubeDownloadWidget */,
 				AA01000000000000000000A7 /* SmartTubeShareExtension */,
+				67E6B67A2F9535CD00CD372F /* Smart Tube */,
 			);
 		};
 /* End PBXProject section */
@@ -358,6 +403,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		67E6B6792F9535CD00CD372F /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		AA01000000000000000000AA /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -368,6 +420,13 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
+		67E6B6772F9535CD00CD372F /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		AA01000000000000000000A8 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -551,6 +610,86 @@
 				TEST_TARGET_NAME = SmartTube;
 			};
 			name = Debug;
+		};
+		67E6B6832F9535CD00CD372F /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = "App Icon & Top Shelf Image";
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 5A4JA438MW;
+				ENABLE_PREVIEWS = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.entertainment";
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UIUserInterfaceStyle = Automatic;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "com.void.bdp.Smart-Tube";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = appletvos;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 3;
+				TVOS_DEPLOYMENT_TARGET = 26.4;
+			};
+			name = Debug;
+		};
+		67E6B6842F9535CD00CD372F /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = "App Icon & Top Shelf Image";
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 5A4JA438MW;
+				ENABLE_PREVIEWS = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.entertainment";
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UIUserInterfaceStyle = Automatic;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "com.void.bdp.Smart-Tube";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = appletvos;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 3;
+				TVOS_DEPLOYMENT_TARGET = 26.4;
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
 		};
 		8C071631C8CB52D3A77F733C /* Debug */ = {
 			isa = XCBuildConfiguration;
@@ -779,6 +918,15 @@
 			buildConfigurations = (
 				4AF41A3BD9270B2E62E2D1FD /* Debug */,
 				FF8768BF04D8F26434D2CCCD /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		67E6B6852F9535CD00CD372F /* Build configuration list for PBXNativeTarget "Smart Tube" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				67E6B6832F9535CD00CD372F /* Debug */,
+				67E6B6842F9535CD00CD372F /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Debug;
