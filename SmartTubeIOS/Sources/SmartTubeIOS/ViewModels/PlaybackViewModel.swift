@@ -45,6 +45,10 @@ public final class PlaybackViewModel {
     /// The time observer skips `currentTime` updates while this is set so the
     /// slider thumb doesn't jump back to the real playhead mid-scrub.
     public private(set) var isScrubbing: Bool = false
+    /// True if playback was active when `suspend()` was last called.
+    /// Used by `PlayerView.onAppear` to decide whether to resume after a
+    /// sheet dismissal — prevents overriding an intentional user pause.
+    public private(set) var wasPlayingBeforeSuspend: Bool = false
     /// Position tracked during a scrub drag; committed to AVPlayer on release.
     public private(set) var scrubTime: TimeInterval = 0
 
@@ -82,6 +86,10 @@ public final class PlaybackViewModel {
     @ObservationIgnored nonisolated(unsafe) private var audioSessionObserver: Any?
     /// Prevents infinite retry loops: set once the first fallback attempt has been made.
     private var hasRetriedPlayback: Bool = false
+    /// True while a SponsorBlock auto-skip seek is in-flight. Guards against the periodic
+    /// time observer re-triggering `checkSponsorSkip` before the seek completes, which
+    /// causes the end-of-video twitch / audio loop.
+    private var isSkippingSegment: Bool = false
     private var itemObserverTask: Task<Void, Never>?
     private var endObserverTask: Task<Void, Never>?
     private var controlsTimer: Task<Void, Never>?
@@ -161,6 +169,7 @@ public final class PlaybackViewModel {
         player.pause()
         player.replaceCurrentItem(with: nil)
         isPlaying = false
+        wasPlayingBeforeSuspend = false
         currentTime = 0
         duration = 0
         controlsVisible = false
@@ -212,6 +221,7 @@ public final class PlaybackViewModel {
                 playerLog.notice("Saved position \(Int(pos), privacy: .public)s for \(videoId, privacy: .public)")
             }
         }
+        wasPlayingBeforeSuspend = isPlaying
         player.pause()
         isPlaying = false
         controlsTimer?.cancel()
@@ -228,6 +238,7 @@ public final class PlaybackViewModel {
             return
         }
         playerLog.notice("[resume] resume() called — currentVideo=\(self.currentVideo?.id ?? "nil", privacy: .public)")
+        wasPlayingBeforeSuspend = false
         player.play()
         isPlaying = true
         showControls()
@@ -806,8 +817,27 @@ public final class PlaybackViewModel {
         if let seg = sponsorSegments.first(where: { time >= $0.start && time < $0.end }) {
             switch settings.sponsorAction(for: seg.category) {
             case .skip:
+                guard !isSkippingSegment else { return true }
                 currentToastSegment = nil
-                seek(to: seg.end)
+                // If the segment reaches the end of the video, seeking would clamp to
+                // the last frame and never fire didPlayToEndTimeNotification, causing an
+                // infinite seek loop. Treat it as natural playback completion instead.
+                if duration > 0 && seg.end >= duration {
+                    handlePlaybackEnd()
+                    return true
+                }
+                isSkippingSegment = true
+                player.seek(
+                    to: CMTime(seconds: seg.end, preferredTimescale: 600),
+                    toleranceBefore: .zero,
+                    toleranceAfter: .zero
+                ) { [weak self] _ in
+                    Task { @MainActor [weak self] in
+                        guard let self else { return }
+                        self.currentTime = seg.end
+                        self.isSkippingSegment = false
+                    }
+                }
                 return true
             case .showToast:
                 currentToastSegment = seg
@@ -825,8 +855,12 @@ public final class PlaybackViewModel {
     /// Manually skip the segment shown in `currentToastSegment` (called by the view's skip button).
     public func skipToastSegment() {
         guard let seg = currentToastSegment else { return }
-        seek(to: seg.end)
         currentToastSegment = nil
+        if duration > 0 && seg.end >= duration {
+            handlePlaybackEnd()
+            return
+        }
+        seek(to: seg.end)
         showControls()
     }
 

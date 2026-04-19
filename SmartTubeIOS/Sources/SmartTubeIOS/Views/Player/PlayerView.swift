@@ -181,8 +181,12 @@ public struct PlayerView: View {
         .onAppear {
             swipeLog.notice("[PlayerView] onAppear id=\(video.id, privacy: .public)")
             if vm.currentVideoId == video.id {
-                // Spurious appear (e.g. a sheet temporarily covered us) — just resume.
-                vm.resume()
+                // Spurious appear (e.g. a sheet temporarily covered us) — only resume
+                // if playback was active before the view disappeared, so an intentional
+                // user pause is not overridden (e.g. pause → background → foreground).
+                if vm.wasPlayingBeforeSuspend {
+                    vm.resume()
+                }
             } else {
                 vm.load(video: video)
             }

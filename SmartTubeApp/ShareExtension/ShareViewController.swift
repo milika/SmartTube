@@ -8,11 +8,10 @@ private let shareLog = Logger(subsystem: "com.void.smarttube.app.shareextension"
 // MARK: - ShareViewController
 //
 // Opens the main app from a Share Extension by walking the UIResponder chain
-// to reach UIApplication directly. extensionContext.open() is silently broken
-// for com.apple.share-services extensions — the responder-chain approach is
-// the confirmed working workaround (iOS 17–26, multiple verified reports).
-// App Group UserDefaults is written as a fallback for when the main app is
-// already in the foreground and the URL open is unnecessary.
+// to find the first responder that responds to `openURL:`. Casting to UIApplication
+// does not work in a Share Extension process — there is no UIApplication instance
+// in the chain — but Apple's internal application proxy object responds to the
+// openURL: selector and correctly cross-launches the containing app.
 
 final class ShareViewController: UIViewController {
 
@@ -103,24 +102,23 @@ final class ShareViewController: UIViewController {
         cancel()
     }
 
-    /// Walks the UIResponder chain from `self` upward until it finds `UIApplication`,
-    /// then tells it to open `url`. This is the only reliable way to bring the main
-    /// app to foreground from a Share Extension.
+    /// Walks the UIResponder chain from `self` upward until it finds an object that
+    /// responds to `openURL:`, then uses it to open `url`. In a Share Extension
+    /// process there is no UIApplication instance to cast to, but Apple's internal
+    /// application proxy object does respond to the selector and correctly brings
+    /// the containing app to the foreground.
     private func openViaResponderChain(_ url: URL) {
+        let openURLSel = NSSelectorFromString("openURL:")
         var responder: UIResponder? = self
         while let r = responder {
-            if let app = r as? UIApplication {
-                shareLog.notice("  found UIApplication — opening URL")
-                if #available(iOS 18.0, *) {
-                    app.open(url, options: [:], completionHandler: nil)
-                } else {
-                    app.perform(NSSelectorFromString("openURL:"), with: url)
-                }
+            if r.responds(to: openURLSel) {
+                shareLog.notice("  found openURL: responder (\(type(of: r), privacy: .public)) — opening URL")
+                r.perform(openURLSel, with: url)
                 return
             }
             responder = r.next
         }
-        shareLog.error("  UIApplication NOT found in responder chain")
+        shareLog.error("  no responder with openURL: found in chain")
     }
 
     private func cancel() {

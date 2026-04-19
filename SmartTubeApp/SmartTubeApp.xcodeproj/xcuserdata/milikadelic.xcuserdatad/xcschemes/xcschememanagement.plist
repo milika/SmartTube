@@ -7,17 +7,12 @@
 		<key>SmartTube.xcscheme_^#shared#^_</key>
 		<dict>
 			<key>orderHint</key>
-			<integer>0</integer>
+			<integer>1</integer>
 		</dict>
 		<key>SmartTubeApp.xcscheme_^#shared#^_</key>
 		<dict>
 			<key>orderHint</key>
 			<integer>3</integer>
-		</dict>
-		<key>SmartTubeDownloadWidget.xcscheme_^#shared#^_</key>
-		<dict>
-			<key>orderHint</key>
-			<integer>2</integer>
 		</dict>
 		<key>SmartTubeMac.xcscheme_^#shared#^_</key>
 		<dict>
@@ -27,7 +22,25 @@
 		<key>SmartTubeShareExtension.xcscheme_^#shared#^_</key>
 		<dict>
 			<key>orderHint</key>
-			<integer>1</integer>
+			<integer>0</integer>
+		</dict>
+	</dict>
+	<key>SuppressBuildableAutocreation</key>
+	<dict>
+		<key>5A4C56D3A7C36BE68C3C3CE0</key>
+		<dict>
+			<key>primary</key>
+			<true/>
+		</dict>
+		<key>92FF8ABD9CCECACCB7D9D2F1</key>
+		<dict>
+			<key>primary</key>
+			<true/>
+		</dict>
+		<key>AA01000000000000000000A7</key>
+		<dict>
+			<key>primary</key>
+			<true/>
 		</dict>
 	</dict>
 </dict>
