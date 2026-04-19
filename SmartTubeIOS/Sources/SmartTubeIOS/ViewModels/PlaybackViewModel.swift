@@ -757,7 +757,11 @@ public final class PlaybackViewModel {
     }
 
     public func setPlaybackSpeed(_ speed: Double) {
-        player.rate = Float(speed)
+        // Setting player.rate to a non-zero value on a paused AVPlayer restarts
+        // playback — only apply the rate while actively playing.
+        if isPlaying {
+            player.rate = Float(speed)
+        }
     }
 
     // MARK: - Controls visibility

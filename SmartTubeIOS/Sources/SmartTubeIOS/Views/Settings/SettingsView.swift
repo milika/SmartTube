@@ -200,6 +200,9 @@ public struct SettingsView: View {
     private var aboutSection: some View {
         Section("About") {
             LabeledContent("Version", value: appVersion)
+            Link(destination: URL(string: "https://ko-fi.com/milikadelic")!) {
+                Label("Support on Ko-fi", systemImage: "cup.and.saucer.fill")
+            }
             Button("Reset All Settings", role: .destructive) { store.reset() }
         }
     }
