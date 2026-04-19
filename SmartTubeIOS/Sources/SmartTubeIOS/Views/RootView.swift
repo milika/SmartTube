@@ -15,7 +15,9 @@ public struct RootView: View {
     public var body: some View {
         @Bindable var browseVM = browseVM
         Group {
-            #if os(macOS)
+            #if os(tvOS)
+            MainTVTabView()
+            #elseif os(macOS)
             MainSidebarView()
             #else
             MainTabView()
@@ -83,6 +85,26 @@ struct MainTabView: View {
         .environment(searchVM)
     }
 }
+
+// MARK: - MainTVTabView  (tvOS)
+// Top-bar TabView is the Apple-recommended navigation pattern for Apple TV.
+// Each tab contains a NavigationStack so drill-down is available within each section.
+
+#if os(tvOS)
+struct MainTVTabView: View {
+    @State private var searchVM = SearchViewModel()
+
+    var body: some View {
+        TabView {
+            ForEach(AppSection.allCases) { section in
+                NavigationStack { section.destination }
+                    .tabItem { Label(section.rawValue, systemImage: section.icon) }
+            }
+        }
+        .environment(searchVM)
+    }
+}
+#endif
 
 // MARK: - MainSidebarView  (macOS)
 

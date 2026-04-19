@@ -64,7 +64,7 @@ All 14 files in `Sources/SmartTubeIOSCore/` are Foundation-only with no UIKit, n
 |------|-----------|-------|
 | `AuthService.swift` | ✅ Near-zero | The TV OAuth + device-code flow is already primary. `UIPasteboard` usage is guarded and can be `#if`-fenced for tvOS (copy is irrelevant — user types code on phone) |
 | `SettingsStore.swift` | ✅ Zero changes | `@Observable`; pure UserDefaults |
-| `VideoDownloadService.swift` | ⚠️ tvOS: disable | `PHPhotoLibrary` is unavailable on tvOS. Wrap service in `#if !os(tvOS)` or surface a "not available on Apple TV" no-op |
+| `VideoDownloadService.swift` | ✅ Not included | Downloads are an iOS-only feature; not part of the Apple TV product |
 
 ### ViewModels
 
@@ -124,9 +124,9 @@ Recommended starting point: Option A (grid), Option B as a follow-up.
 
 Already `#if os(iOS)` — simply not available on tvOS. No work needed, it's already excluded.
 
-### 5. Download feature (`VideoDownloadService` + `DownloadWidget`)
+### 5. Download feature
 
-`PHPhotoLibrary` is not available on tvOS. The entire download surface (download button in player, `VideoDownloadService`, `DownloadWidget` Live Activity extension) must be conditioned out with `#if !os(tvOS)`. The `DownloadWidget` target itself is an iOS app extension and does not apply to tvOS.
+Not included in the Apple TV product. The `DownloadWidget` target is an iOS-only app extension and is not added to the tvOS target. The download button in the player is simply not present in the tvOS UI layer.
 
 ### 6. Navigation shell (`RootView`)
 
@@ -204,7 +204,6 @@ Both targets (`SmartTubeIOSCore`, `SmartTubeIOS`) need the platform added. `Smar
 - [ ] `VideoCardView`: add `.focusable()`, `.buttonStyle(.card)`, and `hoverEffect` for tvOS
 - [ ] `BrowseView` / `HomeView`: verify focus traversal, increase card sizes for 10-foot
 - [ ] Typography pass: `#if os(tvOS)` font size overrides
-- [ ] `VideoDownloadService` / download button: wrap in `#if !os(tvOS)`
 
 ### Phase TV-2 — Playback on Apple TV
 
@@ -240,7 +239,7 @@ Both targets (`SmartTubeIOSCore`, `SmartTubeIOS`) need the platform added. `Smar
 | `AVPlayerLayerView` bare layer loses system transport controls on tvOS | Medium | Use `AVPlayerViewController` on tvOS path; bare layer only needed to fix XCUITest — tvOS UI tests work differently |
 | Shorts player entirely touch-driven | Medium | Start with grid display; full swipe player is a v2 feature |
 | Focus engine audit is broad (every interactive element) | Medium | Can be done incrementally; broken focus just means keyboard navigation is bad, not that the app crashes |
-| `PHPhotoLibrary` unavailable on tvOS | Low | Already behind a service class; one `#if !os(tvOS)` gate is sufficient |
+| Download feature not on tvOS | Low | Simply not included in the tvOS UI target; no platform guards needed |
 | `ActivityKit` unavailable on tvOS | Low | Already `#if canImport(ActivityKit)` guarded throughout |
 | Performance on Apple TV hardware | Low | Apple TV 4K (A15/A16) is more powerful than iPhone 13; no concerns |
 

@@ -28,8 +28,10 @@ public struct PlayerView: View {
     @State private var slideOffset: CGFloat = 0
     @State private var isTransitioning = false
     @State private var channelDestination: ChannelDestination?
+    #if !os(tvOS)
     @State private var downloadService = VideoDownloadService()
     @State private var downloadAlertItem: DownloadAlertItem?
+    #endif
     #if os(iOS)
     @State private var pipController: AVPictureInPictureController?
     @State private var pipDelegate: PiPDelegate?
@@ -62,6 +64,7 @@ public struct PlayerView: View {
                 .ignoresSafeArea()
                 .accessibilityHidden(true)
 
+                #if os(iOS)
                 // Horizontal swipe layer: left → next video, right → previous video.
                 // Uses UIKit-level UIPanGestureRecognizer so it fires above AVPlayerLayer.
                 SwipeGestureOverlay(
@@ -97,6 +100,7 @@ public struct PlayerView: View {
                 )
                 .ignoresSafeArea()
                 .accessibilityHidden(true)
+                #endif
 
                 // Loading spinner
                 if vm.isLoading {
@@ -156,6 +160,21 @@ public struct PlayerView: View {
             .offset(x: slideOffset)
         }
         .background(Color.black.ignoresSafeArea())
+        #if os(tvOS)
+        // Siri Remote D-pad: left/right navigate prev/next video; select/play-pause handled
+        // by AVPlayerViewController system controls automatically.
+        .onMoveCommand { direction in
+            guard !isTransitioning else { return }
+            switch direction {
+            case .left:
+                if vm.hasPrevious { performHorizontalTransition(direction: 1, screenWidth: geo.size.width) { vm.playPrevious() } }
+            case .right:
+                if vm.hasNext { performHorizontalTransition(direction: -1, screenWidth: geo.size.width) { vm.playNext() } }
+            default:
+                vm.toggleControls()
+            }
+        }
+        #endif
         #if os(iOS)
         .navigationBarHidden(true)
         .statusBarHidden(true)
@@ -231,6 +250,7 @@ public struct PlayerView: View {
         .navigationDestination(item: $channelDestination) { dest in
             ChannelView(channelId: dest.channelId)
         }
+        #if !os(tvOS)
         .onChange(of: downloadService.state) { _, newState in
             switch newState {
             case .done:
@@ -247,6 +267,7 @@ public struct PlayerView: View {
         .alert(item: $downloadAlertItem) { item in
             Alert(title: Text(item.title), message: Text(item.message), dismissButton: .default(Text("OK")))
         }
+        #endif
     }
 
     // MARK: - Slide transition
@@ -578,6 +599,7 @@ public struct PlayerView: View {
                 .buttonStyle(.plain)
                 .foregroundStyle(.primary)
                 Divider()
+                #if !os(tvOS)
                 // Download
                 Button {
                     showMoreMenu = false
@@ -599,6 +621,7 @@ public struct PlayerView: View {
                 .foregroundStyle(.primary)
                 .disabled(downloadService.state.isActive)
                 Divider()
+                #endif
                 Button(role: .cancel) { showMoreMenu = false } label: {
                     Text("Cancel")
                         .frame(maxWidth: .infinity)
@@ -974,10 +997,12 @@ struct StatsForNerdsOverlay: View {
 
 // MARK: - AVPlayerLayerView
 
-#if os(iOS)
+#if os(iOS) || os(tvOS)
 /// Lightweight UIViewRepresentable wrapping an `AVPlayerLayer` directly.
 /// Unlike `VideoPlayer` / `AVPlayerViewController`, it does not interfere
 /// with the UIKit accessibility tree so SwiftUI overlays remain reachable.
+/// On tvOS, `AVPlayerViewController` would provide system transport controls
+/// but `AVPlayerLayer` is used here for layout consistency with iOS.
 private struct AVPlayerLayerView: UIViewRepresentable {
     let player: AVPlayer?
     var videoGravity: AVLayerVideoGravity = .resizeAspect

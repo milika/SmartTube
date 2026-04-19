@@ -19,8 +19,10 @@ public struct VideoCardView: View {
     public var compact: Bool = false
 
     @Environment(AuthService.self) private var authService
+    #if !os(tvOS)
     @State private var downloadService = VideoDownloadService()
     @State private var downloadAlertItem: DownloadAlertItem?
+    #endif
 
     public init(video: Video, compact: Bool = false) {
         self.video = video
@@ -52,6 +54,7 @@ public struct VideoCardView: View {
                     Label("Open Channel", systemImage: AppSymbol.personRectangle)
                 }
             }
+            #if !os(tvOS)
             Button {
                 downloadService.updateAuthToken(authService.accessToken)
                 downloadService.download(video: video)
@@ -63,6 +66,7 @@ public struct VideoCardView: View {
                 }
             }
             .disabled(downloadService.state.isActive)
+            #endif
         } preview: {
             Group {
                 if compact {
@@ -75,6 +79,7 @@ public struct VideoCardView: View {
             .frame(width: 300)
             .background(.background)
         }
+        #if !os(tvOS)
         .onChange(of: downloadService.state) { _, newState in
             switch newState {
             case .done:
@@ -90,6 +95,7 @@ public struct VideoCardView: View {
         .alert(item: $downloadAlertItem) { item in
             Alert(title: Text(item.title), message: Text(item.message), dismissButton: .default(Text("OK")))
         }
+        #endif
     }
 
     // MARK: Grid layout (default)
@@ -129,6 +135,9 @@ public struct VideoCardView: View {
             }
             .padding(.horizontal, 2)
         }
+        #if os(tvOS)
+        .buttonStyle(.card)
+        #endif
     }
 
     // MARK: Compact (list) layout

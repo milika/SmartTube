@@ -6,6 +6,7 @@ let package = Package(
     platforms: [
         .iOS(.v17),
         .macOS(.v14),
+        .tvOS(.v17),
     ],
     products: [
         // Cross-platform core: models + InnerTube/SponsorBlock services (Foundation only).

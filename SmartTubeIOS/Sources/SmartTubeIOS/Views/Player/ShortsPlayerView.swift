@@ -58,6 +58,7 @@ public struct ShortsPlayerView: View {
             // Gesture capture layer — a UIViewRepresentable that installs a
             // UIPanGestureRecognizer at the UIKit level so it fires even when
             // AVPlayerViewController is absorbing touches below.
+            #if os(iOS)
             SwipeGestureOverlay(
                 onSwipeUp: {
                     guard !isTransitioning else { return }
@@ -93,6 +94,7 @@ public struct ShortsPlayerView: View {
             )
             .ignoresSafeArea()
             .accessibilityHidden(true)
+            #endif
 
             if vm.isLoading {
                 ProgressView()
@@ -127,6 +129,24 @@ public struct ShortsPlayerView: View {
         }
         .offset(y: slideOffset)
         .background(Color.black.ignoresSafeArea())
+        #if os(tvOS)
+        // Siri Remote D-pad: up/down navigate prev/next short.
+        .onMoveCommand { direction in
+            guard !isTransitioning else { return }
+            switch direction {
+            case .up:
+                if let next = ShortsNavigation.targetIndex(vertical: -100, horizontal: 0, current: currentIndex, count: videos.count) {
+                    performVerticalTransition(direction: -1) { goTo(next) }
+                }
+            case .down:
+                if let prev = ShortsNavigation.targetIndex(vertical: 100, horizontal: 0, current: currentIndex, count: videos.count) {
+                    performVerticalTransition(direction: 1) { goTo(prev) }
+                }
+            default:
+                vm.toggleControls()
+            }
+        }
+        #endif
         // indexBadge is placed OUTSIDE the ZStack as an overlay so it lives at
         // the top-level SwiftUI view layer, away from UIViewRepresentable elements
         // inside the ZStack that can absorb the accessibility tree in fullScreenCover.
@@ -374,7 +394,7 @@ public struct ShortsPlayerView: View {
 
 // MARK: - AVPlayerLayerView
 
-#if os(iOS)
+#if os(iOS) || os(tvOS)
 /// A lightweight UIView that hosts an `AVPlayerLayer` directly — no
 /// `AVPlayerViewController` involved.  This keeps the UIKit accessibility
 /// tree completely clean so SwiftUI overlays (index badge, controls) remain

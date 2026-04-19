@@ -41,11 +41,19 @@ public struct HomeView: View {
     public var body: some View {
         VStack(spacing: 0) {
             chipBar
+            #if !os(tvOS)
             Divider()
+            #endif
             contentArea
+                #if !os(tvOS)
                 .fullScreenCover(item: $selectedVideo) { video in
                     PlayerView(video: video)
                 }
+                #else
+                .navigationDestination(item: $selectedVideo) { video in
+                    PlayerView(video: video)
+                }
+                #endif
                 .navigationDestination(item: $channelDestination) { dest in
                     ChannelView(channelId: dest.channelId)
                 }
@@ -79,6 +87,15 @@ public struct HomeView: View {
     }
 
     // MARK: - Chip bar
+
+    /// Card width for shelf rows — wider on tvOS for 10-foot viewing.
+    private var tvOSCardWidth: CGFloat {
+        #if os(tvOS)
+        return 400
+        #else
+        return 240
+        #endif
+    }
 
     private var chipBar: some View {
         ScrollView(.horizontal, showsIndicators: false) {
@@ -193,7 +210,7 @@ public struct HomeView: View {
                     LazyHStack(alignment: .top, spacing: 16) {
                         ForEach(videos) { video in
                             VideoCardView(video: video)
-                                .frame(width: 240)
+                                .frame(width: tvOSCardWidth)
                                 .accessibilityIdentifier("video.card.\(video.id)")
                                 .onTapGesture { selectVideo(video, from: videos) }
                                 .onAppear {
@@ -232,7 +249,7 @@ public struct HomeView: View {
                             .frame(width: 140, height: 11)
                             .padding(.horizontal, 4)
                     }
-                    .frame(width: 240)
+                    .frame(width: tvOSCardWidth)
                 }
             }
             .padding(.horizontal)
