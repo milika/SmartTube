@@ -125,12 +125,49 @@ private extension DownloadActivityAttributes.DownloadContentState.Phase {
     }
 }
 
+// MARK: - Placeholder widget (required by WidgetKit)
+//
+// A WidgetKit extension containing only ActivityConfiguration (Live Activity)
+// has no descriptors enumerable by SpringBoard, causing:
+//   SBAvocadoDebuggingControllerErrorDomain "Failed to get descriptors for extensionBundleID"
+// Adding a minimal StaticConfiguration satisfies the requirement.
+
+@available(iOS 16.1, *)
+private struct DownloadPlaceholderWidget: Widget {
+    static let kind = "DownloadPlaceholderWidget"
+
+    var body: some WidgetConfiguration {
+        StaticConfiguration(kind: Self.kind, provider: PlaceholderProvider()) { _ in
+            EmptyView()
+                .containerBackground(.fill.tertiary, for: .widget)
+        }
+        .configurationDisplayName("SmartTube Download")
+        .description("Shows download progress in the Dynamic Island.")
+        .supportedFamilies([.systemSmall])
+    }
+}
+
+@available(iOS 16.1, *)
+private struct PlaceholderProvider: TimelineProvider {
+    func placeholder(in context: Context) -> PlaceholderEntry { PlaceholderEntry() }
+    func getSnapshot(in context: Context, completion: @escaping (PlaceholderEntry) -> Void) { completion(PlaceholderEntry()) }
+    func getTimeline(in context: Context, completion: @escaping (Timeline<PlaceholderEntry>) -> Void) {
+        completion(Timeline(entries: [PlaceholderEntry()], policy: .never))
+    }
+}
+
+@available(iOS 16.1, *)
+private struct PlaceholderEntry: TimelineEntry {
+    let date = Date()
+}
+
 // MARK: - Widget Bundle entry point
 
 @available(iOS 16.1, *)
 @main
 struct SmartTubeDownloadWidgetBundle: WidgetBundle {
     var body: some Widget {
+        DownloadPlaceholderWidget()
         DownloadLiveActivityWidget()
     }
 }
