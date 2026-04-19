@@ -266,10 +266,121 @@ When testing the tvOS app in Xcode Simulator, use the keyboard as a stand-in for
 ```
 Tab bar (↓ or enter) → Chips (↓ or enter) → Video list (esc returns to chips)
 within chips: (left right) moves focus between chips, (↓) moves to video list, esc returns to tab bar
-within video list: esc returns to chips, arrow navigatte, up on top row returns to chips
+within video list: esc returns to chips, arrow navigate, up on top row returns to chips
 ```
 
 You can also open **Hardware → Apple TV Remote** in Simulator for an on-screen remote widget.
 
-
 ** CRITICAL: Make sure our changes do not break iPhone implementation, revise them all in the simulator and on device. **
+
+---
+
+## Apple HIG — Key principles for SmartTube tvOS (April 2026)
+
+This section distils the most relevant rules from the Apple Human Interface Guidelines for tvOS:
+[Designing for tvOS](https://developer.apple.com/design/human-interface-guidelines/designing-for-tvos) · [Remotes](https://developer.apple.com/design/human-interface-guidelines/remotes) · [Focus and selection](https://developer.apple.com/design/human-interface-guidelines/focus-and-selection)
+
+### Apple TV 4K — official playback controls (tvOS 26)
+
+Source: [Control video playback on Apple TV 4K](https://support.apple.com/en-kg/guide/tv/atvb7944597f/tvos)
+
+#### Play, pause, rewind, fast-forward
+
+| Action | Remote gesture |
+|---|---|
+| **Play or pause** | Press ⏯ button, or press the center of the clickpad / touch surface |
+| **Skip backward / forward 10 seconds** | Press left or right on the clickpad ring or touch surface. Press again for another 10 s. |
+| **Continuously rewind / fast-forward** | Press and hold left or right. Press repeatedly to cycle through 2×, 3×, 4× speed. |
+| **Resume from rewind/FF** | Press ⏯ |
+
+> Tip: Skipping back 10 s automatically turns on subtitles so you can re-watch that section with captions.
+
+When paused, onscreen controls appear showing elapsed/remaining time and options.
+
+#### Show/hide onscreen playback controls
+
+| Action | Remote gesture |
+|---|---|
+| **Show controls** | Rest finger on clickpad / touch surface, or press up on clickpad ring (silver remote) |
+| **Hide controls** | Press Menu (Back) or ⏯ |
+
+#### Scrubbing (seek to a specific point)
+
+1. Press ⏯ to **pause**.
+2. **Swipe left or right** on the clickpad or touch surface to scrub. A preview thumbnail appears above the timeline.
+   - *More precise:* circle your finger around the clickpad ring (silver remote only).
+3. **Confirm** seek position: press ⏯ to start playback at the new position.
+4. **Cancel** (return to original): press Menu or ⏯.
+
+> This is the **official Apple scrub model**: pause first, then swipe. Our current ±10 s D-pad seek is a simplified alternative — the full swipe scrub requires the touch surface, not the D-pad.
+
+#### Subtitles / closed captioning
+
+| Action | Remote gesture |
+|---|---|
+| Turn on subtitles/CC | Show controls → swipe up → select subtitle icon → choose option |
+| Temporarily enable for last 10–30 s | Press left on clickpad ring (up to 3× for 30 s) |
+| Turn on subtitles while muted | Press mute button (silver remote only) |
+
+#### Audio options during playback
+
+Show controls → select audio icon → pop-up menu offers: Enhance Dialogue, Reduce Loud Sounds, Audio Track (language / audio descriptions). Close menu with Menu or ⏯.
+
+### Remote — canonical button mapping (HIG requirement)
+
+| Remote gesture | Standard app behaviour | SmartTube current status |
+|---|---|---|
+| Touch surface swipe | Navigate / change focus | ✅ Focus chain works |
+| Touch surface press (select) | Activate control / navigate deeper | ✅ Button select works |
+| Back (Menu) button | Return to parent screen; top-level → Home Screen | ✅ `.onExitCommand` dismisses player |
+| Play/Pause button | Play / pause / resume media | ✅ `.onPlayPauseCommand` hooked |
+| D-pad left/right | Move focus (browse) or seek (player) | ✅ ±10 s seek in player, focus in browse |
+| Swipe left/right (touch surface, during pause) | Scrub timeline | ❌ Not yet implemented — swipe requires `DragGesture` on touch surface |
+
+> "In almost all cases, open the parent of the current screen when people press the Back button." — HIG Remotes
+>
+> "Respond correctly to the Play/Pause button during media playback." — HIG Remotes
+>
+> "People press before swiping to activate scrubbing mode." — HIG Remotes
+
+### Remote — pitfalls to avoid
+
+- **Do NOT redefine standard gestures.** Left/right in a video list must move focus, not seek. Seeking belongs inside the player context.
+- **Avoid responding to inadvertent taps during live video playback.** A resting thumb may generate tap events — `.onTapGesture` in the player risks accidental toggle. Prefer `.onPlayPauseCommand` for deliberate intent.
+- **Do NOT change focus without user interaction.** Focus should only move as a result of a user gesture.
+
+### Focus engine — HIG rules
+
+- **Rely on system-provided focus effects.** Do not build fully custom focus rings unless absolutely necessary. The system's parallax/scale effect is the expected affordance.
+- **Every interactive element must be reachable by D-pad.** Unlike iPadOS (Tab key groups), tvOS uses directional focus to reach every element — nothing can be pointer-only.
+- **Design for 5 focus states**: unfocused, focused (elevated + lit), highlighted (press feedback), selected, unavailable. Supply larger assets for the focused size to stay sharp.
+- **In full-screen experiences, gestures affect content — not focus.** The player should handle D-pad as seek/control, not focus movement. This is consistent with our current `.focusable()` + `.onMoveCommand` approach.
+- **Avoid a pointer.** Free-form cursor movement is not appropriate for menu/browse UI.
+
+### Layout & typography — 10-foot rules
+
+- Viewers sit **8+ feet** from screen. Everything must be readable at that distance.
+- Minimum body text: **≥ 30 pt** (SF Pro Display). Our current `.caption` and `.subheadline` use in video cards is too small.
+- Support **edge-to-edge artwork** — full-bleed thumbnails / hero images are encouraged.
+- Use tvOS **safe area** for text/controls; overscan can clip content on older TVs.
+- SF Symbols scale automatically — prefer them over custom icons.
+
+### Content & cinematic experience
+
+- "Deliver beautiful, edge-to-edge artwork, subtle and fluid animations, and engaging audio, wrapping people in a rich, cinematic experience." — HIG Designing for tvOS
+- Transitions should be fluid and not jarring. Use `.animation(.easeInOut)` consistently.
+- **Dark backgrounds** are the default on tvOS; light UI is jarring on a large TV in a darkened room.
+
+### Multiuser support
+
+- Apple TV is a **shared device**. The HIG emphasises making sign-in easy and infrequent, and supporting profile switching.
+- Our device-code + QR sign-in is already the TV-native pattern — no change needed there.
+
+### System integrations worth adding
+
+| Feature | HIG reference | Priority |
+|---|---|---|
+| **Top Shelf Extension** | [Top Shelf HIG](https://developer.apple.com/design/human-interface-guidelines/top-shelf) | Medium (Phase TV-4) |
+| **Siri / INPlayMediaIntent** | Siri HIG | Low (Phase TV-5) |
+| **Now Playing info** (lock screen / Control Center) | `MPNowPlayingInfoCenter` | High — already partially in `PlaybackViewModel` via `updateNowPlayingPlayback()` |
+| **SharePlay** | SharePlay HIG | Low |

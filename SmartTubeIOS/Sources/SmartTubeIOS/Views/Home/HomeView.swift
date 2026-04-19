@@ -144,7 +144,11 @@ public struct HomeView: View {
         #if os(tvOS)
         return Button(action: action) {
             Text(section.title)
+                #if os(tvOS)
+                .font(.title3.weight(.medium))
+                #else
                 .font(.subheadline.weight(.medium))
+                #endif
                 .padding(.horizontal, 14)
                 .padding(.vertical, 7)
                 .background(
@@ -238,7 +242,11 @@ public struct HomeView: View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(alignment: .firstTextBaseline) {
                 Text(state.section.title)
+                    #if os(tvOS)
+                    .font(.title2.bold())
+                    #else
                     .font(.title3.bold())
+                    #endif
                 Spacer()
                 if !state.videos.isEmpty && state.section.type != .home {
                     Button("See all") {
@@ -247,7 +255,11 @@ public struct HomeView: View {
                             sectionVM.select(section: chip)
                         }
                     }
+                    #if os(tvOS)
+                    .font(.title3)
+                    #else
                     .font(.subheadline)
+                    #endif
                 }
             }
             .padding(.horizontal)

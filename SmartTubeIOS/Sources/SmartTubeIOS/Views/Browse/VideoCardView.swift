@@ -102,10 +102,6 @@ public struct VideoCardView: View {
         }
         #else
         .focused($isFocused)
-        .overlay {
-            RoundedRectangle(cornerRadius: 10)
-                .strokeBorder(Color.white, lineWidth: isFocused ? 4 : 0)
-        }
         .shadow(color: isFocused ? .white.opacity(0.9) : .clear, radius: 18, x: 0, y: 0)
         .scaleEffect(isFocused ? 1.08 : 1.0)
         .zIndex(isFocused ? 1 : 0)
@@ -131,11 +127,18 @@ public struct VideoCardView: View {
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(video.title)
-                    .font(.subheadline)
-                    .fontWeight(.medium)
+                    #if os(tvOS)
+                    .font(.title3.weight(.medium))
+                    #else
+                    .font(.subheadline.weight(.medium))
+                    #endif
                     .lineLimit(2, reservesSpace: true)
                 Text(video.channelTitle)
+                    #if os(tvOS)
+                    .font(.subheadline)
+                    #else
                     .font(.caption)
+                    #endif
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
                 HStack(spacing: 4) {
@@ -145,7 +148,11 @@ public struct VideoCardView: View {
                         Text("· \(date, style: .relative) ago")
                     }
                 }
+                #if os(tvOS)
+                .font(.caption)
+                #else
                 .font(.caption2)
+                #endif
                 .foregroundStyle(.tertiary)
             }
             .padding(.horizontal, 2)
@@ -165,10 +172,18 @@ public struct VideoCardView: View {
                 }
             VStack(alignment: .leading, spacing: 3) {
                 Text(video.title)
+                    #if os(tvOS)
+                    .font(.title3)
+                    #else
                     .font(.subheadline)
+                    #endif
                     .lineLimit(2)
                 Text(video.channelTitle)
+                    #if os(tvOS)
+                    .font(.subheadline)
+                    #else
                     .font(.caption)
+                    #endif
                     .foregroundStyle(.secondary)
                 let vc = video.formattedViewCount
                 if !vc.isEmpty {

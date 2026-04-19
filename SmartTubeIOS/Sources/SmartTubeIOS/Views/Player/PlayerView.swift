@@ -178,9 +178,6 @@ public struct PlayerView: View {
                 vm.toggleControls()
             }
         }
-        .onTapGesture {
-            vm.togglePlayPause()
-        }
         .onPlayPauseCommand {
             vm.togglePlayPause()
         }
@@ -680,6 +677,7 @@ public struct PlayerView: View {
                 .foregroundStyle(.white)
         }
         .buttonStyle(.plain)
+        .accessibilityIdentifier("player.playPauseButton")
     }
 
     private func seekButton(symbol: String, seconds: TimeInterval) -> some View {

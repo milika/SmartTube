@@ -160,4 +160,151 @@ final class TVFocusChainUITests: XCTestCase {
             "player.titleLabel must NOT appear — Esc from video list should NOT play a video"
         )
     }
+
+    // MARK: - Player behaviour tests
+
+    /// Pressing the Menu button while the player is open dismisses the player
+    /// and returns to the Home screen.
+    func testPlayerMenuButtonDismissesPlayer() throws {
+        XCTAssertTrue(
+            chipBar.waitForExistence(timeout: 15),
+            "home.chipBar must appear"
+        )
+
+        guard waitForVideoCards(timeout: 20) else {
+            throw XCTSkip("No video cards loaded within 20 s — network unavailable or feed empty")
+        }
+
+        // Navigate to player: ↓ (tab bar → chips) ↓ (chips → video list) select
+        remote.press(.down)
+        Thread.sleep(forTimeInterval: 0.6)
+        remote.press(.down)
+        Thread.sleep(forTimeInterval: 0.6)
+        remote.press(.select)
+
+        XCTAssertTrue(
+            titleLabel.waitForExistence(timeout: 15),
+            "Player must open after ↓↓ select"
+        )
+
+        // Press Menu — .onExitCommand should call vm.stop() + dismiss()
+        remote.press(.menu)
+
+        // Player is dismissed: titleLabel should disappear
+        let titleGone = XCTNSPredicateExpectation(
+            predicate: NSPredicate(format: "exists == false"),
+            object: titleLabel
+        )
+        XCTWaiter().wait(for: [titleGone], timeout: 5)
+        XCTAssertFalse(titleLabel.exists, "player.titleLabel must disappear after Menu press")
+
+        // Home is restored
+        XCTAssertTrue(
+            chipBar.waitForExistence(timeout: 5),
+            "home.chipBar must reappear after dismissing the player with Menu"
+        )
+    }
+
+    /// Pressing the Play/Pause button while the player is open makes the
+    /// controls overlay appear (playPauseButton becomes visible in the HUD).
+    func testPlayPauseCommandShowsControlsOverlay() throws {
+        XCTAssertTrue(
+            chipBar.waitForExistence(timeout: 15),
+            "home.chipBar must appear"
+        )
+
+        guard waitForVideoCards(timeout: 20) else {
+            throw XCTSkip("No video cards loaded within 20 s — network unavailable or feed empty")
+        }
+
+        // Open the player
+        remote.press(.down)
+        Thread.sleep(forTimeInterval: 0.6)
+        remote.press(.down)
+        Thread.sleep(forTimeInterval: 0.6)
+        remote.press(.select)
+
+        XCTAssertTrue(
+            titleLabel.waitForExistence(timeout: 15),
+            "Player must open"
+        )
+
+        // Give player a moment to load — controls should be hidden initially
+        Thread.sleep(forTimeInterval: 1.5)
+
+        let playPauseBtn = app.buttons["player.playPauseButton"].firstMatch
+        XCTAssertFalse(
+            playPauseBtn.exists,
+            "player.playPauseButton must NOT be visible before pressing play/pause (controls hidden)"
+        )
+
+        // Press Play/Pause — triggers .onPlayPauseCommand → togglePlayPause() → showControls()
+        remote.press(.playPause)
+        Thread.sleep(forTimeInterval: 0.5)
+
+        XCTAssertTrue(
+            playPauseBtn.waitForExistence(timeout: 5),
+            "player.playPauseButton must appear in the controls HUD after pressing Play/Pause"
+        )
+    }
+
+    /// Pressing ↑ and ↓ on the D-pad while in the player shows the controls
+    /// overlay (D-pad up/down calls toggleControls()).
+    func testDpadUpDownShowsControlsInPlayer() throws {
+        XCTAssertTrue(chipBar.waitForExistence(timeout: 15))
+
+        guard waitForVideoCards(timeout: 20) else {
+            throw XCTSkip("No video cards loaded within 20 s")
+        }
+
+        remote.press(.down)
+        Thread.sleep(forTimeInterval: 0.6)
+        remote.press(.down)
+        Thread.sleep(forTimeInterval: 0.6)
+        remote.press(.select)
+
+        XCTAssertTrue(titleLabel.waitForExistence(timeout: 15), "Player must open")
+        Thread.sleep(forTimeInterval: 1.5)
+
+        let playPauseBtn = app.buttons["player.playPauseButton"].firstMatch
+        XCTAssertFalse(playPauseBtn.exists, "Controls must be hidden initially")
+
+        // D-pad up → toggleControls() → controlsVisible = true
+        remote.press(.up)
+        Thread.sleep(forTimeInterval: 0.5)
+
+        XCTAssertTrue(
+            playPauseBtn.waitForExistence(timeout: 5),
+            "player.playPauseButton must appear after pressing D-pad up in the player"
+        )
+    }
+
+    /// Pressing ← or → in the player keeps the player open (seek, not dismiss).
+    func testLeftRightDpadSeeksWithinPlayer() throws {
+        XCTAssertTrue(chipBar.waitForExistence(timeout: 15))
+
+        guard waitForVideoCards(timeout: 20) else {
+            throw XCTSkip("No video cards loaded within 20 s")
+        }
+
+        remote.press(.down)
+        Thread.sleep(forTimeInterval: 0.6)
+        remote.press(.down)
+        Thread.sleep(forTimeInterval: 0.6)
+        remote.press(.select)
+
+        XCTAssertTrue(titleLabel.waitForExistence(timeout: 15), "Player must open")
+        Thread.sleep(forTimeInterval: 2.0)   // let a few seconds of video load
+
+        // Seek left (-10 s) and right (+10 s) — player must stay open
+        remote.press(.left)
+        Thread.sleep(forTimeInterval: 0.5)
+        remote.press(.right)
+        Thread.sleep(forTimeInterval: 0.5)
+
+        XCTAssertTrue(
+            titleLabel.exists,
+            "player.titleLabel must still exist after left/right D-pad seeks"
+        )
+    }
 }
