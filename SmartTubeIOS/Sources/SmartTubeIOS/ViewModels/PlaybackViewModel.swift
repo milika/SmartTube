@@ -86,6 +86,10 @@ public final class PlaybackViewModel {
     @ObservationIgnored nonisolated(unsafe) private var audioSessionObserver: Any?
     /// Prevents infinite retry loops: set once the first fallback attempt has been made.
     private var hasRetriedPlayback: Bool = false
+    /// True while a SponsorBlock auto-skip seek is in-flight. Guards against the periodic
+    /// time observer re-triggering `checkSponsorSkip` before the seek completes, which
+    /// causes the end-of-video twitch / audio loop.
+    private var isSkippingSegment: Bool = false
     private var itemObserverTask: Task<Void, Never>?
     private var endObserverTask: Task<Void, Never>?
     private var controlsTimer: Task<Void, Never>?
@@ -236,7 +240,6 @@ public final class PlaybackViewModel {
         playerLog.notice("[resume] resume() called — currentVideo=\(self.currentVideo?.id ?? "nil", privacy: .public)")
         wasPlayingBeforeSuspend = false
         player.play()
-        player.rate = Float(settings.playbackSpeed)
         isPlaying = true
         showControls()
         #if canImport(UIKit)
@@ -666,12 +669,7 @@ public final class PlaybackViewModel {
     // MARK: - Playback controls
 
     public func togglePlayPause() {
-        if isPlaying {
-            player.pause()
-        } else {
-            player.play()
-            player.rate = Float(settings.playbackSpeed)
-        }
+        if isPlaying { player.pause() } else { player.play() }
         isPlaying.toggle()
         showControls()
         #if canImport(UIKit)
@@ -759,12 +757,7 @@ public final class PlaybackViewModel {
     }
 
     public func setPlaybackSpeed(_ speed: Double) {
-        // Only update the live rate when the player is actively playing.
-        // Setting player.rate to a non-zero value on a paused AVPlayer
-        // restarts playback, which would override an intentional user pause.
-        if isPlaying {
-            player.rate = Float(speed)
-        }
+        player.rate = Float(speed)
     }
 
     // MARK: - Controls visibility
@@ -824,8 +817,36 @@ public final class PlaybackViewModel {
         if let seg = sponsorSegments.first(where: { time >= $0.start && time < $0.end }) {
             switch settings.sponsorAction(for: seg.category) {
             case .skip:
+                // Guard: don't re-trigger while a seek is already in-flight. Without this
+                // the 0.5 s time observer fires again before the seek completes and issues
+                // another seek, producing the end-of-video twitch / 500 ms audio loop.
+                guard !isSkippingSegment else { return true }
                 currentToastSegment = nil
-                seek(to: seg.end)
+                // If the segment reaches (or exceeds) the video end, seeking would clamp
+                // to the last decodable frame and never fire didPlayToEndTimeNotification,
+                // leaving the player stuck in the segment window forever. Treat it as a
+                // natural end instead.
+                let effectiveDuration = player.currentItem?.duration.seconds ?? duration
+                if effectiveDuration > 0 && seg.end >= effectiveDuration - 0.5 {
+                    handlePlaybackEnd()
+                    return true
+                }
+                isSkippingSegment = true
+                // Use toleranceAfter so the seek always lands at or past seg.end even when
+                // there is no keyframe at exactly that timestamp. This prevents the seek from
+                // returning finished=false, resetting the guard, and immediately re-entering
+                // the skip loop.
+                player.seek(
+                    to: CMTime(seconds: seg.end, preferredTimescale: 600),
+                    toleranceBefore: .zero,
+                    toleranceAfter: CMTime(seconds: 0.5, preferredTimescale: 600)
+                ) { [weak self] finished in
+                    Task { @MainActor [weak self] in
+                        guard let self else { return }
+                        if finished { self.currentTime = seg.end }
+                        self.isSkippingSegment = false
+                    }
+                }
                 return true
             case .showToast:
                 currentToastSegment = seg
@@ -843,8 +864,13 @@ public final class PlaybackViewModel {
     /// Manually skip the segment shown in `currentToastSegment` (called by the view's skip button).
     public func skipToastSegment() {
         guard let seg = currentToastSegment else { return }
-        seek(to: seg.end)
         currentToastSegment = nil
+        let effectiveDuration = player.currentItem?.duration.seconds ?? duration
+        if effectiveDuration > 0 && seg.end >= effectiveDuration - 0.5 {
+            handlePlaybackEnd()
+            return
+        }
+        seek(to: seg.end)
         showControls()
     }
 

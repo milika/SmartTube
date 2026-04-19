@@ -143,7 +143,7 @@ private struct DownloadPlaceholderWidget: Widget {
         }
         .configurationDisplayName("SmartTube Download")
         .description("Shows download progress in the Dynamic Island.")
-        .supportedFamilies([.systemSmall])
+        .supportedFamilies([.systemSmall, .systemMedium, .systemLarge])
     }
 }
 
